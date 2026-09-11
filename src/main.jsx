@@ -165,7 +165,7 @@ function AuthPanel({ type, onClose, onSwitch }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const roles = {
     farmer: { title: 'Farmer', description: 'Sell fresh produce directly to buyers.', icon: '🌱', fields: [['Farm or producer name', 'Enter your farm name', 'farm_name'], ['Primary crops', 'e.g. Rice, vegetables, fruits', 'primary_crops'], ['Crop type', 'e.g. Cereal, vegetable, fruit', 'crop_type'], ['Specific crop type', 'e.g. Basmati rice, Alphonso mango', 'specific_crop_type'], ['Current turnover (₹)', 'e.g. 150000', 'turnover'], ['Expected turnover (₹)', 'e.g. 200000', 'expected_turnover'], ['Aadhaar number', 'Enter 12-digit Aadhaar number', 'aadhaar_number'], ['Crop location', 'Village, district, state', 'crop_location'], ['Area of crop (acres)', 'e.g. 2.5', 'area_of_crop'], ['Survey number', 'Enter the land survey number', 'survey_number']] },
-    buyer: { title: 'Bulk Buyer', description: 'Source produce for your business or institution.', icon: '🏪', fields: [['Business name', 'Enter your business name', 'business_name'], ['Business type', 'Retailer, hotel, processor…', 'business_type'], ['GSTIN (optional)', 'Enter GSTIN', 'gstin']] },
+    buyer: { title: 'Bulk Buyer', description: 'Source produce for your business or institution.', icon: '🏪', fields: [['Name', 'Enter your name or organisation name', 'name'], ['Address', 'Enter your address', 'address'], ['Pincode', 'Enter your pincode', 'pincode']] },
     logistics: { title: 'Logistics Provider', description: 'Offer transport and delivery services.', icon: '🚚', fields: [['Company name', 'Enter your company name', 'company_name'], ['Service areas', 'Cities or districts you cover', 'service_areas'], ['Fleet / vehicle details', 'e.g. Refrigerated truck, mini van', 'fleet_details']] },
     service: { title: 'Service Provider', description: 'Provide farm-related services and support.', icon: '🛠', fields: [['Business or service name', 'Enter your business name', 'business_name'], ['Service category', 'e.g. Equipment, advisory, packaging', 'service_category'], ['Service areas', 'Cities or districts you cover', 'service_areas']] },
   }
@@ -189,7 +189,7 @@ function AuthPanel({ type, onClose, onSwitch }) {
       if (isRegister) {
         if (password !== formData.get('confirmPassword')) throw new Error('Passwords do not match.')
         const registrationDetails = Object.fromEntries(selectedRole.fields.map(([, , name]) => [name, formData.get(name)]))
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -204,10 +204,19 @@ function AuthPanel({ type, onClose, onSwitch }) {
           },
         })
         if (error) throw error
-        setSubmitted(true)
+        if (data.session) {
+          onClose()
+        } else {
+          setSubmitted(true)
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
+        if (error) {
+          error.message = error.code === 'email_not_confirmed'
+            ? 'Please confirm your email first. Check your inbox for the confirmation link.'
+            : error.message
+          throw error
+        }
         onClose()
       }
     } catch (error) {
@@ -266,7 +275,7 @@ function AuthPanel({ type, onClose, onSwitch }) {
           </div>}
           <label>Email address<input name="email" type="email" placeholder="you@example.com" required /></label>
           {isRegister && <label>Phone number<input name="phone" type="tel" placeholder="+91 00000 00000" required /></label>}
-          {isRegister && selectedRole.fields.map(([label, placeholder, name]) => <label key={name}>{label}<input name={name} type={['area_of_crop', 'turnover', 'expected_turnover'].includes(name) ? 'number' : 'text'} step={name === 'area_of_crop' ? '0.01' : undefined} min={['area_of_crop', 'turnover', 'expected_turnover'].includes(name) ? '0' : undefined} placeholder={placeholder} required={name !== 'gstin'} /></label>)}
+          {isRegister && selectedRole.fields.map(([label, placeholder, name]) => <label key={name}>{label}<input name={name} type={['area_of_crop', 'turnover', 'expected_turnover'].includes(name) ? 'number' : 'text'} inputMode={name === 'pincode' ? 'numeric' : undefined} step={name === 'area_of_crop' ? '0.01' : undefined} min={['area_of_crop', 'turnover', 'expected_turnover'].includes(name) ? '0' : undefined} placeholder={placeholder} required={name !== 'gstin'} /></label>)}
           <label>Password<input name="password" type="password" placeholder="Enter your password" minLength="6" required /></label>
           {isRegister && <label>Confirm password<input name="confirmPassword" type="password" placeholder="Re-enter your password" minLength="6" required /></label>}
           {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
