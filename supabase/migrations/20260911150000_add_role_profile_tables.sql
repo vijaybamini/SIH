@@ -31,6 +31,7 @@ create table public.service_providers (
 
 create table public.farmer_profiles (
   farmer_id uuid primary key references public.farmers(profile_id) on delete cascade,
+  aadhaar_number text,
   crop_location text,
   area_of_crop numeric(12, 2),
   survey_number text,
@@ -74,8 +75,8 @@ begin
     when 'farmer' then
       insert into public.farmers (profile_id, farm_name, primary_crops)
       values (new.id, new.raw_user_meta_data -> 'registration_details' ->> 'farm_name', new.raw_user_meta_data -> 'registration_details' ->> 'primary_crops');
-      insert into public.farmer_profiles (farmer_id, crop_location, area_of_crop, survey_number)
-      values (new.id, new.raw_user_meta_data -> 'registration_details' ->> 'crop_location', nullif(new.raw_user_meta_data -> 'registration_details' ->> 'area_of_crop', '')::numeric, new.raw_user_meta_data -> 'registration_details' ->> 'survey_number');
+      insert into public.farmer_profiles (farmer_id, aadhaar_number, crop_location, area_of_crop, survey_number)
+      values (new.id, new.raw_user_meta_data -> 'registration_details' ->> 'aadhaar_number', new.raw_user_meta_data -> 'registration_details' ->> 'crop_location', nullif(new.raw_user_meta_data -> 'registration_details' ->> 'area_of_crop', '')::numeric, new.raw_user_meta_data -> 'registration_details' ->> 'survey_number');
     when 'buyer' then
       insert into public.bulk_buyers (profile_id, business_name, business_type, gstin)
       values (new.id, new.raw_user_meta_data -> 'registration_details' ->> 'business_name', new.raw_user_meta_data -> 'registration_details' ->> 'business_type', new.raw_user_meta_data -> 'registration_details' ->> 'gstin');
@@ -95,8 +96,8 @@ select id, registration_details ->> 'farm_name', registration_details ->> 'prima
 from public.profiles where role = 'farmer'
 on conflict (profile_id) do nothing;
 
-insert into public.farmer_profiles (farmer_id, crop_location, area_of_crop, survey_number)
-select id, registration_details ->> 'crop_location', nullif(registration_details ->> 'area_of_crop', '')::numeric, registration_details ->> 'survey_number'
+insert into public.farmer_profiles (farmer_id, aadhaar_number, crop_location, area_of_crop, survey_number)
+select id, registration_details ->> 'aadhaar_number', registration_details ->> 'crop_location', nullif(registration_details ->> 'area_of_crop', '')::numeric, registration_details ->> 'survey_number'
 from public.profiles where role = 'farmer'
 on conflict (farmer_id) do nothing;
 
