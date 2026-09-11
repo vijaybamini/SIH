@@ -1,0 +1,196 @@
+{
+  "meta": {
+    "config_version": "3.0",
+    "last_updated": "2026-09-12",
+    "currency": "INR",
+    "changelog_v3": "Replaced the v2 market_rate_position/adjustments delta system with a direct, simpler formula: market_benchmark = market midpoint; recommended_freight = market_weight*market_benchmark + cost_weight*cost_floor, floored at cost_floor (never below). Market comparison now uses recommended_freight, not customer_pays (commission no longer distorts the market-competitiveness read). Removed the maximum_driver_margin_pct hard clamp on driver payout — driver_payout now equals recommended_freight directly, margin is reported (never forced down), with target/maximum margin kept only as reference figures. Added MARKET_BELOW_COST_FLOOR / market_vs_cost_status. Split maintenance and depreciation into separate cost lines (previously combined); split insurance and permits into separate overhead lines. Revised heavy-vehicle loaded mileage upward (v2's 3.5 km/l for a 16-20T truck was on the pessimistic end of the single source found; 4.0-5.0 km/l is used per operator-reported ranges, flagged as an adjusted assumption pending real fleet data). Renamed several config keys to match this spec exactly (grain_rate_per_tonne, overnight_allowance, average_driving_hours_per_day, maximum_fraction_of_freight, empty_return.{no_backhaul,established_corridor,thin_corridor,default}).",
+    "update_frequency_guidance": {
+      "fuel.diesel_price_per_litre": "Update weekly/daily.",
+      "tolls": "Update monthly, or replace with live toll-routing API output per trip.",
+      "vehicle_classes.*.market_rate_per_km_range": "Update monthly — these move faster than cost inputs.",
+      "driver / overheads / vehicle_classes maintenance-depreciation-mileage": "Update quarterly, ideally against real fleet telemetry.",
+      "pricing_model / platform": "Business decision — revisit quarterly against acceptance-rate and market data."
+    },
+    "value_type_legend": {
+      "observed": "Directly reported by a named source on/near the stated date.",
+      "researched_estimate": "Derived from a range/benchmark reported by sources; a point estimate was chosen and is labeled as such.",
+      "assumption": "Not directly sourced; a modelling assumption made for lack of exact data, flagged for review.",
+      "business_decision": "A target/policy value supplied for this system rather than an external market observation."
+    }
+  },
+
+  "fuel": {
+    "diesel_price_per_litre": {
+      "value": 104.0,
+      "type": "observed",
+      "region": "Hyderabad, Telangana",
+      "source": "The Hans India, fuel price roundup",
+      "date_observed": "2026-09-11",
+      "note": "National average the same day was ~₹97.8/L (Goodreturns). Swap in the local city rate when known. Overridable per-call via diesel_price_override."
+    }
+  },
+
+  "vehicle_classes": {
+    "mini_lcv": {
+      "label": "Mini/LCV truck (Tata Ace/407, Ashok Leyland Dost class)",
+      "max_payload_kg": {"value": 2500, "type": "observed", "source": "OEM payload spec range for Tata 407-class LCVs, TruckJunction, 2026."},
+      "mileage_loaded_kmpl": {"value": 8.0, "type": "researched_estimate", "source": "Tata 407 Gold SFC unladen-tested mileage 6.9-10 kmpl (TruckJunction); reduced ~15-20% for typical load."},
+      "mileage_empty_kmpl": {"value": 9.5, "type": "researched_estimate", "source": "Same basis, empty closer to tested kmpl."},
+      "maintenance_per_km": {"value": 1.5, "type": "researched_estimate", "source": "TruckGuru: ₹2-3/km maintenance & tyres for medium trucks, scaled down for a smaller LCV."},
+      "depreciation_per_km": {"value": 2.0, "type": "researched_estimate", "source": "EMI/depreciation ₹20,000-50,000/month (TruckGuru) ÷ ~4,000-6,000 km/month for a small operator."},
+      "market_rate_per_km_range": [18, 22, 28]
+    },
+    "medium_lcv": {
+      "label": "Medium LCV / 14-17ft truck (Eicher/Ashok Leyland 6-tyre class, 7-9T)",
+      "max_payload_kg": {"value": 9000, "type": "observed", "source": "Freight-rate tables (Shipzip/Okararoadways), 'Medium Trucks (9-12 ton)' band, upper bound used, 2026."},
+      "mileage_loaded_kmpl": {"value": 7.0, "type": "researched_estimate", "source": "Ashok Leyland Partner 6-Tyre unladen mileage 8.5 kmpl (TruckJunction), reduced ~18% for typical load."},
+      "mileage_empty_kmpl": {"value": 8.5, "type": "observed", "source": "TruckJunction, Ashok Leyland Partner 6-Tyre mileage spec."},
+      "maintenance_per_km": {"value": 2.5, "type": "researched_estimate", "source": "TruckGuru: ₹2-3/km maintenance & tyres, 2026."},
+      "depreciation_per_km": {"value": 4.0, "type": "researched_estimate", "source": "EMI/depreciation ₹20,000-50,000/month ÷ ~6,000-7,000 km/month typical medium-truck utilisation."},
+      "market_rate_per_km_range": [25, 30, 35]
+    },
+    "heavy_10w": {
+      "label": "Heavy 10-wheeler (16-20T, e.g. Ashok Leyland 2518/2523)",
+      "max_payload_kg": {"value": 20000, "type": "observed", "source": "Shipzip '10-Wheeler Trucks (16-20 ton)' band, upper bound used, 2025-26."},
+      "mileage_loaded_kmpl": {"value": 4.5, "type": "researched_estimate", "source": "ADJUSTED (v3): BiggWheels TCO guide cited ~3.5 km/l for 12-tyre configs (2026), but that was the only single source found and sits at the pessimistic end of operator-reported ranges. 4.5 km/l is used per a 4.0-5.0 km/l operator-reported range for well-maintained BS6 heavy trucks on good highway stretches; still flagged for validation against real fleet telemetry."},
+      "mileage_empty_kmpl": {"value": 5.5, "type": "researched_estimate", "source": "Interpolated ~20-25% better than loaded, standard heavy-truck behaviour, scaled from the adjusted loaded figure above."},
+      "maintenance_per_km": {"value": 3.5, "type": "researched_estimate", "source": "Scaled up from TruckGuru ₹2-3/km benchmark for higher axle/tyre count."},
+      "depreciation_per_km": {"value": 6.0, "type": "researched_estimate", "source": "Scaled from Fleetable's ₹8-15/km all-in TCO benchmark, net of fuel/toll/driver/maintenance shares."},
+      "market_rate_per_km_range": [32, 38, 45]
+    },
+    "multi_axle": {
+      "label": "Multi-axle / container truck (20-32T, 18-tyre / 32ft)",
+      "max_payload_kg": {"value": 32000, "type": "observed", "source": "Shipzip 'Multi-Axle & Container Trucks (20-40 ton)' band, mid-upper bound used, 2025-26."},
+      "mileage_loaded_kmpl": {"value": 3.5, "type": "researched_estimate", "source": "ADJUSTED (v3): BiggWheels cited ~2.5 km/l for 18-tyre setups (2026); raised toward the middle of a plausible 3.0-4.0 km/l operator-reported range for well-maintained rigs, consistent with the same upward revision applied to heavy_10w. Flagged for validation against real fleet telemetry."},
+      "mileage_empty_kmpl": {"value": 4.3, "type": "researched_estimate", "source": "Interpolated ~20-25% better than loaded."},
+      "maintenance_per_km": {"value": 4.5, "type": "researched_estimate", "source": "Scaled from TruckGuru benchmark for the largest vehicle class."},
+      "depreciation_per_km": {"value": 8.0, "type": "researched_estimate", "source": "FR8.in: financed 32ft MXL container fixed costs spread over 6,000-8,000 km/month typical utilisation."},
+      "market_rate_per_km_range": [40, 50, 65]
+    },
+    "reefer_medium": {
+      "label": "Refrigerated medium truck (7-9T box, fruit & vegetable long-haul)",
+      "base_class": "medium_lcv",
+      "max_payload_kg": {"value": 8500, "type": "researched_estimate", "note": "Slightly below base_class max_payload_kg — insulation panels and the reefer unit add tare weight, reducing usable payload versus an equivalent non-reefer body."},
+      "market_rate_per_km_range": [36, 42, 50]
+    },
+    "reefer_heavy": {
+      "label": "Refrigerated heavy truck (12-19T box, long-haul fruit/vegetable/dairy)",
+      "base_class": "heavy_10w",
+      "max_payload_kg": {"value": 19000, "type": "researched_estimate", "note": "Slightly below base_class max_payload_kg for the same insulation/reefer-unit tare-weight reason."},
+      "market_rate_per_km_range": [45, 55, 65]
+    }
+  },
+
+  "vehicle_selection": {
+    "preferred_utilization_pct": {"value": 85, "type": "business_decision", "note": "Target load factor — close to full without zero slack."},
+    "maximum_utilization_pct": {"value": 90, "type": "business_decision", "note": "Hard ceiling. required_capacity_kg = shipment_weight_kg / 0.90; a vehicle only qualifies if its max_payload_kg >= required_capacity_kg. Equivalently: a vehicle's SAFE capacity is max_payload_kg x 0.90 — a shipment must not exceed that."},
+    "minimum_headroom_kg": {"value": 100, "type": "business_decision", "note": "Extra absolute-kg safety margin required on top of the utilization ceiling, mainly relevant for the smallest vehicle class."}
+  },
+
+  "pricing_model": {
+    "market_weight": {"value": 0.70, "type": "business_decision", "note": "Weight given to the market benchmark (the published mid rate x distance) when forming recommended_freight."},
+    "cost_weight": {"value": 0.30, "type": "business_decision", "note": "Weight given to cost_floor when forming recommended_freight. market_weight + cost_weight should sum to 1.0."},
+    "market_rate_position": {"value": 0.50, "type": "business_decision", "note": "Retained for future use/documentation only. The current formula uses the configured mid value from market_rate_per_km_range directly as market_benchmark, NOT a recomputed low+position*(high-low) interpolation, so this field does not currently change engine output."},
+    "minimum_driver_margin_pct": {"value": 10, "type": "business_decision", "note": "Enforced: recommended_freight can never fall below operating_cost x (1 + this)."},
+    "target_driver_margin_pct": {"value": 15, "type": "business_decision", "note": "Reference/analysis figure only — reported alongside the actual margin achieved, not used to force a specific driver_payout."},
+    "maximum_driver_margin_pct": {"value": 25, "type": "business_decision", "note": "Reference/analysis figure only (v3 no longer clamps driver_payout to this — a favourable market can legitimately pay the driver more; the figure is reported for monitoring, not enforced as a ceiling)."}
+  },
+
+  "toll": {
+    "use_actual_route_toll_if_available": true,
+    "fallback_truck_per_plaza": {"value": 300, "type": "researched_estimate", "range": [250, 400], "source": "assureshift.in: NHAI toll rates for heavy vehicles typically ₹250-400/plaza, 2026."},
+    "fallback_lcv_per_plaza": {"value": 170, "type": "assumption", "note": "No single published all-India LCV/Class-2 average found; modelled at ~55-60% of the truck-class fee per NHAI's axle-based tiering."},
+    "average_plaza_spacing_km": {"value": 65, "type": "assumption", "note": "Derived from cited corridor tolls (~₹3-5/km cumulative, Okararoadways) divided by the per-plaza fee; used only as a fallback when plaza count is unknown."},
+    "return_toll_recovery_pct": {"value": 20, "type": "assumption", "source": "TollGuru/NHAI note a discounted return-trip rate applies within ~24h at many plazas; exact discount varies by plaza, so this is a conservative modelling assumption for the discount itself (separate from empty_return, which governs how much of that discounted return toll the customer bears)."}
+  },
+
+  "driver": {
+    "local_day_rate": {"value": 900, "type": "researched_estimate", "range": [700, 900], "source": "Indeed India: avg. truck driver salary ₹20,460/month (25th-75th pctile ₹10,434-₹40,121), 2026, converted to a ~26-working-day basis."},
+    "long_haul_day_rate": {"value": 1100, "type": "researched_estimate", "range": [800, 1200], "source": "assureshift.in: driver wages add ₹2,400-3,600 to a 3-day Delhi-Mumbai trip (≈₹800-1,200/day bata), 2026."},
+    "overnight_allowance": {"value": 300, "type": "assumption", "note": "Separate night-out allowance paid on top of running bata; not independently sourced at a specific figure."},
+    "second_driver_distance_threshold_km": {"value": 500, "type": "assumption", "note": "One-way distance beyond which a relief/second driver is added; all-India regulatory driving-hour limits are not centrally published in a single source, so this is a conservative planning assumption."},
+    "average_driving_hours_per_day": {"value": 9, "type": "assumption", "note": "Conservative single-driver safe-driving-hours assumption."},
+    "average_speed_kmph": {"value": 40, "type": "assumption", "note": "Blended average accounting for highway + city driving + loading/mandi delays. Not independently sourced as a single figure. Combined with average_driving_hours_per_day this gives achievable same-day distance and multi-day trip length; used instead of a hardcoded km threshold."}
+  },
+
+  "overheads": {
+    "annual_insurance": {"value": 55000, "type": "researched_estimate", "range": [30000, 80000], "source": "TruckGuru: commercial vehicle insurance ₹30,000-80,000/year depending on truck type and insured value, 2026."},
+    "annual_permits": {"value": 32500, "type": "researched_estimate", "range": [15000, 50000], "source": "TruckGuru: interstate permits, fitness certificates, national permits ₹15,000-50,000/year, 2026."},
+    "trips_per_year": {"value": 300, "type": "assumption", "note": "Assumed revenue-trip count used only to amortise the two annual fixed costs above into a per-trip figure; tune once real fleet-utilisation data exists."}
+  },
+
+  "loading_unloading": {
+    "grain_rate_per_tonne": {"value": 280, "type": "observed", "source": "AP Civil Supplies hamali wage ₹28/quintal (=₹280/tonne) for loading/unloading foodgrain, The Hans India, Sep-2026 (union sought revision to ₹40/quintal = ₹400/tonne)."},
+    "perishable_multiplier": {"value": 1.30, "type": "assumption", "note": "Vegetables: careful crate handling vs. sacked grain. No published India-wide differential rate exists; flagged for calibration against real operator data."},
+    "fruit_multiplier": {"value": 1.40, "type": "assumption", "note": "Fruits: stricter handling than vegetables (bruising risk), slightly higher than the vegetable multiplier."},
+    "grain_multiplier": {"value": 1.00, "type": "observed", "note": "The base hamali rate above was itself observed for sacked/bulk foodgrain, so no uplift is applied."},
+    "minimum_handling_fee": {"value": 400, "type": "assumption"},
+    "maximum_fraction_of_freight": {"value": 0.12, "type": "business_decision", "note": "Handling cost is capped at this fraction of market_freight_mid so a large per-tonne handling charge on a small load cannot distort the quote."}
+  },
+
+  "reefer_rules": {
+    "note": "No single published India-wide threshold exists for when refrigeration becomes necessary; these are modelling assumptions based on general cold-chain literature, flagged for per-commodity refinement.",
+    "vegetables": {"distance_threshold_km": 300, "hot_season_distance_threshold_km": 150, "type": "assumption"},
+    "fruits": {"distance_threshold_km": 150, "hot_season_distance_threshold_km": 80, "type": "assumption", "note": "Stricter (lower) thresholds than vegetables — most fruit is more perishable/bruise-prone than hardier vegetables (potato, onion), though this varies a lot by specific item."},
+    "rice": {"distance_threshold_km": null, "type": "assumption", "note": "Never auto-selected; only used if force_reefer=True explicitly overrides."},
+    "other_grain": {"distance_threshold_km": null, "type": "assumption", "note": "Same as rice."}
+  },
+
+  "reefer": {
+    "fuel_penalty_pct": {"value": 15, "type": "researched_estimate", "range": [10, 15], "source": "Okararoadways: 'refrigerated trucks cost 10-15% more' than standard trucking on the same route, 2026 — applied once per leg, to the fuel line only, representing genset/cooling energy draw."},
+    "additional_maintenance_per_km": {"value": 1.5, "type": "assumption", "note": "Extra upkeep for the refrigeration unit itself, distinct from the fuel-energy cost above."},
+    "additional_depreciation_per_km": {"value": 2.5, "type": "researched_estimate", "source": "Rinac 2026: a 20-40ft reefer container/body adds ₹5-15 lakh over a standard body — this is the amortised per-km cost of that extra capex, distinct from both the fuel penalty and the elevated reefer market rate (which reflects market perception/scarcity, not the operator's own cost)."}
+  },
+
+  "empty_return": {
+    "logic": "backhaul_available=True -> recovery = no_backhaul (0%, the return leg is covered by a paying backhaul so the customer bears none of it). backhaul_available=False -> recovery = established_corridor (15%) or thin_corridor (30%) depending on corridor_type, or `default` (30%) if corridor_type is unrecognised. Forward and return legs are each computed once, over the one-way distance, using leg-specific parameters (empty mileage, discounted toll, symmetric driver-days) — never by doubling total distance and then also applying a recovery percentage on top.",
+    "no_backhaul": {"value": 0.00, "type": "business_decision", "note": "Applied when backhaul_available=True — despite the key name, this represents 'no [customer-borne] empty-return cost', not 'backhaul unavailable'."},
+    "established_corridor": {"value": 0.15, "type": "assumption", "note": "Well-travelled corridors (state/district-capital pairs, mandi-to-city routes) where backhaul is likely even if not pre-booked."},
+    "thin_corridor": {"value": 0.30, "type": "assumption", "note": "One-way-heavy or remote routes. Lowered from the earlier 50% assumption per explicit instruction not to use that figure as a default."},
+    "default": {"value": 0.30, "type": "assumption", "note": "Used when corridor_type is neither 'established' nor 'thin'."},
+    "maximum_recovery_pct": {"value": 0.50, "type": "business_decision", "note": "Hard safety clamp — recovery_pct is never allowed to exceed this, regardless of corridor_type input."}
+  },
+
+  "gst": {
+    "gta_rate_without_itc_pct": {"value": 5, "type": "observed", "source": "TruckGuru: GST on GTA services is 5% without ITC or 12% with ITC; most SME shippers use the 5% no-ITC option, 2026.", "note": "Typically payable by the registered consignor/consignee under reverse charge — shown separately, not folded into 'customer_pays'."}
+  },
+
+  "platform": {
+    "commission_pct": {"value": 10, "type": "business_decision", "range_observed_elsewhere": [10, 20], "source": "BlackBuck charges 10-20% commission on freight value; Porter charges 15-20% (multiple sources, 2026). 10% set at the low end of the observed band to stay competitive on thin-margin agri freight. Lowered from an earlier 12% starting point per explicit instruction."},
+    "minimum_fare": {"value": 1200, "type": "assumption", "note": "Floor so genuinely small trips still cover driver call-out and basic overheads; applied only when the computed customer_pays falls below it."}
+  },
+
+  "market_validation": {
+    "below_market_max_ratio": {"value": 0.90, "type": "business_decision", "note": "recommended_freight_per_km / market_mid_per_km below this ratio -> BELOW_MARKET."},
+    "competitive_min_ratio": {"value": 0.90, "type": "business_decision"},
+    "competitive_max_ratio": {"value": 1.10, "type": "business_decision", "note": "Between competitive_min_ratio and this -> COMPETITIVE."},
+    "above_market_max_ratio": {"value": 1.25, "type": "business_decision", "note": "Between competitive_max_ratio and this -> ABOVE_MARKET; beyond this -> SIGNIFICANTLY_ABOVE_MARKET."}
+  },
+
+  "commodity_profiles": {
+    "vegetables": {
+      "perishability": "high",
+      "urgency_class": "high",
+      "handling_multiplier_key": "perishable_multiplier",
+      "always_reefer": false
+    },
+    "fruits": {
+      "perishability": "high",
+      "urgency_class": "high",
+      "handling_multiplier_key": "fruit_multiplier",
+      "always_reefer": false
+    },
+    "rice": {
+      "perishability": "low",
+      "urgency_class": "low",
+      "handling_multiplier_key": "grain_multiplier",
+      "always_reefer": false
+    },
+    "other_grain": {
+      "perishability": "low",
+      "urgency_class": "low",
+      "handling_multiplier_key": "grain_multiplier",
+      "always_reefer": false
+    }
+  }
+}
