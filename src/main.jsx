@@ -164,7 +164,7 @@ function AuthPanel({ type, onClose, onSwitch }) {
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const roles = {
-    farmer: { title: 'Farmer', description: 'Sell fresh produce directly to buyers.', icon: '🌱', fields: [['Farm or producer name', 'Enter your farm name', 'farm_name'], ['Village / district', 'Enter your location', 'location'], ['Primary crops', 'e.g. Rice, vegetables, fruits', 'primary_crops']] },
+    farmer: { title: 'Farmer', description: 'Sell fresh produce directly to buyers.', icon: '🌱', fields: [['Farm or producer name', 'Enter your farm name', 'farm_name'], ['Primary crops', 'e.g. Rice, vegetables, fruits', 'primary_crops'], ['Land details', 'e.g. Owned, leased, irrigated', 'land_details'], ['Crop location', 'Village, district, state', 'crop_location'], ['Area of crop (acres)', 'e.g. 2.5', 'area_of_crop'], ['Survey number', 'Enter the land survey number', 'survey_number']] },
     buyer: { title: 'Bulk Buyer', description: 'Source produce for your business or institution.', icon: '🏪', fields: [['Business name', 'Enter your business name', 'business_name'], ['Business type', 'Retailer, hotel, processor…', 'business_type'], ['GSTIN (optional)', 'Enter GSTIN', 'gstin']] },
     logistics: { title: 'Logistics Provider', description: 'Offer transport and delivery services.', icon: '🚚', fields: [['Company name', 'Enter your company name', 'company_name'], ['Service areas', 'Cities or districts you cover', 'service_areas'], ['Fleet / vehicle details', 'e.g. Refrigerated truck, mini van', 'fleet_details']] },
     service: { title: 'Service Provider', description: 'Provide farm-related services and support.', icon: '🛠', fields: [['Business or service name', 'Enter your business name', 'business_name'], ['Service category', 'e.g. Equipment, advisory, packaging', 'service_category'], ['Service areas', 'Cities or districts you cover', 'service_areas']] },
@@ -266,7 +266,7 @@ function AuthPanel({ type, onClose, onSwitch }) {
           </div>}
           <label>Email address<input name="email" type="email" placeholder="you@example.com" required /></label>
           {isRegister && <label>Phone number<input name="phone" type="tel" placeholder="+91 00000 00000" required /></label>}
-          {isRegister && selectedRole.fields.map(([label, placeholder, name]) => <label key={name}>{label}<input name={name} type="text" placeholder={placeholder} required={name !== 'gstin'} /></label>)}
+          {isRegister && selectedRole.fields.map(([label, placeholder, name]) => <label key={name}>{label}<input name={name} type={name === 'area_of_crop' ? 'number' : 'text'} step={name === 'area_of_crop' ? '0.01' : undefined} min={name === 'area_of_crop' ? '0' : undefined} placeholder={placeholder} required={name !== 'gstin'} /></label>)}
           <label>Password<input name="password" type="password" placeholder="Enter your password" minLength="6" required /></label>
           {isRegister && <label>Confirm password<input name="confirmPassword" type="password" placeholder="Re-enter your password" minLength="6" required /></label>}
           {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
