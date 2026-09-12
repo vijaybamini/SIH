@@ -39,6 +39,23 @@ def _pipeline():
         raise HTTPException(status_code=503, detail=f"Pipeline unavailable: {exc}")
 
 
+@app.on_event("startup")
+def _warm_dataset_cache():
+    """Parses the ~1M-row Agmarknet CSV once at boot instead of on whichever
+    request happens to arrive first. Loading it lazily on first request was
+    intermittently taking 20s+ (sometimes far longer) on Render's
+    resource-constrained free tier, which made /api/quote look hung even
+    though the pipeline itself was fine -- confirmed via /api/debug-quote.
+    Failure here is non-fatal (falls back to the existing lazy-load-on-first-
+    use behavior, same error handling as before) so a startup hiccup never
+    prevents the server itself from coming up."""
+    try:
+        from pipeline import load_dataset
+        load_dataset()
+    except Exception as exc:  # noqa: BLE001 -- best-effort warmup, never blocks boot
+        print(f"Dataset warmup failed (will retry lazily on first request): {exc}")
+
+
 @app.get("/")
 def home():
     return {"message": "FarmDirect AI backend is running", "build": "debug-quote-hang-2026-09-13a"}
