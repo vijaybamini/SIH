@@ -363,26 +363,86 @@ def forecast_for(df: pd.DataFrame, commodity: str, market: str,
     }
 
 
+def _recent_average_fallback(df: pd.DataFrame, commodity: str, market: str,
+                              forecast_days: int, reason: str) -> Tuple[Dict[str, Any], str]:
+    rows = df.loc[(df["commodity"] == commodity) & (df["market_name"] == market)]
+    recent = float(rows["modal_price"].mean()) if len(rows) else 0.0
+    return {
+        "market": market,
+        "commodity": commodity,
+        "forecast_days": forecast_days,
+        "forecasted_prices_per_quintal": [],
+        "base_price_per_kg": round(recent / _QUINTAL_KG, 2),
+        "last_observed_price_per_kg": round(recent / _QUINTAL_KG, 2),
+        "market_demand_trend_pct": 0.0,
+        "demand_pressure_signal": "STABLE",
+        "backtest": {"mae_per_quintal": None, "mape_pct": None},
+    }, reason
+
+
+# Holt-Winters' .fit() runs a CPU-bound scipy optimization (~0.2-0.7s on a
+# normal machine) that was observed taking 25s+ on Render's free-tier CPU,
+# which is throttled far more aggressively for CPU-bound work than for I/O.
+# Two defenses, mirroring the dataset cache above: (1) a short-TTL result
+# cache so repeat requests for the same commodity/market during a demo are
+# instant instead of re-fitting every time, and (2) a hard wall-clock
+# ceiling via a background thread so a slow fit degrades to the fast
+# recent-average fallback instead of hanging the whole /api/quote request.
+_forecast_cache: Dict[Tuple[str, str, int], Tuple[float, Dict[str, Any], Optional[str]]] = {}
+FORECAST_CACHE_TTL_SECONDS = 600.0
+FORECAST_TIMEOUT_SECONDS = 12.0
+
+
 def forecast_with_fallback(df: pd.DataFrame, commodity: str, market: str,
                            forecast_days: int = 7) -> Tuple[Dict[str, Any], Optional[str]]:
-    """Try the Holt-Winters forecast; if the market lacks enough history,
-    fall back to the recent observed mean (drawdown) with a warning."""
-    rows = df.loc[(df["commodity"] == commodity) & (df["market_name"] == market)]
+    """Try the Holt-Winters forecast (cached, time-boxed); if the market
+    lacks enough history OR the fit doesn't finish within
+    FORECAST_TIMEOUT_SECONDS, fall back to the recent observed mean
+    (drawdown) with a warning instead of hanging the request."""
+    import time
+
+    cache_key = (commodity, market, forecast_days)
+    cached = _forecast_cache.get(cache_key)
+    if cached is not None and (time.monotonic() - cached[0]) < FORECAST_CACHE_TTL_SECONDS:
+        return cached[1], cached[2]
+
+    result_queue: "queue.Queue" = queue.Queue(maxsize=1)
+
+    def _worker():
+        try:
+            result_queue.put(("ok", forecast_for(df, commodity, market, forecast_days)))
+        except ValueError as e:
+            result_queue.put(("value_error", e))
+        except Exception as exc:  # noqa: BLE001 -- reported back, not raised cross-thread
+            result_queue.put(("error", exc))
+
+    threading.Thread(target=_worker, daemon=True).start()
+
     try:
-        return forecast_for(df, commodity, market, forecast_days), None
-    except ValueError as e:
-        recent = float(rows["modal_price"].mean())
-        return {
-            "market": market,
-            "commodity": commodity,
-            "forecast_days": forecast_days,
-            "forecasted_prices_per_quintal": [],
-            "base_price_per_kg": round(recent / _QUINTAL_KG, 2),
-            "last_observed_price_per_kg": round(recent / _QUINTAL_KG, 2),
-            "market_demand_trend_pct": 0.0,
-            "demand_pressure_signal": "STABLE",
-            "backtest": {"mae_per_quintal": None, "mape_pct": None},
-        }, f"forecast fell back to recent average: {e}"
+        status, payload = result_queue.get(timeout=FORECAST_TIMEOUT_SECONDS)
+    except queue.Empty:
+        outcome = _recent_average_fallback(
+            df, commodity, market, forecast_days,
+            f"forecast fell back to recent average: took longer than "
+            f"{FORECAST_TIMEOUT_SECONDS:.0f}s (host under CPU pressure)",
+        )
+        # Deliberately not cached: a slow fit may finish moments later on its
+        # own thread and is worth trying again on the next request rather
+        # than pinning every buyer to the fallback for the full TTL.
+        return outcome
+
+    if status == "ok":
+        outcome = (payload, None)
+    elif status == "value_error":
+        outcome = _recent_average_fallback(
+            df, commodity, market, forecast_days,
+            f"forecast fell back to recent average: {payload}",
+        )
+    else:
+        raise payload
+
+    _forecast_cache[cache_key] = (time.monotonic(), outcome[0], outcome[1])
+    return outcome
 
 
 # --------------------------------------------------------------------------- #

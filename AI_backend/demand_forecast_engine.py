@@ -158,9 +158,14 @@ def forecast_price_trend(df, commodity, market, forecast_days=7):
     train = series[:-forecast_days]
     test = series[-forecast_days:]
 
+    # use_brute=False skips statsmodels' brute-force grid search over initial
+    # optimizer starting points (a handful of extra SSE evaluations that cost
+    # little on a normal CPU but add up on a throttled one) in favor of a
+    # single heuristic starting guess -- roughly 2x faster locally, same
+    # final optimizer, negligible difference in fit quality for a demo.
     model = ExponentialSmoothing(
         train, trend="add", seasonal="add", seasonal_periods=7,
-    ).fit()
+    ).fit(use_brute=False)
     backtest_pred = model.forecast(forecast_days)
     mae = np.mean(np.abs(backtest_pred.values - test.values))
     mape = np.mean(np.abs((backtest_pred.values - test.values) / test.values)) * 100
@@ -168,7 +173,7 @@ def forecast_price_trend(df, commodity, market, forecast_days=7):
     # --- Real forecast: refit on FULL history ---
     full_model = ExponentialSmoothing(
         series, trend="add", seasonal="add", seasonal_periods=7,
-    ).fit()
+    ).fit(use_brute=False)
 
     future_dates = pd.date_range(
         series.index[-1] + pd.Timedelta(days=1), periods=forecast_days, freq="D"
