@@ -174,10 +174,14 @@ export async function saveLogisticsData(userId, formData) {
 
   await updateBasicProfile(userId, { name: profile.name, phone: profile.phone })
 
+  const existingProvider = await readSingle('logistics_providers', 'profile_id', userId)
   const { error: providerError } = await supabase
     .from('logistics_providers')
-    .update({ fleet_details: fleetPayload })
-    .eq('profile_id', userId)
+    .upsert({
+      profile_id: userId,
+      company_name: existingProvider?.company_name || profile.name || 'Logistics provider',
+      fleet_details: fleetPayload,
+    }, { onConflict: 'profile_id' })
   if (providerError) throw providerError
 
   const primary = vehicles[0]
