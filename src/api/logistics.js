@@ -57,10 +57,10 @@ export async function saveLogisticsData(userId, formData) {
   requireSupabase()
   if (!userId) throw new Error('Your account session is missing. Please sign in again.')
 
-  const { error: serviceError } = await supabase.from('logistics_providers').upsert({
-    profile_id: userId,
-    service_type: formData.serviceType,
-  }, { onConflict: 'profile_id' })
+  const { error: serviceError } = await supabase
+    .from('logistics_providers')
+    .update({ service_type: formData.serviceType })
+    .eq('profile_id', userId)
   if (serviceError) throw serviceError
 
   const wantTransport = formData.serviceType === 'transportation' || formData.serviceType === 'both'
