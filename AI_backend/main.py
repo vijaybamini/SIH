@@ -70,7 +70,7 @@ def _warm_dataset_cache():
 
 @app.get("/")
 def home():
-    return {"message": "FarmDirect AI backend is running", "build": "bounded-forecast-2026-09-13d"}
+    return {"message": "FarmDirect AI backend is running", "build": "dedup-single-fit-2026-09-13e"}
 
 
 @app.get("/api/commodities")
