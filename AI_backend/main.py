@@ -41,24 +41,36 @@ def _pipeline():
 
 @app.on_event("startup")
 def _warm_dataset_cache():
-    """Parses the ~1M-row Agmarknet CSV once at boot instead of on whichever
-    request happens to arrive first. Loading it lazily on first request was
-    intermittently taking 20s+ (sometimes far longer) on Render's
-    resource-constrained free tier, which made /api/quote look hung even
-    though the pipeline itself was fine -- confirmed via /api/debug-quote.
-    Failure here is non-fatal (falls back to the existing lazy-load-on-first-
-    use behavior, same error handling as before) so a startup hiccup never
-    prevents the server itself from coming up."""
-    try:
-        from pipeline import load_dataset
-        load_dataset()
-    except Exception as exc:  # noqa: BLE001 -- best-effort warmup, never blocks boot
-        print(f"Dataset warmup failed (will retry lazily on first request): {exc}")
+    """Kicks off dataset parsing on a background thread at boot, instead of
+    on whichever request happens to arrive first.
+
+    MUST NOT block here: FastAPI/Starlette does not accept ANY HTTP
+    requests -- including Render's own healthCheckPath: / -- until every
+    startup handler returns. An earlier version of this called
+    load_dataset() directly (synchronously) in this hook; on a slow/
+    resource-constrained instance that risks the health check itself never
+    succeeding, which would leave Render endlessly retrying a deploy that
+    can never go live while silently continuing to serve the OLD instance
+    on / -- exactly the kind of failure that looks like "the fix never
+    shipped" from the outside. Returning immediately and warming in the
+    background keeps startup (and the health check) fast regardless of how
+    long the parse takes; a request arriving before it's done just falls
+    through to the existing lazy-load-on-first-use path."""
+    import threading
+
+    def _warm():
+        try:
+            from pipeline import load_dataset
+            load_dataset()
+        except Exception as exc:  # noqa: BLE001 -- best-effort warmup, never blocks boot
+            print(f"Dataset warmup failed (will retry lazily on first request): {exc}")
+
+    threading.Thread(target=_warm, daemon=True).start()
 
 
 @app.get("/")
 def home():
-    return {"message": "FarmDirect AI backend is running", "build": "debug-quote-hang-2026-09-13a"}
+    return {"message": "FarmDirect AI backend is running", "build": "nonblocking-startup-2026-09-13b"}
 
 
 @app.get("/api/commodities")
