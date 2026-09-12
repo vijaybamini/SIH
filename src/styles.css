@@ -11,12 +11,12 @@ a { color: inherit; text-decoration: none; }
 .auth-loading { align-items: center; background: #f8faf5; color: #274a32; display: flex; flex-direction: column; height: 100vh; justify-content: center; }
 .auth-loading-mark { align-items: center; background: #2f6b45; border-radius: 12px 12px 12px 3px; color: #e5f2bb; display: flex; font-size: 28px; height: 54px; justify-content: center; margin-bottom: 16px; transform: rotate(-8deg); width: 54px; }
 .auth-loading strong { font-size: 24px; letter-spacing: -.7px; }.auth-loading strong span { color: #799d39; }.auth-loading p { color: #718076; font-size: 13px; margin: 9px 0 0; }
-.topbar { align-items: center; display: flex; gap: 22px; justify-content: space-between; margin: 0 auto; max-width: 1240px; padding: 25px 34px; }
+.topbar { align-items: center; display: flex; flex-wrap: wrap; gap: 22px; justify-content: space-between; margin: 0 auto; max-width: 1240px; padding: 25px 34px; row-gap: 14px; }
 .brand { align-items: center; display: flex; flex-shrink: 0; font-size: 21px; font-weight: 700; gap: 9px; letter-spacing: -.6px; }
 .brand > span:last-child span { color: #799d39; }
 .brand-mark { align-items: center; background: #2f6b45; border-radius: 10px 10px 10px 2px; color: #e5f2bb; display: flex; font-size: 18px; height: 31px; justify-content: center; transform: rotate(-8deg); width: 31px; }
 .nav-links { align-items: center; display: flex; flex: 1; justify-content: center; min-width: 0; }
-.nav-links ul { align-items: center; display: flex; gap: 36px; list-style: none; margin: 0; padding: 0; }
+.nav-links ul { align-items: center; display: flex; flex-wrap: wrap; gap: 24px 36px; justify-content: center; list-style: none; margin: 0; padding: 0; }
 .nav-links a { color: #2c4234; font-size: 16px; font-weight: 600; letter-spacing: -.2px; position: relative; transition: color .2s ease; white-space: nowrap; }
 .nav-links a::after { background: #2f6b45; border-radius: 2px; bottom: -7px; content: ''; height: 2px; left: 0; opacity: 0; position: absolute; transform: scaleX(0); transform-origin: left center; transition: transform .25s ease, opacity .25s ease; width: 100%; }
 .nav-links a:hover { color: #2f6b45; }
