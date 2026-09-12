@@ -224,6 +224,16 @@ form { display: grid; gap: 16px; } label { color: #4b5e50; display: grid; font-s
 .profile-actions .button { font-size: 17px; padding: 15px 26px; }
 .form-section-title { color: #274a32; font-size: 22px; font-weight: 800; margin: 30px 0 2px; }
 .form-note { color: #2f6b45; font-size: 14px; font-weight: 600; margin: 0; margin-right: auto; align-self: center; }
+.service-type-selector { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 6px; }
+.service-type-selector button { align-items: center; background: #fbfcfa; border: 2px solid #dfe6dc; border-radius: 10px; color: #304336; cursor: pointer; display: flex; font-size: 16px; font-weight: 700; gap: 10px; padding: 12px 16px; }
+.service-type-selector button:hover, .service-type-selector button:focus-visible { background: #f1f7eb; border-color: #71953b; outline: none; }
+.service-type-selector button.selected { background: #2f6b45; border-color: #2f6b45; color: white; }
+.service-type-selector button.selected .role-icon { background: rgba(255,255,255,.22); }
+.logistics-section { margin-top: 4px; }
+.logistics-section .crop-section { margin-top: 6px; }
+.logistics-note { margin-top: 12px; }
+.logistics-overview-block { margin-top: 26px; }
+.logistics-overview-block h4 { color: #274a32; font-size: 18px; font-weight: 800; margin: 0 0 12px; }
 .photo-upload-row { align-items: center; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
 .photo-upload-circle { cursor: pointer; display: inline-block; position: relative; }
 .photo-upload-circle input[type='file'] { cursor: pointer; height: 100%; inset: 0; opacity: 0; position: absolute; width: 100%; }

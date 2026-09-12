@@ -35,7 +35,7 @@ function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, onOpen,
   )
 }
 
-const SERVICE_TYPE_LABELS = { storage: 'Storage services', transportation: 'Transportation' }
+const SERVICE_TYPE_LABELS = { storage: 'Storage services', transportation: 'Transportation', both: 'Transportation + Storage' }
 
 export default function LogisticsDashboard({ user, logisticsProfile, language, setLanguage, onOpenCompleteProfile, onLogout }) {
   const t = useTranslation(language)
@@ -102,9 +102,42 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
                   <button className="button button-primary" onClick={onOpenCompleteProfile}>{t.completeProfile}</button>
                 </div>
               ) : (
-                <div className="empty-card">
-                  <p>You're set up as a {SERVICE_TYPE_LABELS[logisticsProfile.serviceType]} provider. No activity yet.</p>
-                </div>
+                <>
+                  <div className="empty-card">
+                    <p>You're set up as a {SERVICE_TYPE_LABELS[logisticsProfile.serviceType]} provider. No activity yet.</p>
+                  </div>
+
+                  {(logisticsProfile.serviceType === 'transportation' || logisticsProfile.serviceType === 'both') && (
+                    <div className="logistics-overview-block">
+                      <h4>Fleet ({logisticsProfile.vehicles?.length || 0} vehicles)</h4>
+                      {logisticsProfile.vehicles?.length ? (
+                        logisticsProfile.vehicles.map((vehicle, index) => (
+                          <div className="summary-crop-card" key={index}>
+                            <strong>{vehicle.type || `Vehicle ${index + 1}`}</strong>
+                            <div className="summary-grid">
+                              <div><span>Registration</span><strong>{vehicle.registration || '—'}</strong></div>
+                              <div><span>Location</span><strong>{vehicle.location || '—'}</strong></div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="panel-subtitle">No vehicles added yet.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {(logisticsProfile.serviceType === 'storage' || logisticsProfile.serviceType === 'both') && (
+                    <div className="logistics-overview-block">
+                      <h4>Cold storage</h4>
+                      <div className="summary-grid">
+                        <div><span>Capacity</span><strong>{logisticsProfile.storage?.capacity ? `${logisticsProfile.storage.capacity} tonnes` : '—'}</strong></div>
+                        <div><span>Location</span><strong>{logisticsProfile.storage?.location || '—'}</strong></div>
+                        <div><span>Filled</span><strong>{logisticsProfile.storage?.fillPercentage !== '' && logisticsProfile.storage?.fillPercentage != null ? `${logisticsProfile.storage.fillPercentage}%` : '—'}</strong></div>
+                        <div><span>Remaining</span><strong>{logisticsProfile.storage?.fillPercentage !== '' && logisticsProfile.storage?.fillPercentage != null ? `${Math.max(0, 100 - (Number(logisticsProfile.storage.fillPercentage) || 0))}%` : '—'}</strong></div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

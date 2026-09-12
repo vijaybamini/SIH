@@ -10,6 +10,7 @@ import CompleteProfileLogistics from './CompleteProfileLogistics'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
 import { loadFarmerData } from './api/farmer'
+import { loadLogisticsData } from './api/logistics'
 
 const stats = [
   { value: '0%', label: 'Unnecessary middlemen', icon: '↘' },
@@ -66,17 +67,25 @@ function App() {
     setCompletingProfile(false)
     setQuickAddCrop(false)
 
-    if (authenticatedUser.role !== 'farmer' || !authenticatedUser.id) {
+    if (!authenticatedUser.id) {
       setAuthStatus('authenticated')
       return
     }
+
     try {
-      const data = await loadFarmerData(authenticatedUser.id)
-      if (authRequestRef.current !== requestId) return
-      setFarmerProfile(data)
-      setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
+      if (authenticatedUser.role === 'farmer') {
+        const data = await loadFarmerData(authenticatedUser.id)
+        if (authRequestRef.current !== requestId) return
+        setFarmerProfile(data)
+        setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
+      } else if (authenticatedUser.role === 'logistics') {
+        const data = await loadLogisticsData(authenticatedUser.id)
+        if (authRequestRef.current !== requestId) return
+        setLogisticsProfile(data)
+        setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
+      }
     } catch (error) {
-      console.error('Could not load farmer data:', error)
+      console.error('Could not load profile data:', error)
     } finally {
       if (authRequestRef.current === requestId) setAuthStatus('authenticated')
     }
@@ -177,11 +186,14 @@ function App() {
   if (currentUser && completingProfile && currentUser.role === 'logistics') {
     return (
       <CompleteProfileLogistics
+        userId={currentUser.id}
+        initialData={logisticsProfile}
         language={language}
         setLanguage={setLanguage}
         onBack={() => setCompletingProfile(false)}
-        onComplete={(serviceType) => {
-          setLogisticsProfile({ serviceType })
+        onComplete={(data) => {
+          setLogisticsProfile(data)
+          setCurrentUser((user) => ({ ...user, profileComplete: data.profileComplete }))
           setCompletingProfile(false)
         }}
       />
