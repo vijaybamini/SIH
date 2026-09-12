@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import math
 import os
-from functools import lru_cache
+import queue
+import threading
 from typing import Dict, Any, List, Optional, Tuple
 
 import pandas as pd
@@ -104,10 +105,52 @@ def resolve_agmarknet_csv() -> Optional[str]:
 
 from demand_forecast_engine import load_kaggle_data
 
+# Deliberately NOT functools.lru_cache: its internal lock serializes every
+# caller on a cache miss, including callers running in their own timeout-
+# guarded background thread elsewhere in this codebase -- if the underlying
+# load_kaggle_data() call ever hangs (observed in production: a resource-
+# constrained host made a 1.1M-row CSV parse intermittently take far longer
+# than expected), EVERY other thread that touches this cache queues forever
+# on that same lock with no way to time out, and each new request adds one
+# more permanently-stuck thread. A plain dict has no such lock: at worst two
+# threads redundantly parse the CSV once on a cold cache (wasted work, never
+# a deadlock), and _load_dataset_with_timeout below still bounds each
+# individual caller's own wait regardless of what other threads are doing.
+_dataset_cache: Dict[str, pd.DataFrame] = {}
 
-@lru_cache(maxsize=1)
-def _dataset_cached(csv_path: str) -> pd.DataFrame:
-    return load_kaggle_data(csv_path)
+DATASET_LOAD_TIMEOUT_SECONDS = 25.0
+
+
+def _load_dataset_with_timeout(path: str) -> pd.DataFrame:
+    cached = _dataset_cache.get(path)
+    if cached is not None:
+        return cached
+
+    result_queue: "queue.Queue" = queue.Queue(maxsize=1)
+
+    def _worker():
+        try:
+            df = load_kaggle_data(path)
+            _dataset_cache[path] = df  # populate cache even though this
+            # thread's own caller may already have given up waiting -- a
+            # later caller still benefits from not having to re-parse.
+            result_queue.put(("ok", df))
+        except Exception as exc:  # noqa: BLE001 -- reported back, not raised cross-thread
+            result_queue.put(("error", exc))
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+    try:
+        status, payload = result_queue.get(timeout=DATASET_LOAD_TIMEOUT_SECONDS)
+    except queue.Empty:
+        raise TimeoutError(
+            f"Loading the Agmarknet dataset took longer than "
+            f"{DATASET_LOAD_TIMEOUT_SECONDS:.0f}s. The host may be under memory/CPU "
+            f"pressure; try again shortly."
+        )
+    if status == "error":
+        raise payload
+    return payload
 
 
 def load_dataset() -> pd.DataFrame:
@@ -117,7 +160,7 @@ def load_dataset() -> pd.DataFrame:
             "Agmarknet CSV not found. Set AGMARKNET_CSV or place the dataset "
             "under agmarknet_data/agmarknet-india-commodity-prices-2024-2025/."
         )
-    return _dataset_cached(path)
+    return _load_dataset_with_timeout(path)
 
 
 # --------------------------------------------------------------------------- #
