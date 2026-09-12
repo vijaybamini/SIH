@@ -115,7 +115,7 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
                           <div className="summary-crop-card" key={index}>
                             <strong>{vehicle.type || `Vehicle ${index + 1}`}</strong>
                             <div className="summary-grid">
-                              <div><span>Capacity</span><strong>{vehicle.capacity ? `${vehicle.capacity} kg` : '—'}</strong></div>
+                              <div><span>Capacity</span><strong>{vehicle.capacity ? `${vehicle.capacity} tonnes` : '—'}</strong></div>
                               <div><span>Registration</span><strong>{vehicle.registration || '—'}</strong></div>
                               <div><span>Location</span><strong>{vehicle.location || '—'}</strong></div>
                             </div>

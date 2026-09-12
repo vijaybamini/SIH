@@ -169,12 +169,12 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
                               required
                             />
                           </label>
-                          <label>Load carrying capacity (kg)
+                          <label>Load carrying capacity (tonnes)
                             <input
                               type="number"
                               min="0"
                               step="0.01"
-                              placeholder="e.g. 1500"
+                              placeholder="e.g. 1.5"
                               value={vehicle.capacity}
                               onChange={(event) => updateVehicle(index, 'capacity', event.target.value)}
                               required
