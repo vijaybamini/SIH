@@ -3,3 +3,6 @@ dist/
 .env
 .env.local
 supabase/.temp/
+__pycache__/
+*.pyc
+agmarknet_data/agmarknet-india-commodity-prices-2024-2025/agmarknet_india_historical_prices_2024_2025.csv

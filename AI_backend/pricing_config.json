@@ -156,7 +156,7 @@
   },
 
   "platform": {
-    "commission_pct": {"value": 10, "type": "business_decision", "range_observed_elsewhere": [10, 20], "source": "BlackBuck charges 10-20% commission on freight value; Porter charges 15-20% (multiple sources, 2026). 10% set at the low end of the observed band to stay competitive on thin-margin agri freight. Lowered from an earlier 12% starting point per explicit instruction."},
+    "commission_pct": {"value": 0, "type": "business_decision", "range_observed_elsewhere": [10, 20], "source": "BlackBuck charges 10-20% commission on freight value; Porter charges 15-20% (multiple sources, 2026). Set to 0 per explicit instruction: the platform is paying the driver for a transport service, not selling freight as its own product, so freight is passed through to the buyer at cost with no markup. The platform's cut is taken from the farmer's crop-value share instead (see consumer_pricing_engine.py) — kept configurable here in case a logistics-side commission is reintroduced later."},
     "minimum_fare": {"value": 1200, "type": "assumption", "note": "Floor so genuinely small trips still cover driver call-out and basic overheads; applied only when the computed customer_pays falls below it."}
   },
 

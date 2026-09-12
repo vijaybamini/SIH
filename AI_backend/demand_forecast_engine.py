@@ -21,6 +21,9 @@ MODEL CHOICE: Holt-Winters Exponential Smoothing (same as before) --
 captures trend + weekly seasonality in price, fast to fit, explainable.
 """
 
+import os
+import tempfile
+
 import pandas as pd
 import numpy as np
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
@@ -56,8 +59,22 @@ def load_kaggle_data(csv_path):
     df = pd.read_csv(csv_path)
     df = df.rename(columns=COLUMN_MAP)
 
-    # Price Date format in the sample is "05-Apr-2025" -> %d-%b-%Y
-    df["arrival_date"] = pd.to_datetime(df["arrival_date"], format="%d-%b-%Y", errors="coerce")
+    # Price Date appears in the wild in several formats:
+    #   "05 Apr 2025" (%d %b %Y)  <- this dataset
+    #   "05-Apr-2025" (%d-%b-%Y)  <- original expectation
+    # Try the space format first, then backfill any stragglers with a
+    # flexible day-first parse so one mixed-format file still loads fully.
+    parsed = pd.to_datetime(df["arrival_date"], format="%d %b %Y", errors="coerce")
+    if parsed.isna().all():
+        parsed = pd.to_datetime(df["arrival_date"], format="%d-%b-%Y", errors="coerce")
+    if parsed.isna().all():
+        parsed = pd.to_datetime(df["arrival_date"], dayfirst=True, errors="coerce")
+    else:
+        missing = parsed.isna()
+        if missing.any():
+            parsed[missing] = pd.to_datetime(df.loc[missing, "arrival_date"],
+                                             dayfirst=True, errors="coerce")
+    df["arrival_date"] = parsed
 
     # Drop rows where date parsing failed or modal_price is missing/non-numeric
     df["modal_price"] = pd.to_numeric(df["modal_price"], errors="coerce")
@@ -92,8 +109,9 @@ def generate_sample_data():
     })
     # Run it through the same loader used for real data, so the test proves
     # the loader itself works, not just the forecasting math.
-    df.to_csv("/tmp/_sample_agmarknet.csv", index=False)
-    return load_kaggle_data("/tmp/_sample_agmarknet.csv")
+    sample_path = os.path.join(tempfile.gettempdir(), "_sample_agmarknet.csv")
+    df.to_csv(sample_path, index=False)
+    return load_kaggle_data(sample_path)
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +128,12 @@ def forecast_price_trend(df, commodity, market, forecast_days=7):
     subset = subset.sort_values("arrival_date")
     subset.set_index("arrival_date", inplace=True)
 
-    series = subset["modal_price"].asfreq("D").interpolate()
+    # Agmarknet reports one row per variety/grade per day, so a single
+    # commodity/market can have several rows on the same date. Aggregate to a
+    # daily-mean series (which also reindexes onto a clean daily calendar and
+    # leaves gaps as NaN for interpolation) instead of asfreq(), which crashes
+    # on duplicate date labels.
+    series = subset["modal_price"].resample("D").mean().interpolate()
 
     if len(series) < 21:
         raise ValueError(

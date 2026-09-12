@@ -104,7 +104,9 @@ except ImportError:
 # ------------------------------------------------------------------------- #
 # Config
 # ------------------------------------------------------------------------- #
-DATA_PATH = r'C:\Users\irfan\Downloads\india_mandi_prices_population_proportional.csv'
+DATA_PATH = str(Path(__file__).resolve().parent.parent / 'agmarknet_data' /
+                 'agmarknet-india-commodity-prices-2024-2025' /
+                 'india_mandi_prices_population_proportional.csv')
 EXTRA_REAL_DATA_PATHS = []   # optional: paths to additional REAL data you've separately
                              # downloaded (e.g. from AGMARKNET/data.gov.in) to improve
                              # nationwide coverage. Each file must have a 'Source' column
