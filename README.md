@@ -97,3 +97,31 @@ I did not adjust either of these unilaterally — both were specified inputs —
 | empty_return recovery percentages | as supplied | Business decision / assumption | Supplied directly; established/thin corridor % are modelling assumptions | — |
 
 Everything else (handling multipliers, reefer distance thresholds, second-driver threshold, average speed/driving-hours, overhead trip-count) is labelled `assumption` directly in `pricing_config.json` with a note on why no firm source was found.
+
+## Deploy the FastAPI backend to Render
+
+The backend is configured as a Render Web Service with `AI_backend` as its root directory. The repository includes a `render.yaml` Blueprint with the following settings:
+
+```text
+Root Directory: AI_backend
+Build Command: pip install -r requirements.txt
+Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
+Health Check Path: /
+```
+
+The service exposes `GET /` for health checks and `POST /calculate-price` for quotes. The request body must include:
+
+```json
+{
+  "commodity": "vegetables",
+  "shipment_weight_kg": 2000,
+  "distance_km": 145,
+  "pickup": "Warangal",
+  "destination": "Hyderabad",
+  "corridor_type": "established",
+  "season": "normal",
+  "backhaul_available": false
+}
+```
+
+Optional pricing inputs include `corridor_type`, `season`, `backhaul_available`, `force_reefer`, `actual_toll`, and `diesel_price_override`. The API returns the complete serialized `Quote` object.

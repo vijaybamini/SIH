@@ -1,5 +1,15 @@
+from pathlib import Path
+
 from fastapi import FastAPI
-from pricing_engine import calculate_price
+
+try:
+    from .pricing_engine import PricingEngine
+except ImportError:
+    from pricing_engine import PricingEngine
+
+
+CONFIG_PATH = Path(__file__).resolve().parent / "pricing_config.json"
+engine = PricingEngine(str(CONFIG_PATH))
 
 app = FastAPI()
 
@@ -11,5 +21,5 @@ def home():
 
 @app.post("/calculate-price")
 def calculate(data: dict):
-    result = calculate_price(data)
-    return result
+    quote = engine.price_trip(**data)
+    return quote.to_dict()
