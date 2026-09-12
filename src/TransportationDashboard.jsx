@@ -72,7 +72,10 @@ export default function TransportationDashboard({ userId, initialData, language,
     aadhaarNumber: initialData?.profile?.aadhaarNumber || '',
     phone: initialData?.profile?.phone || '',
     address: initialData?.profile?.address || '',
+    crops: initialData?.profile?.crops?.length ? initialData.profile.crops : [''],
   })
+  const [photo, setPhoto] = useState(initialData?.photo || null)
+  const [photoFile, setPhotoFile] = useState(null)
   const [vehicles, setVehicles] = useState(() => {
     if (initialData?.vehicles?.length) return initialData.vehicles.map((vehicle) => ({ ...vehicle }))
     return [emptyVehicle()]
@@ -85,6 +88,23 @@ export default function TransportationDashboard({ userId, initialData, language,
     if (field === 'aadhaarNumber') value = value.replace(/\D/g, '').slice(0, 12)
     if (field === 'phone') value = value.replace(/\D/g, '').slice(0, 10)
     setProfile((current) => ({ ...current, [field]: value }))
+  }
+
+  function updateCrop(index, value) {
+    setProfile((current) => ({ ...current, crops: current.crops.map((crop, i) => (i === index ? value : crop)) }))
+  }
+  function addCrop() {
+    setProfile((current) => ({ ...current, crops: [...current.crops, ''] }))
+  }
+  function removeCrop(index) {
+    setProfile((current) => ({ ...current, crops: current.crops.filter((_, i) => i !== index) }))
+  }
+
+  function handlePhotoChange(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setPhotoFile(file)
+    setPhoto(URL.createObjectURL(file))
   }
 
   function updateVehicle(id, field, value) {
@@ -118,8 +138,12 @@ export default function TransportationDashboard({ userId, initialData, language,
         profile: nextProfile || profile,
         vehicles: nextVehicles,
         inventory: initialData?.inventory || null,
+        photo,
+        photoFile,
       })
       onComplete(savedData)
+      setPhoto(savedData.photo)
+      setPhotoFile(null)
       return savedData
     } catch (error) {
       setSaveError(error.message || t.couldNotSaveProfile)
@@ -175,12 +199,47 @@ export default function TransportationDashboard({ userId, initialData, language,
 
           <form className="profile-form-card" onSubmit={handleSubmit} ref={formRef}>
             {step === 0 && (
-              <div className="form-grid">
-                <label>{t.name}<input value={profile.name} onChange={(event) => updateProfile('name', event.target.value)} placeholder={t.namePlaceholder} required /></label>
-                <label>{t.aadhaarNumber}<input inputMode="numeric" pattern="[0-9]{12}" value={profile.aadhaarNumber} onChange={(event) => updateProfile('aadhaarNumber', event.target.value)} placeholder="12-digit Aadhaar number" required /></label>
-                <label>{t.phone}<input type="tel" inputMode="numeric" pattern="[0-9]{10}" value={profile.phone} onChange={(event) => updateProfile('phone', event.target.value)} placeholder={t.phonePlaceholder} required /></label>
-                <label>{t.address}<textarea value={profile.address} onChange={(event) => updateProfile('address', event.target.value)} placeholder={t.addressPlaceholder} required /></label>
-              </div>
+              <>
+                <div className="photo-upload-row">
+                  <label className="photo-upload-circle">
+                    {photo ? (
+                      <img className="photo-preview" src={photo} alt="" />
+                    ) : (
+                      <div className="photo-preview photo-preview-empty" aria-hidden="true">
+                        <span className="photo-upload-icon">📷</span>
+                        <span className="photo-upload-caption">{t.uploadPhoto}</span>
+                      </div>
+                    )}
+                    <input type="file" accept="image/*" onChange={handlePhotoChange} />
+                  </label>
+                  {photo && <label className="photo-change-link">{t.changePhoto}<input type="file" accept="image/*" onChange={handlePhotoChange} /></label>}
+                </div>
+
+                <div className="form-grid">
+                  <label>{t.name}<input value={profile.name} onChange={(event) => updateProfile('name', event.target.value)} placeholder={t.namePlaceholder} required /></label>
+                  <label>{t.aadhaarNumber}<input inputMode="numeric" pattern="[0-9]{12}" value={profile.aadhaarNumber} onChange={(event) => updateProfile('aadhaarNumber', event.target.value)} placeholder="12-digit Aadhaar number" required /></label>
+                  <label>{t.phone}<input type="tel" inputMode="numeric" pattern="[0-9]{10}" value={profile.phone} onChange={(event) => updateProfile('phone', event.target.value)} placeholder={t.phonePlaceholder} required /></label>
+                  <label>{t.address}<textarea value={profile.address} onChange={(event) => updateProfile('address', event.target.value)} placeholder={t.addressPlaceholder} required /></label>
+                </div>
+
+                <h3 className="form-section-title">Crops you transport or store</h3>
+                {profile.crops.map((crop, index) => (
+                  <div className="crop-card-header" key={index}>
+                    <label>{index === 0 ? 'Crop' : 'Additional crop'}
+                      <select value={crop} onChange={(event) => updateCrop(index, event.target.value)}>
+                        <option value="">Select crop</option>
+                        {t.cropSuggestions.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </label>
+                    {profile.crops.length > 1 && (
+                      <button type="button" className="remove-crop-button" onClick={() => removeCrop(index)} aria-label="Remove this crop">×</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" className="add-crop-button" onClick={addCrop}>
+                  <span aria-hidden="true">+</span> Add another crop
+                </button>
+              </>
             )}
 
             {step === 1 && (
@@ -251,7 +310,11 @@ export default function TransportationDashboard({ userId, initialData, language,
         </div>
 
         <div className="profile-summary-header">
-          <div className="profile-summary-photo profile-summary-photo-empty" aria-hidden="true">{profile.name ? profile.name[0] : 'T'}</div>
+          {photo ? (
+            <img className="profile-summary-photo" src={photo} alt="" />
+          ) : (
+            <div className="profile-summary-photo profile-summary-photo-empty" aria-hidden="true">{profile.name ? profile.name[0] : 'T'}</div>
+          )}
           <div className="profile-summary-header-text">
             <p className="eyebrow">{t.stepTransportation}</p>
             <h2>{t.transportDetailsTitle}</h2>
@@ -270,6 +333,7 @@ export default function TransportationDashboard({ userId, initialData, language,
               <div><span>{t.aadhaarNumber}</span><strong>{profile.aadhaarNumber || '—'}</strong></div>
               <div><span>{t.phone}</span><strong>{profile.phone || '—'}</strong></div>
               <div><span>{t.address}</span><strong>{profile.address || '—'}</strong></div>
+              <div><span>Crops</span><strong>{profile.crops.filter(Boolean).join(', ') || '—'}</strong></div>
             </div>
           )}
         </div>

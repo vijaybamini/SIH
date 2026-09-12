@@ -1,5 +1,5 @@
 import { supabase } from '../supabase'
-import { loadBasicProfile, updateBasicProfile } from './profile'
+import { loadBasicProfile, updateBasicProfile, uploadAvatar } from './profile'
 
 function requireSupabase() {
   if (!supabase) throw new Error('Supabase is not configured. Add the project URL and publishable key.')
@@ -114,11 +114,13 @@ export async function loadLogisticsData(userId) {
     aadhaarNumber: parsed.profile?.aadhaarNumber || '',
     phone: parsed.profile?.phone || basicProfile?.phone || '',
     address: parsed.profile?.address || '',
+    crops: Array.isArray(parsed.profile?.crops) && parsed.profile.crops.length ? parsed.profile.crops : [''],
   }
 
   return {
     name: profile.name,
     phone: profile.phone,
+    photo: basicProfile?.photo || null,
     companyName: provider?.company_name || '',
     serviceAreas: provider?.service_areas || '',
     profile,
@@ -142,6 +144,7 @@ export async function saveLogisticsData(userId, formData) {
     aadhaarNumber: String(formData.profile?.aadhaarNumber || '').trim(),
     phone: String(formData.profile?.phone || '').trim(),
     address: String(formData.profile?.address || '').trim(),
+    crops: (formData.profile?.crops || []).map((crop) => String(crop || '').trim()).filter(Boolean),
   }
 
   const vehicles = (formData.vehicles || [])
@@ -172,7 +175,15 @@ export async function saveLogisticsData(userId, formData) {
     },
   })
 
-  await updateBasicProfile(userId, { name: profile.name, phone: profile.phone })
+  let photoUrl = formData.photo || null
+  if (formData.photoFile) {
+    try {
+      photoUrl = await uploadAvatar(userId, formData.photoFile)
+    } catch {
+      photoUrl = formData.photo || null
+    }
+  }
+  await updateBasicProfile(userId, { name: profile.name, phone: profile.phone, photoUrl })
 
 const { data: existingProvider, error: providerReadError } = await supabase
     .from('logistics_providers')

@@ -114,59 +114,92 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
           )}
         </header>
 
-        {!chosenSection ? (
-          <div className="section-choice">
-            <h2 className="dash-greeting" style={{ marginBottom: 10 }}>{t.chooseOneSection}</h2>
-            <p className="panel-subtitle">{t.chooseOneSub}</p>
-
-            <div className="choose-section-grid">
-              {sections.map((section) => (
-                <button
-                  key={section.id}
-                  className={`choose-section-card ${picked === section.id ? 'selected' : ''}`}
-                  onClick={() => setPicked(section.id)}
-                >
-                  <span className="choose-section-icon" aria-hidden="true">{section.icon}</span>
-                  <strong>{section.title}</strong>
-                  <small>{section.desc}</small>
-                  <span className={`choose-section-radio ${picked === section.id ? 'checked' : ''}`} aria-hidden="true" />
-                </button>
-              ))}
+        <div className="dash-grid dash-grid-reverse">
+          <div className="dash-col-side">
+            <h3>Provider details</h3>
+            <div className="farmer-details-card">
+              <div className="farmer-photo-wrap">
+                {logisticsProfile?.photo ? (
+                  <img className="farmer-photo" src={logisticsProfile.photo} alt="" />
+                ) : (
+                  <div className="farmer-photo farmer-photo-empty" aria-hidden="true">{initials}</div>
+                )}
+              </div>
+              <div className="farmer-details-row">
+                <span>{t.name}</span>
+                <strong>{profile?.name || user.name || '—'}</strong>
+              </div>
+              <div className="farmer-details-row">
+                <span>{t.phone}</span>
+                <strong>{profile?.phone || '—'}</strong>
+              </div>
+              <div className="farmer-details-row">
+                <span>{t.address}</span>
+                <strong>{profile?.address || '—'}</strong>
+              </div>
+              <div className="farmer-details-row">
+                <span>Crops</span>
+                <strong>{(profile?.crops || []).filter(Boolean).join(', ') || '—'}</strong>
+              </div>
             </div>
-
-            <button className="button button-primary section-select-confirm" disabled={!picked} onClick={() => { if (picked) onChooseSection(picked) }}>
-              {t.continueWith} {pickedTitle || '…'}
-            </button>
           </div>
-        ) : (
-          <>
-            <p className="eyebrow">{t.howRegister}</p>
-            <h2 className="dash-greeting" style={{ marginBottom: 10 }}>{t.chooseSection}</h2>
-            <p className="panel-subtitle">{t.chooseSectionSub}</p>
 
-            <div className="choose-section-grid">
-              {sections.map((section) => {
-                const isOther = section.id !== chosenSection
-                const notAdded = isOther && !section.complete
-                const addLabel = `${t.addLabel} ${section.title}`
-                return (
-                  <button
-                    key={section.id}
-                    className={`choose-section-card ${isOther ? 'section-card-secondary' : 'section-card-primary'} ${notAdded ? 'section-card-add' : ''}`}
-                    onClick={() => onSelectSection(section.id)}
-                  >
-                    <span className="choose-section-icon" aria-hidden="true">{section.icon}</span>
-                    <strong>{notAdded ? addLabel : section.title}</strong>
-                    <small>{section.desc}</small>
-                    <span className="choose-section-incomplete">
-                      {notAdded ? `${addLabel} →` : `${section.complete ? t.viewProfile : t.completeProfile} →`}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </>
-        )}
+          <div className="dash-col-main">
+            {!chosenSection ? (
+              <div className="section-choice">
+                <h2 className="dash-greeting" style={{ marginBottom: 10 }}>{t.chooseOneSection}</h2>
+                <p className="panel-subtitle">{t.chooseOneSub}</p>
+
+                <div className="choose-section-grid">
+                  {sections.map((section) => (
+                    <button
+                      key={section.id}
+                      className={`choose-section-card ${picked === section.id ? 'selected' : ''}`}
+                      onClick={() => setPicked(section.id)}
+                    >
+                      <span className="choose-section-icon" aria-hidden="true">{section.icon}</span>
+                      <strong>{section.title}</strong>
+                      <small>{section.desc}</small>
+                      <span className={`choose-section-radio ${picked === section.id ? 'checked' : ''}`} aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+
+                <button className="button button-primary section-select-confirm" disabled={!picked} onClick={() => { if (picked) onChooseSection(picked) }}>
+                  {t.continueWith} {pickedTitle || '…'}
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="eyebrow">{t.howRegister}</p>
+                <h2 className="dash-greeting" style={{ marginBottom: 10 }}>{t.chooseSection}</h2>
+                <p className="panel-subtitle">{t.chooseSectionSub}</p>
+
+                <div className="choose-section-grid">
+                  {sections.map((section) => {
+                    const isOther = section.id !== chosenSection
+                    const notAdded = isOther && !section.complete
+                    const addLabel = `${t.addLabel} ${section.title}`
+                    return (
+                      <button
+                        key={section.id}
+                        className={`choose-section-card ${isOther ? 'section-card-secondary' : 'section-card-primary'} ${notAdded ? 'section-card-add' : ''}`}
+                        onClick={() => onSelectSection(section.id)}
+                      >
+                        <span className="choose-section-icon" aria-hidden="true">{section.icon}</span>
+                        <strong>{notAdded ? addLabel : section.title}</strong>
+                        <small>{section.desc}</small>
+                        <span className="choose-section-incomplete">
+                          {notAdded ? `${addLabel} →` : `${section.complete ? t.viewProfile : t.completeProfile} →`}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </main>
     </div>
   )

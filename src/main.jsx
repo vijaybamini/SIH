@@ -5,6 +5,8 @@ import { isSupabaseConfigured, supabase } from './supabase'
 import Dashboard from './Dashboard'
 import BulkBuyerDashboard from './BulkBuyerDashboard'
 import CompleteProfileFarmer from './CompleteProfileFarmer'
+import CompleteProfileService from './CompleteProfileService'
+import ServiceDashboard from './ServiceDashboard'
 import LogisticsDashboard from './LogisticsDashboard'
 import TransportationDashboard from './TransportationDashboard'
 import InventoryDashboard from './InventoryDashboard'
@@ -14,6 +16,7 @@ import { getStoredLanguage, storeLanguage, useTranslation } from './i18n'
 import { loadFarmerData } from './api/farmer'
 import { loadLogisticsData } from './api/logistics'
 import { loadBuyerData } from './api/buyer'
+import { loadServiceData } from './api/service'
 import { loadUserRole } from './api/profile'
 
 const stats = [
@@ -76,6 +79,7 @@ function App() {
 const authRequestRef = useRef(0)
   const lastSessionUserRef = useRef(null)
   const [buyerProfile, setBuyerProfile] = useState(null)
+  const [serviceProfile, setServiceProfile] = useState(null)
 
   async function resolveUserRole(user) {
     if (user.id) {
@@ -94,6 +98,7 @@ const authRequestRef = useRef(0)
     setFarmerProfile(null)
     setLogisticsProfile(null)
     setBuyerProfile(null)
+    setServiceProfile(null)
     setLogisticsPage(null)
     setChosenSection(null)
     setCompletingProfile(false)
@@ -151,6 +156,11 @@ const authRequestRef = useRef(0)
       } else if (role === 'buyer') {
         const data = await loadBuyerData(user.id)
         setBuyerProfile(data)
+        setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
+      } else if (role === 'service') {
+        const data = await loadServiceData(baseUser.id)
+        if (authRequestRef.current !== requestId) return
+        setServiceProfile(data)
         setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
       }
     } catch (error) {
@@ -382,6 +392,23 @@ authRequestRef.current += 1
     return <LanguageSelection onSelect={handleSelectLanguage} />
   }
 
+  if (currentUser && completingProfile && currentUser.role === 'service') {
+    return (
+      <CompleteProfileService
+        userId={currentUser.id}
+        language={language}
+        setLanguage={handleSetLanguage}
+        initialData={serviceProfile}
+        onBack={() => setCompletingProfile(false)}
+        onComplete={(data) => {
+          setServiceProfile(data)
+          setCurrentUser((user) => ({ ...user, name: data.name || user.name, profileComplete: data.profileComplete }))
+          setCompletingProfile(false)
+        }}
+      />
+    )
+  }
+
   if (currentUser && completingProfile) {
     return (
       <CompleteProfileFarmer
@@ -450,6 +477,18 @@ authRequestRef.current += 1
           onChooseSection={handleChooseSection}
           onSelectSection={setLogisticsPage}
           onOpenCompleteProfile={() => chosenSection && setLogisticsPage(logisticsFirstIncomplete(logisticsProfile) || chosenSection)}
+          onLogout={handleLogout}
+        />
+      )
+    }
+    if (currentUser.role === 'service') {
+      return (
+        <ServiceDashboard
+          user={currentUser}
+          serviceProfile={serviceProfile}
+          language={language}
+          setLanguage={handleSetLanguage}
+          onOpenCompleteProfile={() => setCompletingProfile(true)}
           onLogout={handleLogout}
         />
       )
