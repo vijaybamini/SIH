@@ -8,6 +8,9 @@ button, input, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; text-decoration: none; }
 .app-shell { min-height: 100vh; overflow: hidden; }
+.auth-loading { align-items: center; background: #f8faf5; color: #274a32; display: flex; flex-direction: column; height: 100vh; justify-content: center; }
+.auth-loading-mark { align-items: center; background: #2f6b45; border-radius: 12px 12px 12px 3px; color: #e5f2bb; display: flex; font-size: 28px; height: 54px; justify-content: center; margin-bottom: 16px; transform: rotate(-8deg); width: 54px; }
+.auth-loading strong { font-size: 24px; letter-spacing: -.7px; }.auth-loading strong span { color: #799d39; }.auth-loading p { color: #718076; font-size: 13px; margin: 9px 0 0; }
 .topbar { align-items: center; display: flex; gap: 22px; justify-content: space-between; margin: 0 auto; max-width: 1240px; padding: 25px 34px; }
 .brand { align-items: center; display: flex; font-size: 21px; font-weight: 700; gap: 9px; letter-spacing: -.6px; }
 .brand > span:last-child span { color: #799d39; }

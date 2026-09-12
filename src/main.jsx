@@ -24,37 +24,82 @@ function App() {
   const [showAccessibilityMenu, setShowAccessibilityMenu] = useState(false)
   const [accessibility, setAccessibility] = useState({ largeText: false, highContrast: false, reducedMotion: false })
   const [currentUser, setCurrentUser] = useState(null)
+  const [authStatus, setAuthStatus] = useState(supabase ? 'loading' : 'unauthenticated')
   const [completingProfile, setCompletingProfile] = useState(false)
   const [quickAddCrop, setQuickAddCrop] = useState(false)
   const [farmerProfile, setFarmerProfile] = useState(null)
   const [logisticsProfile, setLogisticsProfile] = useState(null)
+  const authRequestRef = useRef(0)
+  const lastSessionKeyRef = useRef(null)
 
-  async function handleAuthenticated(user) {
-    setCurrentUser(user)
+  async function restoreSession(session) {
+    const user = session?.user
+    if (!user) {
+      authRequestRef.current += 1
+      lastSessionKeyRef.current = null
+      setCurrentUser(null)
+      setFarmerProfile(null)
+      setLogisticsProfile(null)
+      setCompletingProfile(false)
+      setQuickAddCrop(false)
+      setAuthStatus('unauthenticated')
+      return
+    }
+
+    const sessionKey = `${user.id}:${session.access_token || ''}`
+    if (lastSessionKeyRef.current === sessionKey) return
+    lastSessionKeyRef.current = sessionKey
+
+    const requestId = ++authRequestRef.current
+    const metadata = user.user_metadata || {}
+    const authenticatedUser = {
+      id: user.id,
+      name: metadata.first_name || user.email?.split('@')[0].replace(/[._]/g, ' '),
+      role: metadata.role || 'farmer',
+      profileComplete: false,
+    }
+
+    setAuthStatus('loading')
+    setCurrentUser(authenticatedUser)
     setFarmerProfile(null)
     setLogisticsProfile(null)
-    if (user.role !== 'farmer' || !user.id) return
+    setCompletingProfile(false)
+    setQuickAddCrop(false)
+
+    if (authenticatedUser.role !== 'farmer' || !authenticatedUser.id) {
+      setAuthStatus('authenticated')
+      return
+    }
     try {
-      const data = await loadFarmerData(user.id)
+      const data = await loadFarmerData(authenticatedUser.id)
+      if (authRequestRef.current !== requestId) return
       setFarmerProfile(data)
       setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
     } catch (error) {
       console.error('Could not load farmer data:', error)
+    } finally {
+      if (authRequestRef.current === requestId) setAuthStatus('authenticated')
     }
   }
 
-  const restoreUserRef = useRef()
-  if (!restoreUserRef.current) {
-    restoreUserRef.current = (session) => {
-      const user = session?.user
-      if (!user) return
-      const metadata = user.user_metadata || {}
-      handleAuthenticated({
-        id: user.id,
-        name: metadata.first_name || user.email?.split('@')[0].replace(/[._]/g, ' '),
-        role: metadata.role || 'farmer',
-        profileComplete: false,
-      })
+  async function handleLogout() {
+    authRequestRef.current += 1
+    lastSessionKeyRef.current = null
+    setAuthStatus('loading')
+    setCurrentUser(null)
+    setFarmerProfile(null)
+    setLogisticsProfile(null)
+    setCompletingProfile(false)
+    setQuickAddCrop(false)
+    setPanel(null)
+
+    try {
+      const { error } = await supabase?.auth.signOut() || {}
+      if (error) throw error
+    } catch (error) {
+      console.error('Could not sign out:', error)
+    } finally {
+      setAuthStatus('unauthenticated')
     }
   }
 
@@ -62,21 +107,19 @@ function App() {
     if (!supabase) return
     let active = true
     supabase.auth.getSession().then(({ data }) => {
-      if (active && data.session) restoreUserRef.current(data.session)
+      if (active) restoreSession(data.session)
     })
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!active) return
-      if (session) {
-        restoreUserRef.current(session)
-      } else {
-        setCurrentUser(null)
-      }
+      restoreSession(session)
     })
     return () => {
       active = false
       subscription.subscription.unsubscribe()
     }
   }, [])
+
+  if (authStatus === 'loading') return <AuthLoadingScreen />
 
   const copy = language === 'hi' ? {
     about: 'परियोजना के बारे में', how: 'यह कैसे काम करता है', login: 'लॉग इन', register: 'रजिस्टर',
@@ -171,7 +214,7 @@ function App() {
         user={currentUser}
         language={language}
         setLanguage={setLanguage}
-        onLogout={() => setCurrentUser(null)}
+        onLogout={handleLogout}
       />
     )
   }
@@ -184,7 +227,7 @@ function App() {
         language={language}
         setLanguage={setLanguage}
         onOpenCompleteProfile={() => setCompletingProfile(true)}
-        onLogout={() => setCurrentUser(null)}
+        onLogout={handleLogout}
       />
     )
   }
@@ -201,7 +244,7 @@ function App() {
         onMarkCropHarvested={(cropId) => setFarmerProfile((profile) => (profile
           ? { ...profile, crops: profile.crops.map((crop) => (crop.id === cropId ? { ...crop, harvested: true } : crop)) }
           : profile))}
-        onLogout={() => setCurrentUser(null)}
+        onLogout={handleLogout}
       />
     )
   }
@@ -286,14 +329,23 @@ function App() {
           setLanguage={setLanguage}
           onClose={() => setPanel(null)}
           onSwitch={() => setPanel(panel === 'login' ? 'register' : 'login')}
-          onAuthenticated={handleAuthenticated}
         />
       )}
     </div>
   )
 }
 
-function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLanguage }) {
+function AuthLoadingScreen() {
+  return (
+    <main className="auth-loading" aria-live="polite" aria-busy="true">
+      <div className="auth-loading-mark" aria-hidden="true">✦</div>
+      <strong>Farm<span>Direct</span></strong>
+      <p>Restoring your session…</p>
+    </main>
+  )
+}
+
+function AuthPanel({ type, onClose, onSwitch, language, setLanguage }) {
   const t = useTranslation(language)
   const isRegister = type === 'register'
   const [role, setRole] = useState(null)
@@ -347,7 +399,6 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
         if (error) throw error
         setRegisteredName(name)
         if (data.session) {
-          onAuthenticated({ id: data.user.id, name, role, profileComplete: false })
           onClose()
         } else {
           setSubmitted(true)
@@ -360,9 +411,6 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
             : error.message
           throw error
         }
-        const metadata = data.user.user_metadata || {}
-        const displayName = metadata.first_name || email.split('@')[0].replace(/[._]/g, ' ')
-        onAuthenticated({ id: data.user.id, name: displayName, role: metadata.role || 'farmer', profileComplete: false })
         onClose()
       }
     } catch (error) {
