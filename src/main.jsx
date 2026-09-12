@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from 'react'
+import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import { isSupabaseConfigured, supabase } from './supabase'
@@ -53,12 +53,15 @@ function App() {
   const [showAccessibilityMenu, setShowAccessibilityMenu] = useState(false)
   const [accessibility, setAccessibility] = useState({ largeText: false, highContrast: false, reducedMotion: false })
   const [currentUser, setCurrentUser] = useState(null)
+  const [authStatus, setAuthStatus] = useState(supabase ? 'loading' : 'unauthenticated')
   const [completingProfile, setCompletingProfile] = useState(false)
   const [quickAddCrop, setQuickAddCrop] = useState(false)
   const [logisticsPage, setLogisticsPage] = useState(null)
   const [chosenSection, setChosenSection] = useState(null)
   const [farmerProfile, setFarmerProfile] = useState(null)
   const [logisticsProfile, setLogisticsProfile] = useState(null)
+const authRequestRef = useRef(0)
+  const lastSessionUserRef = useRef(null)
   const [buyerProfile, setBuyerProfile] = useState(null)
 
   async function resolveUserRole(user) {
@@ -73,23 +76,62 @@ function App() {
     return user.role || null
   }
 
-  async function handleAuthenticated(user) {
-    const role = await resolveUserRole(user)
-    setCurrentUser({ ...user, role: role || 'unknown' })
+  function clearAuthenticatedState(status = 'unauthenticated') {
+    setCurrentUser(null)
     setFarmerProfile(null)
     setLogisticsProfile(null)
     setBuyerProfile(null)
     setLogisticsPage(null)
-    const choice = readLogisticsChoice(user.id)
-    setChosenSection(choice)
-    if (!user.id) return
+    setChosenSection(null)
+    setCompletingProfile(false)
+    setQuickAddCrop(false)
+    setPanel(null)
+    setAuthStatus(status)
+  }
+
+  async function restoreSession(session) {
+    const user = session?.user
+    if (!user) {
+      authRequestRef.current += 1
+      lastSessionUserRef.current = null
+      clearAuthenticatedState()
+      return
+    }
+
+    if (lastSessionUserRef.current === user.id) return
+    lastSessionUserRef.current = user.id
+    const requestId = ++authRequestRef.current
+    const metadata = user.user_metadata || {}
+    const baseUser = {
+      id: user.id,
+      name: metadata.first_name || user.email?.split('@')[0].replace(/[._]/g, ' '),
+      role: metadata.role || null,
+      profileComplete: false,
+    }
+
+    setAuthStatus('loading')
+    setFarmerProfile(null)
+    setLogisticsProfile(null)
+    setLogisticsPage(null)
+    setCompletingProfile(false)
+    setQuickAddCrop(false)
+
     try {
+      const role = await resolveUserRole(baseUser)
+      if (authRequestRef.current !== requestId) return
+      const authenticatedUser = { ...baseUser, role: role || 'unknown' }
+      setCurrentUser(authenticatedUser)
+      const choice = readLogisticsChoice(baseUser.id)
+      setChosenSection(choice)
+
       if (role === 'farmer') {
-        const data = await loadFarmerData(user.id)
+        const data = await loadFarmerData(baseUser.id)
+        if (authRequestRef.current !== requestId) return
         setFarmerProfile(data)
         setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
       } else if (role === 'logistics') {
-        const data = await loadLogisticsData(user.id)
+        const data = await loadLogisticsData(baseUser.id)
+        if (authRequestRef.current !== requestId) return
         setLogisticsProfile(data)
         const profileComplete = choice ? logisticsSectionDone(data, choice) : false
         setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete } : current)
@@ -100,23 +142,23 @@ function App() {
       }
     } catch (error) {
       console.error('Could not load profile data:', error)
+    } finally {
+      if (authRequestRef.current === requestId) setAuthStatus('authenticated')
     }
   }
 
   async function handleLogout() {
-    setLogisticsPage(null)
-    setChosenSection(null)
-    setCurrentUser(null)
-    setFarmerProfile(null)
-    setLogisticsProfile(null)
-    setBuyerProfile(null)
-    setCompletingProfile(false)
-    setQuickAddCrop(false)
-    setPanel(null)
+authRequestRef.current += 1
+    lastSessionUserRef.current = null
+    clearAuthenticatedState('loading')
+
     try {
-      await supabase?.auth.signOut()
+      const { error } = await supabase?.auth.signOut() || {}
+      if (error) throw error
     } catch (error) {
       console.error('Could not sign out:', error)
+    } finally {
+      setAuthStatus('unauthenticated')
     }
   }
 
@@ -132,34 +174,36 @@ function App() {
   }
 
   useEffect(() => {
-    if (!supabase) return
+    if (!supabase) return undefined
     let active = true
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        const user = session?.user
-        if (!user) return
-        const metadata = user.user_metadata || {}
-        handleAuthenticated({ id: user.id, name: metadata.first_name || '', role: metadata.role || null, profileComplete: false })
+        restoreSession(session)
       } else if (event === 'SIGNED_OUT') {
-        handleLogout()
+        authRequestRef.current += 1
+        lastSessionUserRef.current = null
+        clearAuthenticatedState()
       }
     })
 
     supabase.auth.getSession()
       .then(({ data }) => {
-        if (!active || !data?.session?.user) return
-        const user = data.session.user
-        const metadata = user.user_metadata || {}
-        handleAuthenticated({ id: user.id, name: metadata.first_name || '', role: metadata.role || null, profileComplete: false })
+        if (!active) return
+        restoreSession(data?.session || null)
       })
-      .catch((error) => console.error('Could not restore session:', error))
+      .catch((error) => {
+        console.error('Could not restore session:', error)
+        if (active) clearAuthenticatedState()
+      })
 
     return () => {
       active = false
       subscription?.subscription.unsubscribe()
     }
   }, [])
+
+  if (authStatus === 'loading') return <AuthLoadingScreen />
 
   function handleChooseSection(section) {
     rememberLogisticsChoice(currentUser?.id, section)
@@ -412,7 +456,6 @@ function App() {
           setLanguage={handleSetLanguage}
           onClose={() => setPanel(null)}
           onSwitch={() => setPanel(panel === 'login' ? 'register' : 'login')}
-          onAuthenticated={handleAuthenticated}
         />
       )}
     </div>
@@ -450,7 +493,17 @@ function RolePlaceholder({ user, language, setLanguage, onLogout }) {
   )
 }
 
-function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLanguage }) {
+function AuthLoadingScreen() {
+  return (
+    <main className="auth-loading" aria-live="polite" aria-busy="true">
+      <div className="auth-loading-mark" aria-hidden="true">✦</div>
+      <strong>Farm<span>Direct</span></strong>
+      <p>Restoring your session…</p>
+    </main>
+  )
+}
+
+function AuthPanel({ type, onClose, onSwitch, language, setLanguage }) {
   const t = useTranslation(language)
   const isRegister = type === 'register'
   const [role, setRole] = useState(null)
@@ -504,7 +557,6 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
         if (error) throw error
         setRegisteredName(name)
         if (data.session) {
-          onAuthenticated({ id: data.user.id, name, role, profileComplete: false })
           onClose()
         } else {
           setSubmitted(true)
@@ -517,9 +569,6 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
             : error.message
           throw error
         }
-        const metadata = data.user.user_metadata || {}
-        const displayName = metadata.first_name || email.split('@')[0].replace(/[._]/g, ' ')
-        onAuthenticated({ id: data.user.id, name: displayName, role: metadata.role || null, profileComplete: false })
         onClose()
       }
     } catch (error) {
