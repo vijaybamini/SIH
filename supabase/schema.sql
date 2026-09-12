@@ -73,6 +73,9 @@ create table public.crop_details (
   specific_crop_type text,
   turnover numeric(14, 2),
   expected_turnover numeric(14, 2),
+  planted_date date,
+  expected_harvest_date date,
+  harvested boolean,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -125,6 +128,7 @@ create policy "Logistics providers can delete their own inventory details" on pu
 create policy "Service providers can view their own record" on public.service_providers for select using (auth.uid() = profile_id);
 create policy "Service providers can update their own record" on public.service_providers for update using (auth.uid() = profile_id);
 create policy "Farmers can view their own land profile" on public.farmer_profiles for select using (auth.uid() = farmer_id);
+create policy "Farmers can create their own land profile" on public.farmer_profiles for insert with check (auth.uid() = farmer_id);
 create policy "Farmers can update their own land profile" on public.farmer_profiles for update using (auth.uid() = farmer_id);
 create policy "Farmers can view their own crop details" on public.crop_details for select using (auth.uid() = farmer_id);
 create policy "Farmers can add their own crop details" on public.crop_details for insert with check (auth.uid() = farmer_id);

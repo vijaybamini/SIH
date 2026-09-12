@@ -6,6 +6,7 @@ import Dashboard from './Dashboard'
 import CompleteProfileFarmer from './CompleteProfileFarmer'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
+import { loadFarmerData } from './api/farmer'
 
 const stats = [
   { value: '0%', label: 'Unnecessary middlemen', icon: '↘' },
@@ -21,6 +22,19 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null)
   const [completingProfile, setCompletingProfile] = useState(false)
   const [farmerProfile, setFarmerProfile] = useState(null)
+
+  async function handleAuthenticated(user) {
+    setCurrentUser(user)
+    setFarmerProfile(null)
+    if (user.role !== 'farmer' || !user.id) return
+    try {
+      const data = await loadFarmerData(user.id)
+      setFarmerProfile(data)
+      setCurrentUser((current) => current ? { ...current, profileComplete: data.profileComplete } : current)
+    } catch (error) {
+      console.error('Could not load farmer data:', error)
+    }
+  }
 
   const copy = language === 'hi' ? {
     about: 'परियोजना के बारे में', how: 'यह कैसे काम करता है', login: 'लॉग इन', register: 'रजिस्टर',
@@ -78,13 +92,14 @@ function App() {
   if (currentUser && completingProfile) {
     return (
       <CompleteProfileFarmer
+        userId={currentUser.id}
         language={language}
         setLanguage={setLanguage}
         initialData={farmerProfile}
         onBack={() => setCompletingProfile(false)}
         onComplete={(data) => {
           setFarmerProfile(data)
-          setCurrentUser((user) => ({ ...user, profileComplete: true }))
+          setCurrentUser((user) => ({ ...user, profileComplete: data.profileComplete }))
           setCompletingProfile(false)
         }}
       />
@@ -186,7 +201,7 @@ function App() {
           setLanguage={setLanguage}
           onClose={() => setPanel(null)}
           onSwitch={() => setPanel(panel === 'login' ? 'register' : 'login')}
-          onAuthenticated={(user) => setCurrentUser(user)}
+          onAuthenticated={handleAuthenticated}
         />
       )}
     </div>
@@ -247,21 +262,22 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
         if (error) throw error
         setRegisteredName(name)
         if (data.session) {
-          onAuthenticated({ name, role, profileComplete: false })
+          onAuthenticated({ id: data.user.id, name, role, profileComplete: false })
           onClose()
         } else {
           setSubmitted(true)
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) {
           error.message = error.code === 'email_not_confirmed'
             ? 'Please confirm your email first. Check your inbox for the confirmation link.'
             : error.message
           throw error
         }
-        const displayName = email.split('@')[0].replace(/[._]/g, ' ')
-        onAuthenticated({ name: displayName, role: 'farmer', profileComplete: false })
+        const metadata = data.user.user_metadata || {}
+        const displayName = metadata.first_name || email.split('@')[0].replace(/[._]/g, ' ')
+        onAuthenticated({ id: data.user.id, name: displayName, role: metadata.role || 'farmer', profileComplete: false })
         onClose()
       }
     } catch (error) {
@@ -303,7 +319,6 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
           <button
             className="button button-primary submit-button"
             onClick={() => {
-              onAuthenticated({ name: registeredName, role, profileComplete: false })
               onClose()
             }}
           >

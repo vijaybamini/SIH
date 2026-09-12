@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
+import { saveFarmerData } from './api/farmer'
 
 const cropSuggestions = [
   'Rice', 'Wheat', 'Maize', 'Bajra', 'Jowar', 'Sugarcane', 'Cotton', 'Groundnut',
@@ -13,10 +14,10 @@ let cropIdCounter = 1
 
 function emptyCrop() {
   cropIdCounter += 1
-  return { id: cropIdCounter, name: '', harvested: null, turnover: '', specificType: '', plantedDate: '', expectedHarvestDate: '' }
+  return { id: `new-${Date.now()}-${cropIdCounter}`, name: '', harvested: null, turnover: '', specificType: '', plantedDate: '', expectedHarvestDate: '' }
 }
 
-export default function CompleteProfileFarmer({ onBack, onComplete, initialData, language, setLanguage }) {
+export default function CompleteProfileFarmer({ userId, onBack, onComplete, initialData, language, setLanguage }) {
   const t = useTranslation(language)
   const steps = [t.stepProfile, t.stepCropDetails, t.stepBankDetails]
   const [step, setStep] = useState(0)
@@ -35,6 +36,8 @@ export default function CompleteProfileFarmer({ onBack, onComplete, initialData,
   const [ifsc, setIfsc] = useState(initialData?.bank?.ifsc || '')
   const [branch, setBranch] = useState(initialData?.bank?.branch || '')
   const [ifscStatus, setIfscStatus] = useState('idle')
+  const [saveError, setSaveError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   function updateCrop(id, field, value) {
     setCrops((current) => current.map((crop) => (crop.id === id ? { ...crop, [field]: value } : crop)))
@@ -75,16 +78,25 @@ export default function CompleteProfileFarmer({ onBack, onComplete, initialData,
     if (index <= unlockedStep) setStep(index)
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
-    onComplete({
-      areaOfLand,
-      surveyNumber,
-      aadhaarNumber,
-      cropLocation,
-      crops,
-      bank: { accountHolderName, accountNumber, ifsc, branch },
-    })
+    setSaveError('')
+    setIsSaving(true)
+    try {
+      const savedData = await saveFarmerData(userId, {
+        areaOfLand,
+        surveyNumber,
+        aadhaarNumber,
+        cropLocation,
+        crops,
+        bank: { accountHolderName, accountNumber, ifsc, branch },
+      })
+      onComplete(savedData)
+    } catch (error) {
+      setSaveError(error.message || 'Could not save your profile. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -211,10 +223,11 @@ export default function CompleteProfileFarmer({ onBack, onComplete, initialData,
           )}
 
           <div className="profile-actions">
+            {saveError && <p className="form-error" role="alert">{saveError}</p>}
             {step > 0 && <button type="button" className="button button-quiet" onClick={() => setStep(step - 1)}>{t.back}</button>}
             {step < steps.length - 1
               ? <button type="button" className="button button-primary" onClick={goNext}>{t.next}</button>
-              : <button type="submit" className="button button-primary">{t.saveFinish}</button>}
+              : <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? 'Saving…' : t.saveFinish}</button>}
           </div>
         </form>
       </div>
