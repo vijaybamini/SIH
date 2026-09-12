@@ -404,7 +404,7 @@ function RolePlaceholder({ user, language, setLanguage, onLogout }) {
             <h2 className="dash-greeting">{t.welcomeBack}{user.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>
           </div>
           <div className="dash-topbar-actions">
-            <LanguageSwitcher language={language} setLanguage={handleSetLanguage} />
+            <LanguageSwitcher language={language} setLanguage={setLanguage} />
             <div className="dash-avatar" tabIndex={0}>{initials}</div>
           </div>
         </header>
@@ -503,7 +503,7 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
         <section className="auth-panel register-panel role-panel" role="dialog" aria-modal="true" aria-labelledby="auth-title">
           <button className="close-button" aria-label={t.closeLabel} onClick={onClose}>×</button>
-          <LanguageSwitcher language={language} setLanguage={handleSetLanguage} className="auth-language-switcher" />
+          <LanguageSwitcher language={language} setLanguage={setLanguage} className="auth-language-switcher" />
           <p className="eyebrow">FARMDIRECT</p>
           <h2 id="auth-title">{t.howRegister}</h2>
           <p className="panel-subtitle">{t.chooseAccount}</p>
@@ -544,7 +544,7 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className={`auth-panel ${isRegister ? 'register-panel' : ''}`} role="dialog" aria-modal="true" aria-labelledby="auth-title">
         <button className="close-button" aria-label={t.closeLabel} onClick={onClose}>×</button>
-        <LanguageSwitcher language={language} setLanguage={handleSetLanguage} className="auth-language-switcher" />
+        <LanguageSwitcher language={language} setLanguage={setLanguage} className="auth-language-switcher" />
         <p className="eyebrow">FARMDIRECT</p>
         {isRegister && <button className="back-button" onClick={() => setRole(null)}>{t.changeRole}</button>}
         <h2 id="auth-title">{isRegister ? t.createAccount.replace('{role}', selectedRole.title) : t.welcomeBack}</h2>
