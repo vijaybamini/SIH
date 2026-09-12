@@ -111,8 +111,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
   const initials = (user.name || 'U').trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
 
   const navItems = [
-    ['Dashboard', t.navDashboard], ['Analytics', t.navAnalytics], ['Fields', t.navFields],
-    ['Harvesting', t.navHarvesting], ['CropHistory', t.navCropHistory], ['Finances', t.navFinances], ['Settings', t.navSettings],
+    ['Dashboard', t.navDashboard], ['Fields', t.navFields], ['CropHistory', t.navCropHistory],
   ]
 
   function handleNavClick(key) {
