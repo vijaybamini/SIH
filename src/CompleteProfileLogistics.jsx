@@ -76,9 +76,9 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
             <LanguageSwitcher language={language} setLanguage={setLanguage} />
           </div>
 
-          <p className="eyebrow">COMPLETE YOUR PROFILE</p>
-          <h2>What service do you provide?</h2>
-          <p className="panel-subtitle">Choose the option that best describes your business. You can add more details next.</p>
+          <p className="eyebrow">{t.completeProfileEyebrow}</p>
+          <h2>{t.whatServiceQuestion}</h2>
+          <p className="panel-subtitle">{t.chooseOptionSub}</p>
 
           <div className="role-grid">
             {SERVICE_TYPES.map((item) => (
@@ -103,12 +103,12 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
           <LanguageSwitcher language={language} setLanguage={setLanguage} />
         </div>
 
-        <p className="eyebrow">COMPLETE YOUR PROFILE</p>
-        <h2>Logistics provider details</h2>
-        <p className="panel-subtitle">Fill in the details below so the platform can match you with the right orders.</p>
+        <p className="eyebrow">{t.completeProfileEyebrow}</p>
+        <h2>{t.completeLogisticsProfileTitle}</h2>
+        <p className="panel-subtitle">{t.matchWithOrdersSub}</p>
 
         <form className="profile-form-card" onSubmit={handleSubmit}>
-          <h3 className="form-section-title">Service type</h3>
+          <h3 className="form-section-title">{t.serviceTypeWord}</h3>
           <div className="service-type-selector">
             {SERVICE_TYPES.map((item) => (
               <button type="button" key={item.key} className={chosen === item.key ? 'selected' : ''} onClick={() => chooseServiceType(item.key)}>
@@ -119,13 +119,13 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
 
           {wantTransport && (
             <section className="logistics-section">
-              <h3 className="form-section-title">🚚 Transportation</h3>
-              <label>Number of vehicles
+              <h3 className="form-section-title">🚚 {t.transportationSection}</h3>
+              <label>{t.numberOfVehicles}
                 <input
                   type="number"
                   min="0"
                   step="1"
-                  placeholder="e.g. 3"
+                  placeholder={t.numberOfVehiclesPlaceholder}
                   value={vehicleCount}
                   onChange={(event) => updateVehicleCount(event.target.value)}
                   required
@@ -137,13 +137,13 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
                   {vehicles.map((vehicle, index) => (
                     <div className="crop-card" key={index}>
                       <div className="crop-card-header">
-                        <label>{`Vehicle ${index + 1} — type`}
+                        <label>{t.vehicleTypeInline.replace('{n}', index + 1)}
                           <select
                             value={vehicle.type}
                             onChange={(event) => updateVehicle(index, 'type', event.target.value)}
                             required
                           >
-                            <option value="">Select vehicle type</option>
+                            <option value="">{t.vehicleTypePlaceholder}</option>
                             {VEHICLE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                           </select>
                         </label>
@@ -151,30 +151,30 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
 
                       {vehicle.type && (
                         <div className="form-grid">
-                          <label>Location
+                          <label>{t.storageLocation}
                             <input
                               type="text"
-                              placeholder="City, district, state"
+                              placeholder={t.cityDistrictStatePlaceholder}
                               value={vehicle.location}
                               onChange={(event) => updateVehicle(index, 'location', event.target.value)}
                               required
                             />
                           </label>
-                          <label>Registration number
+                          <label>{t.vehicleRegistration}
                             <input
                               type="text"
-                              placeholder="e.g. KA 01 AB 1234"
+                              placeholder={t.vehicleRegPlaceholder}
                               value={vehicle.registration}
                               onChange={(event) => updateVehicle(index, 'registration', event.target.value)}
                               required
                             />
                           </label>
-                          <label>Load carrying capacity (tonnes)
+                          <label>{t.loadCapacityTonnes}
                             <input
                               type="number"
                               min="0"
                               step="0.01"
-                              placeholder="e.g. 1.5"
+                              placeholder={t.loadCapacityTonnesPlaceholder}
                               value={vehicle.capacity}
                               onChange={(event) => updateVehicle(index, 'capacity', event.target.value)}
                               required
@@ -191,35 +191,35 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
 
           {wantStorage && (
             <section className="logistics-section">
-              <h3 className="form-section-title">🏬 Storage services</h3>
+              <h3 className="form-section-title">🏬 {t.storageServicesSection}</h3>
               <div className="form-grid">
-                <label>Capacity of cold storage (tonnes)
+                <label>{t.coldStorageCapacityTonnes}
                   <input
                     type="number"
                     min="0"
                     step="0.01"
-                    placeholder="e.g. 120"
+                    placeholder={t.coldStorageCapacityTonnesPlaceholder}
                     value={storage.capacity}
                     onChange={(event) => updateStorage('capacity', event.target.value)}
                     required
                   />
                 </label>
-                <label>Location
+                <label>{t.storageLocation}
                   <input
                     type="text"
-                    placeholder="City, district, state"
+                    placeholder={t.cityDistrictStatePlaceholder}
                     value={storage.location}
                     onChange={(event) => updateStorage('location', event.target.value)}
                     required
                   />
                 </label>
-                <label>Percentage filled (%)
+                <label>{t.percentageFilled}
                   <input
                     type="number"
                     min="0"
                     max="100"
                     step="1"
-                    placeholder="e.g. 60"
+                    placeholder={t.storageFillPlaceholder}
                     value={storage.fillPercentage}
                     onChange={(event) => updateStorage('fillPercentage', event.target.value)}
                     required
@@ -227,7 +227,7 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
                 </label>
               </div>
               {storage.fillPercentage !== '' && (
-                <p className="form-note logistics-note">Remaining capacity: {Math.max(0, 100 - (Number(storage.fillPercentage) || 0))}%</p>
+                <p className="form-note logistics-note">{t.remainingCapacity.replace('{n}', Math.max(0, 100 - (Number(storage.fillPercentage) || 0)))}</p>
               )}
             </section>
           )}

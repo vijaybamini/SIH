@@ -1,27 +1,68 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
 import PriceWidget from './PriceWidget'
 import { useTranslation } from './i18n'
 
-const TOOLTIP_HOLD_MS = 2000
+const MENU_PROXIMITY_MARGIN = 28
+const MENU_CLOSE_DELAY_MS = 300
 
 function useHoverMenu() {
   const [visible, setVisible] = useState(false)
   const timer = useRef(null)
+  const wrapRef = useRef(null)
+  const tooltipRef = useRef(null)
+
   function show() {
     clearTimeout(timer.current)
     setVisible(true)
   }
   function hide() {
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => setVisible(false), TOOLTIP_HOLD_MS)
+    timer.current = setTimeout(() => setVisible(false), MENU_CLOSE_DELAY_MS)
   }
-  return [visible, show, hide]
+
+  useEffect(() => {
+    if (!visible) return undefined
+    function cursorNear(event) {
+      const wrap = wrapRef.current
+      if (!wrap) return false
+      const rects = [wrap.getBoundingClientRect()]
+      const tooltip = tooltipRef.current
+      if (tooltip && !tooltip.hidden) rects.push(tooltip.getBoundingClientRect())
+      return rects.some((rect) =>
+        event.clientX >= rect.left - MENU_PROXIMITY_MARGIN &&
+        event.clientX <= rect.right + MENU_PROXIMITY_MARGIN &&
+        event.clientY >= rect.top - MENU_PROXIMITY_MARGIN &&
+        event.clientY <= rect.bottom + MENU_PROXIMITY_MARGIN
+      )
+    }
+    function handleMouseMove(event) {
+      clearTimeout(timer.current)
+      if (cursorNear(event)) return
+      timer.current = setTimeout(() => setVisible(false), MENU_CLOSE_DELAY_MS)
+    }
+    function handleClickOutside(event) {
+      const wrap = wrapRef.current
+      if (wrap && wrap.contains(event.target)) return
+      const tooltip = tooltipRef.current
+      if (tooltip && tooltip.contains(event.target)) return
+      setVisible(false)
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mousedown', handleClickOutside)
+      clearTimeout(timer.current)
+    }
+  }, [visible])
+
+  return [visible, show, hide, wrapRef, tooltipRef]
 }
 
-function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, onOpen, onClose, visible, t }) {
+function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, tooltipRef, visible, t }) {
   return (
-    <div className="profile-tooltip" role="menu" onMouseEnter={onOpen} onMouseLeave={onClose} hidden={!visible}>
+    <div className="profile-tooltip" role="menu" ref={tooltipRef} hidden={!visible}>
       {!profileComplete && (
         <>
           <p>{t.profileIncompleteMsg}</p>
@@ -136,12 +177,12 @@ function CropHistoryPage({ crops, t }) {
 export default function Dashboard({ user, farmerProfile, language, setLanguage, onOpenCompleteProfile, onQuickAddCrop, onMarkCropHarvested, onLogout }) {
   const t = useTranslation(language)
   const [activeNav, setActiveNav] = useState('Dashboard')
-  const [showTopMenu, showTop, hideTop] = useHoverMenu()
+  const [showTopMenu, showTop, hideTop, wrapRef, tooltipRef] = useHoverMenu()
   const [dismissedIds, setDismissedIds] = useState([])
   const initials = (user.name || 'U').trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
 
   const navItems = [
-    ['Dashboard', t.navDashboard], ['Fields', t.navFields], ['CropHistory', t.navCropHistory],
+    ['Dashboard', t.navDashboard], ['CropHistory', t.navCropHistory],
   ]
 
   function handleNavClick(key) {
@@ -174,8 +215,8 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
           </div>
           <div className="dash-topbar-actions">
             <LanguageSwitcher language={language} setLanguage={setLanguage} />
-            <div className="dash-avatar-wrap" onMouseEnter={showTop} onMouseLeave={hideTop}>
-              <div className="dash-avatar" tabIndex={0} onFocus={showTop} onBlur={hideTop}>
+            <div className="dash-avatar-wrap" ref={wrapRef} onMouseEnter={showTop}>
+              <div className="dash-avatar" tabIndex={0} onClick={showTop} onFocus={showTop} onBlur={hideTop}>
                 {initials}
                 {!user.profileComplete && <span className="profile-alert" aria-label={t.profileIncompleteLabel}>!</span>}
               </div>
@@ -183,8 +224,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
                 profileComplete={user.profileComplete}
                 onOpenCompleteProfile={onOpenCompleteProfile}
                 onLogout={onLogout}
-                onOpen={showTop}
-                onClose={hideTop}
+                tooltipRef={tooltipRef}
                 visible={showTopMenu}
                 t={t}
               />
@@ -219,7 +259,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
                   <strong>{farmerProfile?.areaOfLand ? `${farmerProfile.areaOfLand} ${t.acres}` : '—'}</strong>
                 </div>
                 <div className="farmer-details-row">
-                  <span>Crops</span>
+                  <span>{t.cropsLabel}</span>
                   <strong>{allCrops.map((crop) => crop.name).filter(Boolean).join(', ') || '—'}</strong>
                 </div>
                 <div className="farmer-details-row">
@@ -230,7 +270,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
             </div>
 
             <div className="dash-col-main">
-            <PriceWidget crops={allCrops} />
+            <PriceWidget crops={allCrops} t={t} />
             <div className="section-heading-row">
               <h3>{t.currentCrops}</h3>
               <button className="icon-add-button" onClick={onQuickAddCrop} aria-label={t.addAnotherCrop} title={t.addAnotherCrop}>+</button>

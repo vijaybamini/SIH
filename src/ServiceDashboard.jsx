@@ -1,26 +1,67 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
 
-const TOOLTIP_HOLD_MS = 2000
+const MENU_PROXIMITY_MARGIN = 28
+const MENU_CLOSE_DELAY_MS = 300
 
 function useHoverMenu() {
   const [visible, setVisible] = useState(false)
   const timer = useRef(null)
+  const wrapRef = useRef(null)
+  const tooltipRef = useRef(null)
+
   function show() {
     clearTimeout(timer.current)
     setVisible(true)
   }
   function hide() {
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => setVisible(false), TOOLTIP_HOLD_MS)
+    timer.current = setTimeout(() => setVisible(false), MENU_CLOSE_DELAY_MS)
   }
-  return [visible, show, hide]
+
+  useEffect(() => {
+    if (!visible) return undefined
+    function cursorNear(event) {
+      const wrap = wrapRef.current
+      if (!wrap) return false
+      const rects = [wrap.getBoundingClientRect()]
+      const tooltip = tooltipRef.current
+      if (tooltip && !tooltip.hidden) rects.push(tooltip.getBoundingClientRect())
+      return rects.some((rect) =>
+        event.clientX >= rect.left - MENU_PROXIMITY_MARGIN &&
+        event.clientX <= rect.right + MENU_PROXIMITY_MARGIN &&
+        event.clientY >= rect.top - MENU_PROXIMITY_MARGIN &&
+        event.clientY <= rect.bottom + MENU_PROXIMITY_MARGIN
+      )
+    }
+    function handleMouseMove(event) {
+      clearTimeout(timer.current)
+      if (cursorNear(event)) return
+      timer.current = setTimeout(() => setVisible(false), MENU_CLOSE_DELAY_MS)
+    }
+    function handleClickOutside(event) {
+      const wrap = wrapRef.current
+      if (wrap && wrap.contains(event.target)) return
+      const tooltip = tooltipRef.current
+      if (tooltip && tooltip.contains(event.target)) return
+      setVisible(false)
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mousedown', handleClickOutside)
+      clearTimeout(timer.current)
+    }
+  }, [visible])
+
+  return [visible, show, hide, wrapRef, tooltipRef]
 }
 
-function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, onOpen, onClose, visible, t }) {
+function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, tooltipRef, visible, t }) {
   return (
-    <div className="profile-tooltip" role="menu" onMouseEnter={onOpen} onMouseLeave={onClose} hidden={!visible}>
+    <div className="profile-tooltip" role="menu" ref={tooltipRef} hidden={!visible}>
       {!profileComplete && (
         <>
           <p>{t.profileIncompleteMsg}</p>
@@ -37,7 +78,7 @@ function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, onOpen,
 
 export default function ServiceDashboard({ user, serviceProfile, language, setLanguage, onOpenCompleteProfile, onLogout }) {
   const t = useTranslation(language)
-  const [showTopMenu, showTop, hideTop] = useHoverMenu()
+  const [showTopMenu, showTop, hideTop, wrapRef, tooltipRef] = useHoverMenu()
   const initials = (user.name || 'S').trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'S'
 
   const mills = serviceProfile?.mills ?? []
@@ -63,8 +104,8 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
           </div>
           <div className="dash-topbar-actions">
             <LanguageSwitcher language={language} setLanguage={setLanguage} />
-            <div className="dash-avatar-wrap" onMouseEnter={showTop} onMouseLeave={hideTop}>
-              <div className="dash-avatar" tabIndex={0} onFocus={showTop} onBlur={hideTop}>
+            <div className="dash-avatar-wrap" ref={wrapRef} onMouseEnter={showTop}>
+              <div className="dash-avatar" tabIndex={0} onClick={showTop} onFocus={showTop} onBlur={hideTop}>
                 {initials}
                 {!user.profileComplete && <span className="profile-alert" aria-label={t.profileIncompleteLabel}>!</span>}
               </div>
@@ -72,8 +113,7 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
                 profileComplete={user.profileComplete}
                 onOpenCompleteProfile={onOpenCompleteProfile}
                 onLogout={onLogout}
-                onOpen={showTop}
-                onClose={hideTop}
+                tooltipRef={tooltipRef}
                 visible={showTopMenu}
                 t={t}
               />
@@ -83,7 +123,7 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
 
         <div className="dash-grid dash-grid-reverse">
           <div className="dash-col-side">
-            <h3>Profile details</h3>
+            <h3>{t.profileDetails}</h3>
             <div className="farmer-details-card">
               <div className="farmer-photo-wrap">
                 {serviceProfile?.photo ? (
@@ -105,7 +145,7 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
                 <strong>{serviceProfile?.address || '—'}</strong>
               </div>
               <div className="farmer-details-row">
-                <span>Crops serviced</span>
+                <span>{t.cropsServiced}</span>
                 <strong>{[...new Set(mills.flatMap((mill) => mill.cropTypes.filter(Boolean)))].join(', ') || '—'}</strong>
               </div>
             </div>
@@ -113,12 +153,12 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
 
           <div className="dash-col-main">
             <div className="section-heading-row">
-              <h3>Your mills</h3>
+              <h3>{t.yourMills}</h3>
               <button className="icon-add-button" onClick={onOpenCompleteProfile} aria-label={t.editProfile} title={t.editProfile}>+</button>
             </div>
             {mills.length === 0 ? (
               <div className="empty-card">
-                <p>{user.profileComplete ? 'No mills added yet.' : 'Complete your profile to see your mills here.'}</p>
+                <p>{user.profileComplete ? t.noMillsYet : t.completeServicePrompt}</p>
                 {!user.profileComplete && <button className="button button-primary" onClick={onOpenCompleteProfile}>{t.completeProfile}</button>}
               </div>
             ) : (
@@ -126,15 +166,15 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
                 {mills.map((mill, index) => (
                   <article className="crop-progress-card" key={mill.id}>
                     <div className="crop-progress-header">
-                      <strong>{`Mill ${index + 1}`}</strong>
-                      <span className="crop-status">{mill.gstin ? 'GSTIN on file' : 'GSTIN pending'}</span>
+                      <strong>{t.millNumber.replace('{n}', index + 1)}</strong>
+                      <span className="crop-status">{mill.gstin ? t.gstinOnFile : t.gstinPending}</span>
                     </div>
                     <div className="crop-meta-row">
-                      <span>Crop services: <b>{mill.cropTypes.filter(Boolean).join(', ') || '—'}</b></span>
+                      <span>{t.cropServices}: <b>{mill.cropTypes.filter(Boolean).join(', ') || '—'}</b></span>
                     </div>
                     {mill.documentUrl && (
                       <div className="crop-meta-row">
-                        <a href={mill.documentUrl} target="_blank" rel="noreferrer">📄 View GSTIN document</a>
+                        <a href={mill.documentUrl} target="_blank" rel="noreferrer">📄 {t.viewGstinDocument}</a>
                       </div>
                     )}
                   </article>
@@ -142,9 +182,9 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
               </div>
             )}
 
-            <h3>Past services</h3>
+            <h3>{t.pastServices}</h3>
             {pastServices.length === 0 ? (
-              <div className="empty-card"><p>No past services yet.</p></div>
+              <div className="empty-card"><p>{t.noPastServicesYet}</p></div>
             ) : (
               <div className="past-crop-list">
                 {pastServices.map((service) => (

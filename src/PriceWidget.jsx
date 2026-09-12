@@ -13,7 +13,11 @@ function trendArrow(pct) {
   return '→'
 }
 
-function CropPriceRow({ cropName }) {
+function isFeaturedCrop(cropName) {
+  return /rice|paddy|paddh|dhan/i.test(cropName || '')
+}
+
+function CropPriceRow({ cropName, t }) {
   const [state, setState] = useState({ status: 'loading' })
 
   useEffect(() => {
@@ -27,25 +31,25 @@ function CropPriceRow({ cropName }) {
 
   if (state.status === 'loading') {
     return (
-      <div className="price-widget-row">
+      <div className={`price-widget-row${isFeaturedCrop(cropName) ? ' featured' : ''}`}>
         <span className="price-widget-crop">{cropName}</span>
-        <span className="price-widget-loading">Checking…</span>
+        <span className="price-widget-loading">{t.checkingPrice}</span>
       </div>
     )
   }
 
   if (state.status === 'error') {
     return (
-      <div className="price-widget-row">
+      <div className={`price-widget-row${isFeaturedCrop(cropName) ? ' featured' : ''}`}>
         <span className="price-widget-crop">{cropName}</span>
-        <span className="price-widget-unavailable">Price unavailable</span>
+        <span className="price-widget-unavailable">{t.priceUnavailable}</span>
       </div>
     )
   }
 
   const { farmer_net_price_per_kg, market_demand_trend_pct } = state.data
   return (
-    <div className="price-widget-row">
+    <div className={`price-widget-row${isFeaturedCrop(cropName) ? ' featured' : ''}`}>
       <span className="price-widget-crop">{cropName}</span>
       <span className="price-widget-value">
         ₹{farmer_net_price_per_kg}/kg
@@ -57,17 +61,17 @@ function CropPriceRow({ cropName }) {
   )
 }
 
-export default function PriceWidget({ crops }) {
+export default function PriceWidget({ crops, t }) {
   const cropNames = [...new Set((crops || []).map((crop) => crop.name).filter(Boolean))]
   if (cropNames.length === 0) return null
 
   return (
     <div className="price-widget">
-      <h3>Today's prices</h3>
+      <h3>{t.todaysPrices}</h3>
       <div className="price-widget-card">
-        {cropNames.map((name) => <CropPriceRow key={name} cropName={name} />)}
+        {cropNames.map((name) => <CropPriceRow key={name} cropName={name} t={t} />)}
       </div>
-      <p className="price-widget-note">What you'd net per kg today, after the platform's commission — before any buyer's shipping cost.</p>
+      <p className="price-widget-note">{t.priceWidgetNote}</p>
     </div>
   )
 }

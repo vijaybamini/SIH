@@ -283,7 +283,7 @@ authRequestRef.current += 1
     return () => window.speechSynthesis.cancel()
   }, [accessibility.screenReader, language])
 
-  if (authStatus === 'loading') return <AuthLoadingScreen />
+  if (authStatus === 'loading') return <AuthLoadingScreen language={language} />
 
   function handleChooseSection(section) {
     rememberLogisticsChoice(currentUser?.id, section)
@@ -802,12 +802,13 @@ function RolePlaceholder({ user, language, setLanguage, onLogout }) {
   )
 }
 
-function AuthLoadingScreen() {
+function AuthLoadingScreen({ language }) {
+  const t = useTranslation(language)
   return (
     <main className="auth-loading" aria-live="polite" aria-busy="true">
       <div className="auth-loading-mark" aria-hidden="true">✦</div>
       <strong>Farm<span>Direct</span></strong>
-      <p>Restoring your session…</p>
+      <p>{t.restoringSession}</p>
     </main>
   )
 }

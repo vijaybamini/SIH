@@ -217,27 +217,27 @@ export default function TransportationDashboard({ userId, initialData, language,
 
                 <div className="form-grid">
                   <label>{t.name}<input value={profile.name} onChange={(event) => updateProfile('name', event.target.value)} placeholder={t.namePlaceholder} required /></label>
-                  <label>{t.aadhaarNumber}<input inputMode="numeric" pattern="[0-9]{12}" value={profile.aadhaarNumber} onChange={(event) => updateProfile('aadhaarNumber', event.target.value)} placeholder="12-digit Aadhaar number" required /></label>
+                  <label>{t.aadhaarNumber}<input inputMode="numeric" pattern="[0-9]{12}" value={profile.aadhaarNumber} onChange={(event) => updateProfile('aadhaarNumber', event.target.value)} placeholder={t.aadhaarPlaceholder} required /></label>
                   <label>{t.phone}<input type="tel" inputMode="numeric" pattern="[0-9]{10}" value={profile.phone} onChange={(event) => updateProfile('phone', event.target.value)} placeholder={t.phonePlaceholder} required /></label>
                   <label>{t.address}<textarea value={profile.address} onChange={(event) => updateProfile('address', event.target.value)} placeholder={t.addressPlaceholder} required /></label>
                 </div>
 
-                <h3 className="form-section-title">Crops you transport or store</h3>
+                <h3 className="form-section-title">{t.cropsYouHandle}</h3>
                 {profile.crops.map((crop, index) => (
                   <div className="crop-card-header" key={index}>
-                    <label>{index === 0 ? 'Crop' : 'Additional crop'}
+                    <label>{index === 0 ? t.cropWord : t.additionalCrop}
                       <select value={crop} onChange={(event) => updateCrop(index, event.target.value)}>
-                        <option value="">Select crop</option>
+                        <option value="">{t.selectCrop}</option>
                         {t.cropSuggestions.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
                     </label>
                     {profile.crops.length > 1 && (
-                      <button type="button" className="remove-crop-button" onClick={() => removeCrop(index)} aria-label="Remove this crop">×</button>
+                      <button type="button" className="remove-crop-button" onClick={() => removeCrop(index)} aria-label={t.removeThisCropLabel}>×</button>
                     )}
                   </div>
                 ))}
                 <button type="button" className="add-crop-button" onClick={addCrop}>
-                  <span aria-hidden="true">+</span> Add another crop
+                  <span aria-hidden="true">+</span> {t.addAnotherCrop}
                 </button>
               </>
             )}
@@ -333,7 +333,7 @@ export default function TransportationDashboard({ userId, initialData, language,
               <div><span>{t.aadhaarNumber}</span><strong>{profile.aadhaarNumber || '—'}</strong></div>
               <div><span>{t.phone}</span><strong>{profile.phone || '—'}</strong></div>
               <div><span>{t.address}</span><strong>{profile.address || '—'}</strong></div>
-              <div><span>Crops</span><strong>{profile.crops.filter(Boolean).join(', ') || '—'}</strong></div>
+              <div><span>{t.cropsLabel}</span><strong>{profile.crops.filter(Boolean).join(', ') || '—'}</strong></div>
             </div>
           )}
         </div>
