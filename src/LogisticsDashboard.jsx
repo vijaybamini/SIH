@@ -24,7 +24,7 @@ function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, onOpen,
       {!profileComplete ? (
         <>
           <p>{t.profileIncompleteMsg}</p>
-          <button onClick={onOpenCompleteProfile}>{t.completeProfile} →</button>
+          <button className="profile-tooltip-cta" onClick={onOpenCompleteProfile}>{t.completeProfile} →</button>
         </>
       ) : (
         <div className="profile-menu-list">

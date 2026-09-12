@@ -166,8 +166,8 @@ form { display: grid; gap: 16px; } label { color: #4b5e50; display: grid; font-s
 .profile-alert { align-items: center; background: var(--card-cream); border: 2px solid var(--accent); border-radius: 50%; color: var(--accent); display: flex; font-size: 14px; font-weight: 800; height: 23px; justify-content: center; position: absolute; right: -4px; top: -4px; width: 23px; }
 .profile-tooltip { background: white; border: 1px solid #e2e9df; border-radius: 10px; box-shadow: 0 12px 28px rgba(35, 62, 42, .16); padding: 16px; position: absolute; right: 0; top: calc(100% + 10px); width: 250px; z-index: 6; }
 .profile-tooltip p { color: #4b5e50; font-size: 14px; line-height: 1.5; margin: 0 0 11px; }
-.profile-tooltip button { background: var(--accent); border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 14px; font-weight: 700; padding: 10px 12px; width: 100%; }
-.profile-tooltip button:hover { filter: brightness(.92); }
+.profile-tooltip-cta { background: var(--accent); border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 14px; font-weight: 700; padding: 10px 12px; width: 100%; }
+.profile-tooltip-cta:hover { filter: brightness(.92); }
 .profile-menu-list { display: flex; flex-direction: column; gap: 6px; }
 .menu-item { background: transparent; border: 0; border-radius: 6px; color: #304336; cursor: pointer; display: flex; font-size: 14px; font-weight: 600; gap: 9px; padding: 10px 12px; text-align: left; width: 100%; }
 .menu-item:hover { background: #f1f4ef; }
