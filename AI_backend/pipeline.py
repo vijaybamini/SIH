@@ -270,6 +270,14 @@ def resolve_distance(payload: Dict[str, Any]) -> Tuple[float, Optional[str], Opt
     )
 
 
+DEFAULT_FALLBACK_DISTANCE_KM = 150.0  # used only when neither real farmer
+                                       # listings NOR a manual distance/pincode
+                                       # pair are available -- keeps the demo
+                                       # usable for commodities with no real
+                                       # Supabase supply yet, clearly flagged
+                                       # as an assumption in the warnings.
+
+
 # --------------------------------------------------------------------------- #
 # Forecast wrapper (with graceful fallback)
 # --------------------------------------------------------------------------- #
@@ -362,24 +370,34 @@ def get_consumer_quote(payload: Dict[str, Any]) -> Dict[str, Any]:
     import demand_pool
     pooled_demand_kg = demand_pool.register_and_get_pooled_demand_kg(real_commodity, order_demand_kg)
 
+    warnings: List[str] = []
+
+    # ---- try real per-farmer listings first: these drive BOTH the supply
+    # number (sum of real listings, not a guess) AND the multi-farmer
+    # routing/allocation below, so they're fetched once up front. ----
+    from supabase_integration import fetch_supply_listings
+    listings = fetch_supply_listings(real_commodity)
+
     total_platform_supply_kg = payload.get("total_platform_supply_kg")
-    supply_warning = None
     if total_platform_supply_kg in (None, ""):
-        from supabase_integration import fetch_real_supply_kg
-        real_supply_kg = fetch_real_supply_kg(real_commodity)
-        if real_supply_kg is not None:
-            total_platform_supply_kg = real_supply_kg
-            supply_warning = (f"total_platform_supply_kg not provided; used live farmer-listed "
-                               f"supply from Supabase ({real_supply_kg:.0f}kg for '{real_commodity}').")
+        if listings:
+            total_platform_supply_kg = sum(float(l["available_kg"]) for l in listings)
         else:
-            # Seed guess = 1.5x THIS order alone; cached per-commodity for the
-            # rest of the demand window so it doesn't rescale itself away as
-            # more buyers pile on (see get_or_create_heuristic_supply_kg).
-            total_platform_supply_kg = demand_pool.get_or_create_heuristic_supply_kg(
-                real_commodity, order_demand_kg * 1.5)
-            supply_warning = ("total_platform_supply_kg not provided and no live Supabase listings "
-                               f"found for '{real_commodity}'; used a heuristic default "
-                               f"({total_platform_supply_kg:.0f}kg, fixed for this demand window).")
+            from supabase_integration import fetch_real_supply_kg
+            real_supply_kg = fetch_real_supply_kg(real_commodity)
+            if real_supply_kg is not None:
+                total_platform_supply_kg = real_supply_kg
+                warnings.append(f"total_platform_supply_kg not provided; used live farmer-listed "
+                                 f"supply from Supabase ({real_supply_kg:.0f}kg for '{real_commodity}').")
+            else:
+                # Seed guess = 1.5x THIS order alone; cached per-commodity for
+                # the rest of the demand window so it doesn't rescale itself
+                # away as more buyers pile on (get_or_create_heuristic_supply_kg).
+                total_platform_supply_kg = demand_pool.get_or_create_heuristic_supply_kg(
+                    real_commodity, order_demand_kg * 1.5)
+                warnings.append("total_platform_supply_kg not provided and no live Supabase listings "
+                                 f"found for '{real_commodity}'; used a heuristic default "
+                                 f"({total_platform_supply_kg:.0f}kg, fixed for this demand window).")
     total_platform_supply_kg = float(total_platform_supply_kg)
     if total_platform_supply_kg <= 0:
         raise ValueError("total_platform_supply_kg must be positive.")
@@ -388,44 +406,116 @@ def get_consumer_quote(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     # ---- 1. forecast (base anchor + demand trend) ----
     forecast, forecast_warning = forecast_with_fallback(df, real_commodity, market, forecast_days)
+    if forecast_warning:
+        warnings.append(forecast_warning)
+    if uses_default_market:
+        warnings.append(f"No market specified; used '{market}' (most recent history "
+                        f"for '{real_commodity}').")
 
-    # ---- 2. logistics freight quote (prices the whole order as one shipment) ----
-    distance_km, pickup, destination = resolve_distance(payload)
     engine = PricingEngine(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pricing_config.json"))
-    quote = engine.price_trip(
-        commodity=pricing_profile_for(real_commodity),
-        shipment_weight_kg=order_demand_kg,
-        distance_km=distance_km,
-        pickup=pickup or real_commodity,
-        destination=destination or market,
+    freight_kwargs = dict(
         backhaul_available=bool(payload.get("backhaul_available", False)),
         corridor_type=str(payload.get("corridor_type", "established")),
         season=str(payload.get("season", "normal")),
         force_reefer=payload.get("force_reefer"),
         diesel_price_override=payload.get("diesel_price_override"),
     )
-    logistics = quote.to_dict()
-    logistics_freight_total = float(logistics["customer_pays"])
 
-    # ---- 3. consumer price ----
+    # ---- 2. logistics: multi-farmer routing when real listings exist,
+    # otherwise a single-shipment fallback quote ----
+    sourcing = None
+    allocations: List[Dict[str, Any]] = []
+    trip_quotes: List[Dict[str, Any]] = []
+    logistics_freight_total = 0.0
+    distance_km = None
+    pickup = destination = None
+    fulfilled_kg = order_demand_kg
+    buyer_pincode = payload.get("buyer_pincode")
+
+    if listings and buyer_pincode:
+        import route_optimization as ro
+        try:
+            plan = ro.plan_multi_farmer_delivery(buyer_pincode, order_demand_kg, listings)
+        except ValueError as exc:
+            warnings.append(f"Multi-farmer routing unavailable ({exc}); falling back to a single-shipment quote.")
+            plan = None
+
+        if plan is not None:
+            sourcing = "multi_farmer"
+            warnings.extend(plan["warnings"])
+            allocations = plan["allocations"]
+            fulfilled_kg = plan["total_allocated_kg"]
+            if fulfilled_kg < order_demand_kg - 0.01:
+                warnings.append(f"Only {fulfilled_kg:.0f}kg of {order_demand_kg:.0f}kg requested could be "
+                                f"sourced from real farmer listings; pricing and billing reflect the "
+                                f"{fulfilled_kg:.0f}kg that's actually deliverable.")
+
+            for trip in plan["trips"]:
+                trip_quote = engine.price_trip(
+                    commodity=pricing_profile_for(real_commodity),
+                    shipment_weight_kg=trip["total_weight_kg"],
+                    distance_km=trip["distance_km"],
+                    pickup=" -> ".join(str(s) for s in trip["stops"][:-1]),
+                    destination="Buyer",
+                    **freight_kwargs,
+                )
+                trip_dict = trip_quote.to_dict()
+                trip_dict["stops"] = trip["stops"]
+                trip_dict["farmer_ids"] = trip["farmer_ids"]
+                trip_quotes.append(trip_dict)
+                logistics_freight_total += float(trip_dict["customer_pays"])
+                warnings.extend(trip_dict.get("warnings", []))
+
+            distance_km = round(sum(t["distance_km"] for t in plan["trips"]), 2)
+
+    if sourcing is None:
+        # ---- single-shipment fallback (no real farmer data to route across) ----
+        sourcing = "single_shipment"
+        try:
+            distance_km, pickup, destination = resolve_distance(payload)
+        except ValueError:
+            if buyer_pincode:
+                distance_km = DEFAULT_FALLBACK_DISTANCE_KM
+                pickup, destination = "Nearby farms (unspecified)", buyer_pincode
+                warnings.append(f"No real farmer listings and no distance/pincode provided; used an "
+                                f"approximate default distance of {DEFAULT_FALLBACK_DISTANCE_KM:.0f}km.")
+            else:
+                raise
+
+        quote = engine.price_trip(
+            commodity=pricing_profile_for(real_commodity),
+            shipment_weight_kg=order_demand_kg,
+            distance_km=distance_km,
+            pickup=pickup or real_commodity,
+            destination=destination or market,
+            **freight_kwargs,
+        )
+        logistics = quote.to_dict()
+        logistics_freight_total = float(logistics["customer_pays"])
+        trip_quotes = [logistics]
+        warnings.extend(logistics.get("warnings", []))
+
+    # ---- 3. consumer price (billed on fulfilled_kg, never on undeliverable demand) ----
     consumer = ConsumerPricingEngine(platform_fee_pct=float(payload.get("platform_fee_pct", 8.0)))
     consumer_quote = consumer.generate_consumer_price(
         historical_base_price_kg=forecast["base_price_per_kg"],
         market_demand_trend_pct=forecast["market_demand_trend_pct"],
         total_platform_supply_kg=total_platform_supply_kg,
-        order_demand_kg=order_demand_kg,
+        order_demand_kg=fulfilled_kg,
         total_logistics_cost=logistics_freight_total,
         pooled_demand_kg=pooled_demand_kg,
     )
+    breakdown = consumer_quote.to_dict()
 
-    warnings = list(logistics.get("warnings", []))
-    if forecast_warning:
-        warnings.append(forecast_warning)
-    if uses_default_market:
-        warnings.append(f"No market specified; used '{market}' (most recent history "
-                        f"for '{real_commodity}').")
-    if supply_warning:
-        warnings.append(supply_warning)
+    # ---- per-farmer payout, now that the shared per-kg farmer price is known.
+    # Uses the UNROUNDED consumer_quote value, not the display-rounded dict
+    # entry, so individual payouts sum to the same total_farmer_payout the
+    # breakdown reports (rounding the per-kg rate first would drift by a few
+    # rupees across several allocations). ----
+    farmer_net_price_per_kg = consumer_quote.farmer_net_price_per_kg
+    for alloc in allocations:
+        alloc["farmer_payout"] = round(alloc["allocated_kg"] * farmer_net_price_per_kg, 2)
+
     other_buyers_demand_kg = pooled_demand_kg - order_demand_kg
     if other_buyers_demand_kg > 0.01:
         window_min = int(demand_pool.DEMAND_WINDOW_SECONDS / 60)
@@ -434,19 +524,25 @@ def get_consumer_quote(payload: Dict[str, Any]) -> Dict[str, Any]:
                         f"'{real_commodity}' across all buyers (last {window_min} min).")
 
     # sanity: middleman cut check — neither farmer payout nor freight includes
-    # any commission line; only an explicit platform convenience fee is present.
-    breakdown = consumer_quote.to_dict()
+    # any commission line; only an explicit platform commission (deducted
+    # from the farmer, never added for the buyer) is present.
     return {
         "commodity": real_commodity,
         "market": market,
-        "order_demand_kg": order_demand_kg,
+        "requested_kg": order_demand_kg,
+        "order_demand_kg": fulfilled_kg,
         "pooled_demand_kg": pooled_demand_kg,
         "total_platform_supply_kg": total_platform_supply_kg,
+        "sourcing": sourcing,
+        "allocations": allocations,
         "distance_km": distance_km,
         "pickup": pickup,
         "destination": destination,
         "forecast": forecast,
-        "logistics": logistics,
+        "logistics": {
+            "trips": trip_quotes,
+            "total_logistics_cost": logistics_freight_total,
+        },
         "consumer_breakdown": breakdown,
         "totals": {
             "farmer_payout": breakdown["order_totals"]["total_farmer_payout"],

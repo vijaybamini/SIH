@@ -5,3 +5,5 @@ numpy
 statsmodels
 requests
 python-dotenv
+scipy
+ortools

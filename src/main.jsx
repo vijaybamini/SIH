@@ -11,6 +11,7 @@ import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
 import { loadFarmerData } from './api/farmer'
 import { loadLogisticsData } from './api/logistics'
+import { loadBuyerData } from './api/buyer'
 
 const stats = [
   { value: '0%', label: 'Unnecessary middlemen', icon: '↘' },
@@ -30,6 +31,7 @@ function App() {
   const [quickAddCrop, setQuickAddCrop] = useState(false)
   const [farmerProfile, setFarmerProfile] = useState(null)
   const [logisticsProfile, setLogisticsProfile] = useState(null)
+  const [buyerProfile, setBuyerProfile] = useState(null)
   const authRequestRef = useRef(0)
   const lastSessionKeyRef = useRef(null)
 
@@ -41,6 +43,7 @@ function App() {
       setCurrentUser(null)
       setFarmerProfile(null)
       setLogisticsProfile(null)
+      setBuyerProfile(null)
       setCompletingProfile(false)
       setQuickAddCrop(false)
       setAuthStatus('unauthenticated')
@@ -64,6 +67,7 @@ function App() {
     setCurrentUser(authenticatedUser)
     setFarmerProfile(null)
     setLogisticsProfile(null)
+    setBuyerProfile(null)
     setCompletingProfile(false)
     setQuickAddCrop(false)
 
@@ -83,6 +87,11 @@ function App() {
         if (authRequestRef.current !== requestId) return
         setLogisticsProfile(data)
         setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
+      } else if (authenticatedUser.role === 'buyer') {
+        const data = await loadBuyerData(authenticatedUser.id)
+        if (authRequestRef.current !== requestId) return
+        setBuyerProfile(data)
+        setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
       }
     } catch (error) {
       console.error('Could not load profile data:', error)
@@ -98,6 +107,7 @@ function App() {
     setCurrentUser(null)
     setFarmerProfile(null)
     setLogisticsProfile(null)
+    setBuyerProfile(null)
     setCompletingProfile(false)
     setQuickAddCrop(false)
     setPanel(null)
@@ -224,6 +234,7 @@ function App() {
     return (
       <BulkBuyerDashboard
         user={currentUser}
+        buyerProfile={buyerProfile}
         language={language}
         setLanguage={setLanguage}
         onLogout={handleLogout}

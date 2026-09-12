@@ -9,72 +9,67 @@ from ortools.constraint_solver import routing_enums_pb2, pywrapcp
 # ---------------------------------------------------------------------------
 # 0. PINCODE RESOLUTION ENGINE (USING CSV)
 # ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# 0. PINCODE RESOLUTION ENGINE (USING CSV)
-# ---------------------------------------------------------------------------
-import os
+# Lazy + exception-based (never sys.exit) so this module is safe to `import`
+# from a long-running server (pipeline.py) -- the original version ran the
+# CSV load at import time and called sys.exit(1) on any problem, which would
+# have killed the whole FastAPI process the moment this module was imported.
+# CLI usage (the __main__ block below) still gets equivalent behavior: an
+# uncaught exception there prints a traceback and exits, same as sys.exit did.
 
 CSV_FILENAME = "all_india_pincode_directory_2025.csv"
-
-# Force Python to look in the same folder where app.py is saved
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, CSV_FILENAME)
 
-try:
-    print(f"Loading pincode database from {CSV_PATH}...")
-    # low_memory=False prevents mixed-type warnings on large government datasets
-    pincode_df = pd.read_csv(CSV_PATH, low_memory=False)
-    
-    # Normalize column names (handles cases where they are named 'Lat', 'lat ', 'LATITUDE')
-    pincode_df.columns = [str(c).strip().lower() for c in pincode_df.columns]
-    
-    # Handle variations in column names (lat/lon vs latitude/longitude)
-    if 'lat' in pincode_df.columns and 'latitude' not in pincode_df.columns:
-        pincode_df.rename(columns={'lat': 'latitude'}, inplace=True)
-    if 'lon' in pincode_df.columns and 'longitude' not in pincode_df.columns:
-        pincode_df.rename(columns={'lon': 'longitude'}, inplace=True)
-    if 'long' in pincode_df.columns and 'longitude' not in pincode_df.columns:
-        pincode_df.rename(columns={'long': 'longitude'}, inplace=True)
-    
-    # Verify required columns exist
-    if not all(col in pincode_df.columns for col in ['pincode', 'latitude', 'longitude']):
-        print(f"Error: The CSV must contain 'pincode', 'latitude', and 'longitude' columns.")
-        print(f"Columns actually found in your file: {list(pincode_df.columns)}")
-        sys.exit(1)
+_pincode_df = None
 
-    # FIX THE FLOAT ISSUE:
-    # 1. Cast to string
-    # 2. Use regex to chop off the ".0" that pandas accidentally adds to pincodes
-    # 3. Strip any whitespace
-    pincode_df['pincode'] = pincode_df['pincode'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-    
-    # Set the pincode as the index for fast O(1) lookups
-    pincode_df.set_index('pincode', inplace=True)
-    
-except FileNotFoundError:
-    print(f"Error: The file '{CSV_FILENAME}' was not found.")
-    print(f"Make sure it is saved exactly here: {CSV_PATH}")
-    sys.exit(1)
-except Exception as e:
-    print(f"Error loading the CSV dataset: {e}")
-    sys.exit(1)
+
+def _load_pincode_df():
+    global _pincode_df
+    if _pincode_df is not None:
+        return _pincode_df
+
+    if not os.path.exists(CSV_PATH):
+        raise FileNotFoundError(
+            f"Pincode directory not found at {CSV_PATH}. Place "
+            f"'{CSV_FILENAME}' in the AI_backend folder."
+        )
+
+    df = pd.read_csv(CSV_PATH, low_memory=False)
+    df.columns = [str(c).strip().lower() for c in df.columns]
+
+    if 'lat' in df.columns and 'latitude' not in df.columns:
+        df.rename(columns={'lat': 'latitude'}, inplace=True)
+    if 'lon' in df.columns and 'longitude' not in df.columns:
+        df.rename(columns={'lon': 'longitude'}, inplace=True)
+    if 'long' in df.columns and 'longitude' not in df.columns:
+        df.rename(columns={'long': 'longitude'}, inplace=True)
+
+    if not all(col in df.columns for col in ['pincode', 'latitude', 'longitude']):
+        raise ValueError(
+            f"The pincode CSV must contain 'pincode', 'latitude', and 'longitude' "
+            f"columns. Found: {list(df.columns)}"
+        )
+
+    df['pincode'] = df['pincode'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+    df.set_index('pincode', inplace=True)
+    _pincode_df = df
+    return _pincode_df
+
 
 def resolve_pincode(pincode):
-    """Fetches lat/lon for a given pincode string from the pandas DataFrame."""
+    """Fetches (lat, lon) for a given pincode string. Raises ValueError (not
+    sys.exit) if the pincode can't be resolved -- callers running inside a
+    server process must catch this and skip/report, never let it propagate
+    up and kill the whole process."""
     pincode_str = str(pincode).strip()
+    df = _load_pincode_df()
     try:
-        row = pincode_df.loc[pincode_str]
-        
-        # If multiple post offices share the same pincode, grab the first one
+        row = df.loc[pincode_str]
         if isinstance(row, pd.DataFrame):
             row = row.iloc[0]
-            
         return float(row['latitude']), float(row['longitude'])
     except KeyError:
-        print(f"Error: Pincode '{pincode_str}' not found in {CSV_FILENAME}.")
-        print("Tip: Open the CSV in Excel/Notepad and ensure this pincode actually exists inside it.")
-        sys.exit(1)
+        raise ValueError(f"Pincode '{pincode_str}' not found in {CSV_FILENAME}.")
 
 # ---------------------------------------------------------------------------
 # CONFIGURATION
@@ -199,13 +194,21 @@ def bin_pack_farmers_to_vehicles(farmer_points, vehicle_classes):
 # PHASE 3: ROUTE OPTIMIZATION 
 # ---------------------------------------------------------------------------
 def optimize_single_trip_route(shed, trip_farmers, buyer, cost_per_km):
+    """Routes one vehicle: starts at `shed` (the trip's first farmer stop),
+    visits the rest of trip_farmers for pickup, ends at `buyer` for delivery.
+    Explicit separate start/end nodes so this is a real one-way delivery
+    route, not a round trip back to the start -- a single shared
+    start-equals-end depot (the OR-Tools default) would have the vehicle
+    loop back to the first farmer after dropping off at the buyer, inflating
+    both the reported distance and the logistics cost computed from it."""
     nodes = [shed] + trip_farmers + [buyer]
     n = len(nodes)
     depot_index = 0
+    buyer_index = n - 1
 
     dist_matrix = [[int(road_distance_km(a, b) * 1000) for b in nodes] for a in nodes]
 
-    manager = pywrapcp.RoutingIndexManager(n, 1, depot_index)
+    manager = pywrapcp.RoutingIndexManager(n, 1, [depot_index], [buyer_index])
     routing = pywrapcp.RoutingModel(manager)
 
     def distance_callback(from_index, to_index):
@@ -216,13 +219,12 @@ def optimize_single_trip_route(shed, trip_farmers, buyer, cost_per_km):
     transit_callback_index = routing.RegisterTransitCallback(distance_callback)
     routing.SetArcCostEvaluatorOfVehicle(transit_callback_index, 0)
 
-    buyer_node_index = manager.NodeToIndex(n - 1)
-    for i in range(1, n - 1):
-        farmer_node_index = manager.NodeToIndex(i)
-        routing.AddPickupAndDelivery(farmer_node_index, buyer_node_index)
-        routing.solver().Add(
-            routing.VehicleVar(farmer_node_index) == routing.VehicleVar(buyer_node_index)
-        )
+    # No AddPickupAndDelivery constraints needed (and, with the buyer set as
+    # the vehicle's END node rather than a regular node, calling it would
+    # segfault the OR-Tools C++ core -- delivery indices must be regular
+    # nodes, not a vehicle's dedicated end index). With a single vehicle and
+    # a fixed end at the buyer, every farmer node is necessarily visited
+    # before the buyer by construction, so no explicit pairing is needed.
 
     search_params = pywrapcp.DefaultRoutingSearchParameters()
     search_params.first_solution_strategy = (
@@ -249,6 +251,113 @@ def optimize_single_trip_route(shed, trip_farmers, buyer, cost_per_km):
         "stops": route_nodes,
         "distance_km": round(route_distance_m / 1000.0, 2),
         "cost": round((route_distance_m / 1000.0) * cost_per_km, 2),
+    }
+
+
+# ---------------------------------------------------------------------------
+# SINGLE-BUYER ENTRYPOINT (for the live API -- run_pipeline() below is
+# CLI-only: it always wants a separate shed pincode and prints instead of
+# returning structured data)
+# ---------------------------------------------------------------------------
+def plan_multi_farmer_delivery(buyer_pincode, buyer_demand_kg, farmer_candidates):
+    """
+    Allocates buyer_demand_kg across farmer_candidates (an LP-optimal
+    supply split, same formulation as allocate()), bin-packs the allocated
+    farmers into vehicle trips, and routes each multi-farmer trip with
+    OR-Tools. There's no separate shed/warehouse in this codebase, so a
+    trip's route starts at whichever of its farmers is visited first, rather
+    than a fixed depot.
+
+    farmer_candidates: list of dicts shaped like Supabase's
+    commodity_supply_listings() rows: {"farmer_id", "crop_id", "pincode",
+    "available_kg"}.
+
+    Returns {"allocations": [...], "trips": [...], "total_allocated_kg",
+    "warnings": [...]}. A farmer whose pincode can't be resolved is skipped
+    (reported in "warnings"), not fatal to the whole order -- one bad
+    listing shouldn't block every other buyer from getting a quote.
+    """
+    buyer_lat, buyer_lon = resolve_pincode(buyer_pincode)
+    buyer_node = {"id": "BUYER", "lat": buyer_lat, "lon": buyer_lon}
+
+    warnings = []
+    resolved_farmers = []
+    for cand in farmer_candidates:
+        try:
+            lat, lon = resolve_pincode(cand["pincode"])
+        except ValueError as exc:
+            warnings.append(f"Skipped a farmer listing (crop_id={cand.get('crop_id')}): {exc}")
+            continue
+        resolved_farmers.append({
+            "id": cand["farmer_id"],
+            "crop_id": cand.get("crop_id"),
+            "lat": lat,
+            "lon": lon,
+            "weight_kg": float(cand["available_kg"]),
+        })
+
+    if not resolved_farmers:
+        raise ValueError("No farmer listings with a resolvable pincode are available for this commodity.")
+
+    total_available = sum(f["weight_kg"] for f in resolved_farmers)
+    if total_available < buyer_demand_kg:
+        warnings.append(
+            f"Only {total_available:.0f}kg of real farmer supply has a resolvable "
+            f"location (requested {buyer_demand_kg:.0f}kg) -- allocating what's available."
+        )
+
+    allocation, _dist_matrix, _lp_result = allocate(
+        resolved_farmers, [{"id": "BUYER", "lat": buyer_lat, "lon": buyer_lon, "weight_req_kg": buyer_demand_kg}]
+    )
+    assigns = allocation["BUYER"]
+    if not assigns:
+        raise ValueError("Could not allocate any farmer supply to this order.")
+
+    allocated_farmers = []
+    for farmer_id, qty in assigns:
+        f = next(f for f in resolved_farmers if f["id"] == farmer_id)
+        allocated_farmers.append({**f, "weight_kg": qty})
+
+    trips_raw = bin_pack_farmers_to_vehicles(allocated_farmers, VEHICLE_CLASSES)
+
+    trips_out = []
+    for t in trips_raw:
+        trip_farmers = t["farmers"]
+        if len(trip_farmers) == 1:
+            f = trip_farmers[0]
+            distance_km = road_distance_km(f, buyer_node)
+            stops = [str(f["id"]), "BUYER"]
+        else:
+            depot, *rest = trip_farmers
+            route = optimize_single_trip_route(depot, rest, buyer_node, t["cost_per_km"])
+            if route is None:
+                # OR-Tools found no feasible route (rare) -- fall back to
+                # summed direct distances so the order can still be priced,
+                # flagged as non-optimal rather than silently wrong.
+                distance_km = sum(road_distance_km(f, buyer_node) for f in trip_farmers)
+                stops = [str(f["id"]) for f in trip_farmers] + ["BUYER"]
+                warnings.append(f"No optimized route found for trip carrying "
+                                f"{[f['id'] for f in trip_farmers]}; used summed direct distances instead.")
+            else:
+                distance_km = route["distance_km"]
+                stops = route["stops"]
+
+        trips_out.append({
+            "vehicle_class": t["vehicle_class"],
+            "total_weight_kg": round(t["total_weight"], 2),
+            "farmer_ids": [f["id"] for f in trip_farmers],
+            "distance_km": round(distance_km, 2),
+            "stops": stops,
+        })
+
+    return {
+        "allocations": [
+            {"farmer_id": f["id"], "crop_id": f.get("crop_id"), "allocated_kg": round(f["weight_kg"], 2)}
+            for f in allocated_farmers
+        ],
+        "trips": trips_out,
+        "total_allocated_kg": round(sum(f["weight_kg"] for f in allocated_farmers), 2),
+        "warnings": warnings,
     }
 
 
@@ -343,41 +452,45 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # 1. Parse and Resolve Shed
-    shed_lat, shed_lon = resolve_pincode(args.shed)
-    shed_data = {"id": f"Shed_{args.shed}", "lat": shed_lat, "lon": shed_lon}
+    try:
+        # 1. Parse and Resolve Shed
+        shed_lat, shed_lon = resolve_pincode(args.shed)
+        shed_data = {"id": f"Shed_{args.shed}", "lat": shed_lat, "lon": shed_lon}
 
-    # 2. Parse and Resolve Farmers
-    farmers_data = []
-    for idx, f_entry in enumerate(args.farmers, start=1):
-        try:
-            pincode, weight = f_entry.split(":")
+        # 2. Parse and Resolve Farmers
+        farmers_data = []
+        for idx, f_entry in enumerate(args.farmers, start=1):
+            try:
+                pincode, weight = f_entry.split(":")
+            except ValueError:
+                print(f"Error: Invalid farmer format '{f_entry}'. Expected PINCODE:WEIGHT_KG")
+                sys.exit(1)
             lat, lon = resolve_pincode(pincode)
             farmers_data.append({
-                "id": f"F{idx}_{pincode}", 
-                "lat": lat, 
-                "lon": lon, 
+                "id": f"F{idx}_{pincode}",
+                "lat": lat,
+                "lon": lon,
                 "weight_kg": float(weight)
             })
-        except ValueError:
-            print(f"Error: Invalid farmer format '{f_entry}'. Expected PINCODE:WEIGHT_KG")
-            sys.exit(1)
 
-    # 3. Parse and Resolve Buyers
-    buyers_data = []
-    for idx, b_entry in enumerate(args.buyers, start=1):
-        try:
-            pincode, demand = b_entry.split(":")
+        # 3. Parse and Resolve Buyers
+        buyers_data = []
+        for idx, b_entry in enumerate(args.buyers, start=1):
+            try:
+                pincode, demand = b_entry.split(":")
+            except ValueError:
+                print(f"Error: Invalid buyer format '{b_entry}'. Expected PINCODE:DEMAND_KG")
+                sys.exit(1)
             lat, lon = resolve_pincode(pincode)
             buyers_data.append({
-                "id": f"B{idx}_{pincode}", 
-                "lat": lat, 
-                "lon": lon, 
+                "id": f"B{idx}_{pincode}",
+                "lat": lat,
+                "lon": lon,
                 "weight_req_kg": float(demand)
             })
-        except ValueError:
-            print(f"Error: Invalid buyer format '{b_entry}'. Expected PINCODE:DEMAND_KG")
-            sys.exit(1)
+    except (ValueError, FileNotFoundError) as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
 
     # Execute Pipeline
     run_pipeline(shed_data, farmers_data, buyers_data)

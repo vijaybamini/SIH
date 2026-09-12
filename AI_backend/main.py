@@ -106,6 +106,71 @@ def quote(data: dict):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.post("/api/orders")
+def place_order(data: dict):
+    """Confirms a buyer's order: recomputes the exact same breakdown as
+    /api/quote (same payload shape, plus a required buyer_id), then persists
+    it -- the order, each farmer's allocation, and each vehicle trip -- via
+    Supabase's create_order() RPC. The Python backend calls Supabase with
+    the anon key and has no authenticated auth.uid() of its own, so a plain
+    insert would be rejected by RLS; create_order() is a security-definer
+    function that does the write on the backend's behalf (see the
+    20260912160000 migration for why buyer_id is passed explicitly and
+    trusted rather than read off a session)."""
+    buyer_id = data.get("buyer_id")
+    if not buyer_id:
+        raise HTTPException(status_code=400, detail="buyer_id is required to place an order.")
+
+    try:
+        get_consumer_quote, _, _ = _pipeline()
+        result = get_consumer_quote(data)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    from supabase_integration import create_order as save_order
+
+    breakdown = result["consumer_breakdown"]
+    trips_for_db = [
+        {
+            "vehicle_class": t.get("vehicle_class"),
+            "total_weight_kg": t.get("shipment_weight_kg"),
+            "distance_km": t.get("road_distance_km"),
+            "cost": t.get("customer_pays"),
+            "stops": t.get("stops", []),
+        }
+        for t in result["logistics"]["trips"]
+    ]
+
+    order_id = save_order(
+        buyer_id=buyer_id,
+        commodity=result["commodity"],
+        market=result.get("market"),
+        order_demand_kg=result["order_demand_kg"],
+        base_price_per_kg=breakdown["per_kg_breakdown"]["base_apmc_anchor_price"],
+        market_crop_price_per_kg=breakdown["per_kg_breakdown"]["market_crop_price"],
+        logistics_cost_total=result["totals"]["logistics_cost"],
+        platform_commission_total=result["totals"]["platform_commission"],
+        final_price_per_kg=breakdown["per_kg_breakdown"]["final_checkout_price_per_kg"],
+        grand_total=result["totals"]["consumer_pays"],
+        breakdown=result,
+        allocations=result["allocations"],
+        trips=trips_for_db,
+    )
+    if order_id is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Order could not be saved (Supabase unavailable, or the "
+                   "create_order migration hasn't been applied yet). The "
+                   "price quote above is still accurate -- nothing was charged.",
+        )
+
+    return {"order_id": order_id, **result}
+
+
 @app.post("/calculate-price")
 def calculate(data: dict):
     """Legacy: transport-only freight quote (backwards compatible)."""
