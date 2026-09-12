@@ -374,7 +374,7 @@ form { display: grid; gap: 16px; } label { color: #4b5e50; display: grid; font-s
 .buyer-filter-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 auto; max-width: 1240px; padding: 20px 34px 0; }
 .buyer-filter-chip { background: #fff; border: 1px solid #e2e9d9; border-radius: 999px; color: #4b5e50; cursor: pointer; font-size: 13.5px; font-weight: 600; padding: 9px 18px; transition: .15s ease; }
 .buyer-filter-chip:hover { border-color: #a9c76f; }
-.buyer-filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.buyer-filter-chip.active { background: #2f6b45; border-color: #2f6b45; color: #fff; }
 
 .buyer-main { margin: 0 auto; max-width: 1240px; padding: 20px 34px 60px; }
 .buyer-main .section-heading-row h3 { color: #000; font-family: inherit; font-size: 24px; font-weight: 800; margin: 0 0 16px; }
