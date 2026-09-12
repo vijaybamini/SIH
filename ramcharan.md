@@ -41,6 +41,14 @@
 - New translation keys (`fontSize`, `saturation`, `screenReader`, `highContrastTheme`, `resetLabel`) added across all languages.
 - All the new hooks were placed above the `authStatus === 'loading'` early return to keep the Rules of Hooks intact.
 
+### 6. Conflict resolution with remote's independent hooks fix
+- The remote team also shipped a fix for the same crash (`9d8cb73` "Fix production-crashing hooks-order violation in App") plus dashboard/pricing changes. Rebased our work on top of the latest remote (`eac4eef`).
+- During the rebase, `src/main.jsx` had one conflict region (the `handleChooseSection`/`copy`/`navItems` block). Resolved by:
+  - Dropping the redundant remote copy of that block (our accessibility version is the superset).
+  - Keeping our a11y `copy` objects (`fontSize`, `saturation`, `screenReader`, `highContrastTheme`, `resetLabel`) and our `navItems` (services / how / about).
+  - Removing a duplicate `authStatus === 'loading'` early return introduced by the merge (kept exactly one, placed after all hooks).
+- `src/styles.css` auto-merged with no conflict.
+
 ### Files touched
 - `.gitignore`
 - `src/main.jsx`
@@ -48,4 +56,5 @@
 - `ramcharan.md` (this file)
 
 ### Pushed
-- This push on `master` includes the accessibility menu redesign plus the white-page hooks fix (section 4), after a clean `vite build`.
+- Final push on `master`: commit `33b5251` ("Fix hooks-order white page and redesign accessibility menu"), on top of remote `eac4eef`.
+- Verified with a clean `vite build` after the final rebase.
