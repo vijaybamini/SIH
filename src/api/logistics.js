@@ -174,7 +174,7 @@ export async function saveLogisticsData(userId, formData) {
 
   await updateBasicProfile(userId, { name: profile.name, phone: profile.phone })
 
-  const { data: existingProvider, error: providerReadError } = await supabase
+const { data: existingProvider, error: providerReadError } = await supabase
     .from('logistics_providers')
     .select('company_name, service_areas')
     .eq('profile_id', userId)

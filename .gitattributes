@@ -1,1 +1,2 @@
-agmarknet_data/agmarknet-india-commodity-prices-2024-2025/india_mandi_prices_population_proportional.csv filter=lfs diff=lfs merge=lfs -text
+AI_backend/agmarknet_data/agmarknet-india-commodity-prices-2024-2025/india_mandi_prices_population_proportional.csv filter=lfs diff=lfs merge=lfs -text
+AI_backend/agmarknet_data/agmarknet-india-commodity-prices-2024-2025/agmarknet_india_historical_prices_2024_2025.csv filter=lfs diff=lfs merge=lfs -text
