@@ -3,6 +3,17 @@ import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
 import { fetchCommodities, fetchQuote, placeOrder } from './api/aiBackend'
 
+const CATEGORIES = ['All', 'Fruits', 'Vegetables', 'Grains', 'Pulses', 'Other']
+
+function commodityCategory(name) {
+  const n = name.toLowerCase()
+  if (/apple|banana|mango/.test(n)) return 'Fruits'
+  if (/chilli|brinjal|cabbage|carrot|cauliflower|garlic|ginger|bhindi/.test(n)) return 'Vegetables'
+  if (/rice|wheat|bajra|jowar|maize|millet|sorghum/.test(n)) return 'Grains'
+  if (/gram|lentil|arhar|moong|groundnut|soyabean/.test(n)) return 'Pulses'
+  return 'Other'
+}
+
 function commodityIcon(name) {
   const n = name.toLowerCase()
   if (/apple|banana|mango/.test(n)) return '🍎'
@@ -43,34 +54,14 @@ function QuoteBreakdown({ result }) {
   const totals = result.consumer_breakdown.order_totals
   const market = result.consumer_breakdown.market_intelligence_metrics
   return (
-    <>
-      <div className="summary-crop-card">
-        <strong>Your price ({result.order_demand_kg}kg{result.requested_kg !== result.order_demand_kg ? `, of ${result.requested_kg}kg requested` : ''})</strong>
-        <div className="summary-grid">
-          <div><span>Price per kg</span><strong>{money(perKg.final_checkout_price_per_kg)}</strong></div>
-          <div><span>Order total</span><strong>{money(totals.grand_total_to_pay)}</strong></div>
-        </div>
+    <div className="summary-crop-card">
+      <strong>Your price ({result.order_demand_kg}kg{result.requested_kg !== result.order_demand_kg ? `, of ${result.requested_kg}kg requested` : ''})</strong>
+      <div className="summary-grid">
+        <div><span>Price per kg</span><strong>{money(perKg.final_checkout_price_per_kg)}</strong></div>
+        <div><span>Order total</span><strong>{money(totals.grand_total_to_pay)}</strong></div>
+        <div><span>Demand trend</span><strong>{market.macro_market_trend}</strong></div>
       </div>
-
-      <div className="summary-crop-card">
-        <strong>Market intelligence</strong>
-        <div className="summary-grid">
-          <div><span>Demand trend</span><strong>{market.macro_market_trend}</strong></div>
-          <div><span>Pooled demand</span><strong>{market.pooled_demand_kg_all_buyers}kg</strong></div>
-          <div><span>Your share</span><strong>{market.your_share_of_pooled_demand_pct}%</strong></div>
-          <div><span>Sourcing</span><strong>{result.sourcing === 'multi_farmer' ? `${result.allocations.length} farmer(s)` : 'Nearest available'}</strong></div>
-        </div>
-      </div>
-
-      {result.warnings?.length > 0 && (
-        <div className="summary-crop-card">
-          <strong>Notes</strong>
-          <ul style={{ margin: 0, paddingLeft: 18, color: '#66766a', fontSize: 13, lineHeight: 1.5 }}>
-            {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
-          </ul>
-        </div>
-      )}
-    </>
+    </div>
   )
 }
 
@@ -177,6 +168,7 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
+  const [activeCategory, setActiveCategory] = useState('All')
   const [selectedCommodity, setSelectedCommodity] = useState(null)
 
   useEffect(() => {
@@ -190,8 +182,10 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
 
   const searchTerm = search.trim().toLowerCase()
   const filtered = useMemo(
-    () => (searchTerm ? commodities.filter((c) => c.toLowerCase().includes(searchTerm)) : commodities),
-    [commodities, searchTerm],
+    () => commodities
+      .filter((c) => activeCategory === 'All' || commodityCategory(c) === activeCategory)
+      .filter((c) => !searchTerm || c.toLowerCase().includes(searchTerm)),
+    [commodities, searchTerm, activeCategory],
   )
 
   const initials = (user.name || 'B').trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'B'
@@ -227,6 +221,19 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
           </div>
         </div>
       </header>
+
+      <nav className="buyer-filter-row" aria-label="Filter by category">
+        {CATEGORIES.map((category) => (
+          <button
+            key={category}
+            type="button"
+            className={`buyer-filter-chip${activeCategory === category ? ' active' : ''}`}
+            onClick={() => setActiveCategory(category)}
+          >
+            {category}
+          </button>
+        ))}
+      </nav>
 
       <main className="buyer-main">
         <div className="section-heading-row">
