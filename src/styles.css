@@ -165,6 +165,14 @@ form { display: grid; gap: 16px; } label { color: #4b5e50; display: grid; font-s
 .profile-page .panel-subtitle { font-size: 18px; line-height: 1.55; }
 .profile-page .back-button { font-size: 15px; margin: 0; }
 .profile-page-topbar { align-items: center; display: flex; justify-content: space-between; margin-bottom: 6px; }
+.completion-bar-row { align-items: center; display: flex; gap: 14px; margin: 20px 0 4px; }
+.completion-track { flex: 1; height: 10px; }
+.completion-fill { background: #2f6b45; }
+.completion-pct { color: #2f6b45; font-size: 15px; font-weight: 700; white-space: nowrap; }
+.autocomplete-wrap { position: relative; }
+.autocomplete-list { background: white; border: 1px solid #dfe6dc; border-radius: 10px; box-shadow: 0 12px 28px rgba(20,44,27,.14); list-style: none; margin: 6px 0 0; max-height: 260px; overflow-y: auto; padding: 6px; position: absolute; left: 0; right: 0; top: 100%; z-index: 8; }
+.autocomplete-list li { border-radius: 7px; color: #274a32; cursor: pointer; font-size: 17px; padding: 13px 14px; }
+.autocomplete-list li:hover, .autocomplete-list li:active { background: #eaf2df; color: #2f6b45; }
 .profile-steps { display: flex; gap: 12px; margin: 28px 0; }
 .profile-steps button { align-items: center; background: white; border: 2px solid #dfe6dc; border-radius: 10px; color: #7a877d; cursor: pointer; display: flex; flex: 1; font-size: 15px; font-weight: 600; gap: 11px; padding: 15px 16px; text-align: left; }
 .profile-steps button span { align-items: center; background: #edf1e8; border-radius: 50%; color: #7a877d; display: flex; flex-shrink: 0; font-size: 14px; font-weight: 700; height: 26px; justify-content: center; width: 26px; }
@@ -195,14 +203,14 @@ form { display: grid; gap: 16px; } label { color: #4b5e50; display: grid; font-s
 .profile-actions { display: flex; gap: 14px; justify-content: flex-end; margin-top: 26px; }
 .profile-actions .button { font-size: 17px; padding: 15px 26px; }
 .photo-upload-row { align-items: center; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
-.photo-upload-circle { cursor: pointer; display: block; position: relative; }
-.photo-upload-circle input[type='file'] { height: 1px; opacity: 0; position: absolute; width: 1px; }
+.photo-upload-circle { cursor: pointer; display: inline-block; position: relative; }
+.photo-upload-circle input[type='file'] { cursor: pointer; height: 100%; inset: 0; opacity: 0; position: absolute; width: 100%; }
 .photo-preview { border-radius: 50%; height: 120px; object-fit: cover; width: 120px; }
 .photo-preview-empty { align-items: center; background: #edf1e8; border: 2px dashed #b9cfa4; border-radius: 50%; display: flex; flex-direction: column; gap: 6px; height: 120px; justify-content: center; padding: 12px; text-align: center; width: 120px; }
 .photo-upload-icon { font-size: 26px; }
 .photo-upload-caption { color: #4b5e50; font-size: 13px; font-weight: 700; line-height: 1.2; }
-.photo-change-link { color: #2f6b45; cursor: pointer; font-size: 14px; font-weight: 700; position: relative; }
-.photo-change-link input[type='file'] { height: 1px; opacity: 0; position: absolute; width: 1px; }
+.photo-change-link { color: #2f6b45; cursor: pointer; display: inline-block; font-size: 14px; font-weight: 700; padding: 10px 14px; position: relative; }
+.photo-change-link input[type='file'] { cursor: pointer; height: 100%; inset: 0; opacity: 0; position: absolute; width: 100%; }
 .profile-summary-header { align-items: center; display: flex; gap: 18px; margin-bottom: 30px; }
 .profile-summary-photo { border-radius: 50%; height: 88px; object-fit: cover; width: 88px; }
 .profile-summary-photo-empty { align-items: center; background: var(--accent, #2f6b45); color: white; display: flex; font-size: 30px; font-weight: 800; justify-content: center; }

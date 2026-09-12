@@ -68,7 +68,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
       <aside className="dash-sidebar">
         <div className="dash-brand"><span className="brand-mark">✦</span>Farm<span>Direct</span></div>
 
-        <nav className="dash-nav" aria-label="Dashboard navigation">
+        <nav className="dash-nav" aria-label={t.dashboardNavLabel}>
           {navItems.map(([key, label]) => (
             <button key={key} className={activeNav === key ? 'active' : ''} onClick={() => setActiveNav(key)}>{label}</button>
           ))}
@@ -88,7 +88,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
             <div className="dash-avatar-wrap" onMouseEnter={showTop} onMouseLeave={hideTop}>
               <div className="dash-avatar" tabIndex={0} onFocus={showTop} onBlur={hideTop}>
                 {initials}
-                {!user.profileComplete && <span className="profile-alert" aria-label="Profile incomplete">!</span>}
+                {!user.profileComplete && <span className="profile-alert" aria-label={t.profileIncompleteLabel}>!</span>}
               </div>
               <ProfileMenu
                 profileComplete={user.profileComplete}
@@ -142,7 +142,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
                         </div>
                         <div className="crop-turnover">
                           <span>{t.turnoverLabel}</span>
-                          <strong>{crop.turnover || '—'}</strong>
+                          <strong>{crop.turnover ? `${crop.turnover} ${t.quintals}` : '—'}</strong>
                         </div>
                       </div>
                       <div className="crop-meta-row">
@@ -174,7 +174,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
                   <article className="past-crop-card" key={crop.id}>
                     <strong>{crop.name}{crop.specificType ? ` · ${crop.specificType}` : ''}</strong>
                     <div className="past-crop-meta">
-                      <span>{t.turnoverLabel}: <b>{crop.turnover || '—'}</b></span>
+                      <span>{t.turnoverLabel}: <b>{crop.turnover ? `${crop.turnover} ${t.quintals}` : '—'}</b></span>
                       <span>{t.landLabel}: <b>{crop.landUsed ? `${crop.landUsed} ${t.acres}` : '—'}</b></span>
                       <span>{t.dateHarvested}: <b>{crop.expectedHarvestDate || '—'}</b></span>
                     </div>

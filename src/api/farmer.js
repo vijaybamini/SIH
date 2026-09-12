@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { loadBasicProfile, updateBasicProfile, uploadAvatar } from './profile'
 
 function requireSupabase() {
   if (!supabase) throw new Error('Supabase is not configured. Add the project URL and publishable key.')
@@ -23,9 +24,12 @@ function mapCrop(row) {
   }
 }
 
-function mapFarmerData(profile, crops, bank) {
+function mapFarmerData(profile, crops, bank, basicProfile) {
   const mappedCrops = (crops || []).map(mapCrop)
   const data = {
+    name: basicProfile?.name || '',
+    phone: basicProfile?.phone || '',
+    photo: basicProfile?.photo || null,
     areaOfLand: profile?.area_of_crop == null ? '' : String(profile.area_of_crop),
     surveyNumber: profile?.survey_number || '',
     aadhaarNumber: profile?.aadhaar_number || '',
@@ -52,18 +56,25 @@ async function readSingle(table, column, userId) {
 
 export async function loadFarmerData(userId) {
   requireSupabase()
-  const [profile, cropsResult, bank] = await Promise.all([
+  const [profile, cropsResult, bank, basicProfile] = await Promise.all([
     readSingle('farmer_profiles', 'farmer_id', userId),
     supabase.from('crop_details').select('*').eq('farmer_id', userId).order('created_at', { ascending: true }),
     readSingle('farmer_bank_details', 'farmer_id', userId),
+    loadBasicProfile(userId),
   ])
   if (cropsResult.error) throw cropsResult.error
-  return mapFarmerData(profile, cropsResult.data, bank)
+  return mapFarmerData(profile, cropsResult.data, bank, basicProfile)
 }
 
 export async function saveFarmerData(userId, formData) {
   requireSupabase()
   if (!userId) throw new Error('Your account session is missing. Please sign in again.')
+
+  let photoUrl = formData.photo || null
+  if (formData.photoFile) {
+    photoUrl = await uploadAvatar(userId, formData.photoFile)
+  }
+  await updateBasicProfile(userId, { name: formData.name, phone: formData.phone, photoUrl })
 
   const { error: profileError } = await supabase.from('farmer_profiles').upsert({
     farmer_id: userId,

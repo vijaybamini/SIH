@@ -17,6 +17,7 @@ const stats = [
 function App() {
   const [panel, setPanel] = useState(null)
   const [language, setLanguage] = useState('en')
+  const t = useTranslation(language)
   const [showAccessibilityMenu, setShowAccessibilityMenu] = useState(false)
   const [accessibility, setAccessibility] = useState({ largeText: false, highContrast: false, reducedMotion: false })
   const [currentUser, setCurrentUser] = useState(null)
@@ -31,7 +32,7 @@ function App() {
     try {
       const data = await loadFarmerData(user.id)
       setFarmerProfile(data)
-      setCurrentUser((current) => current ? { ...current, profileComplete: data.profileComplete } : current)
+      setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
     } catch (error) {
       console.error('Could not load farmer data:', error)
     }
@@ -102,7 +103,7 @@ function App() {
         onBack={() => { setCompletingProfile(false); setQuickAddCrop(false) }}
         onComplete={(data) => {
           setFarmerProfile(data)
-          setCurrentUser((user) => ({ ...user, profileComplete: data.profileComplete }))
+          setCurrentUser((user) => ({ ...user, name: data.name || user.name, profileComplete: data.profileComplete }))
           setCompletingProfile(false)
           setQuickAddCrop(false)
         }}
@@ -130,17 +131,17 @@ function App() {
   return (
     <div className={`app-shell ${accessibilityClass}`}>
       <header className="topbar">
-        <a className="brand" href="#home" aria-label="FarmDirect home">
+        <a className="brand" href="#home" aria-label={t.homeLabel}>
           <span className="brand-mark">✦</span>
           <span>Farm<span>Direct</span></span>
         </a>
-        <nav className="nav-links" aria-label="Main navigation">
+        <nav className="nav-links" aria-label={t.mainNavLabel}>
           <a href="#about">{copy.about}</a>
           <a href="#how-it-works">{copy.how}</a>
         </nav>
         <div className="utility-actions">
           <div className="utility-menu">
-            <button className="utility-button" aria-expanded={showAccessibilityMenu} aria-controls="accessibility-menu" onClick={() => { setShowAccessibilityMenu(!showAccessibilityMenu); setShowLanguageMenu(false) }}>
+            <button className="utility-button" aria-expanded={showAccessibilityMenu} aria-controls="accessibility-menu" onClick={() => setShowAccessibilityMenu(!showAccessibilityMenu)}>
               <span aria-hidden="true">◐</span> {copy.accessibility}
             </button>
             {showAccessibilityMenu && <div className="utility-popover accessibility-popover" id="accessibility-menu">
@@ -170,7 +171,7 @@ function App() {
               <a className="text-link" href="#how-it-works">{copy.learn} <span>→</span></a>
             </div>
           </div>
-          <div className="hero-art" aria-label="Illustration of a farm field">
+          <div className="hero-art" aria-label={t.heroIllustrationLabel}>
             <div className="sun" />
             <div className="mountains" />
             <div className="field field-back" />
@@ -199,7 +200,7 @@ function App() {
         </section>
       </main>
 
-      <footer>Built for SIH · Statement no. 26033</footer>
+      <footer>{t.footerText}</footer>
 
       {panel && (
         <AuthPanel
@@ -225,10 +226,10 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [registeredName, setRegisteredName] = useState('')
   const roles = {
-    farmer: { title: t.farmer, description: 'Sell fresh produce directly to buyers.', icon: '🌱', requiredKey: 'farm_name' },
-    buyer: { title: t.bulkBuyer, description: 'Source produce for your business or institution.', icon: '🏪', requiredKey: 'business_name' },
-    logistics: { title: t.logisticsProvider, description: 'Offer transport and delivery services.', icon: '🚚', requiredKey: 'company_name' },
-    service: { title: t.serviceProvider, description: 'Provide farm-related services and support.', icon: '🛠', requiredKey: 'business_name' },
+    farmer: { title: t.farmer, description: t.farmerRoleDesc, icon: '🌱', requiredKey: 'farm_name' },
+    buyer: { title: t.bulkBuyer, description: t.buyerRoleDesc, icon: '🏪', requiredKey: 'business_name' },
+    logistics: { title: t.logisticsProvider, description: t.logisticsRoleDesc, icon: '🚚', requiredKey: 'company_name' },
+    service: { title: t.serviceProvider, description: t.serviceRoleDesc, icon: '🛠', requiredKey: 'business_name' },
   }
   const selectedRole = roles[role]
 
@@ -237,7 +238,7 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
     setErrorMessage('')
 
     if (!isSupabaseConfigured) {
-      setErrorMessage('Supabase is not configured yet. Add your project URL and publishable key to .env.local.')
+      setErrorMessage(t.supabaseNotConfigured)
       return
     }
 
@@ -248,7 +249,7 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
 
     try {
       if (isRegister) {
-        if (password !== formData.get('confirmPassword')) throw new Error('Passwords do not match.')
+        if (password !== formData.get('confirmPassword')) throw new Error(t.passwordsDontMatch)
         const name = formData.get('name')
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -279,7 +280,7 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
         const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) {
           error.message = error.code === 'email_not_confirmed'
-            ? 'Please confirm your email first. Check your inbox for the confirmation link.'
+            ? t.emailNotConfirmed
             : error.message
           throw error
         }
@@ -289,7 +290,7 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
         onClose()
       }
     } catch (error) {
-      setErrorMessage(error.message || 'Something went wrong. Please try again.')
+      setErrorMessage(error.message || t.genericError)
     } finally {
       setIsSubmitting(false)
     }
@@ -299,7 +300,7 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
     return (
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
         <section className="auth-panel register-panel role-panel" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-          <button className="close-button" aria-label="Close" onClick={onClose}>×</button>
+          <button className="close-button" aria-label={t.closeLabel} onClick={onClose}>×</button>
           <LanguageSwitcher language={language} setLanguage={setLanguage} className="auth-language-switcher" />
           <p className="eyebrow">FARMDIRECT</p>
           <h2 id="auth-title">{t.howRegister}</h2>
@@ -319,18 +320,18 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
     return (
       <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
         <section className="auth-panel success-panel" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-          <button className="close-button" aria-label="Close" onClick={onClose}>×</button>
+          <button className="close-button" aria-label={t.closeLabel} onClick={onClose}>×</button>
           <div className="success-icon" aria-hidden="true">✓</div>
-          <p className="eyebrow">REGISTRATION RECEIVED</p>
-          <h2 id="auth-title">You’re registered as a {selectedRole.title}.</h2>
-          <p className="panel-subtitle">Your account details have been submitted. We’ll guide you through the next steps shortly.</p>
+          <p className="eyebrow">{t.registrationReceived}</p>
+          <h2 id="auth-title">{t.registeredAs.replace('{role}', selectedRole.title)}</h2>
+          <p className="panel-subtitle">{t.accountSubmittedText}</p>
           <button
             className="button button-primary submit-button"
             onClick={() => {
               onClose()
             }}
           >
-            Done
+            {t.doneButton}
           </button>
         </section>
       </div>
@@ -340,19 +341,19 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className={`auth-panel ${isRegister ? 'register-panel' : ''}`} role="dialog" aria-modal="true" aria-labelledby="auth-title">
-        <button className="close-button" aria-label="Close" onClick={onClose}>×</button>
+        <button className="close-button" aria-label={t.closeLabel} onClick={onClose}>×</button>
         <LanguageSwitcher language={language} setLanguage={setLanguage} className="auth-language-switcher" />
         <p className="eyebrow">FARMDIRECT</p>
-        {isRegister && <button className="back-button" onClick={() => setRole(null)}>← Change role</button>}
+        {isRegister && <button className="back-button" onClick={() => setRole(null)}>{t.changeRole}</button>}
         <h2 id="auth-title">{isRegister ? t.createAccount.replace('{role}', selectedRole.title) : t.welcomeBack}</h2>
         <p className="panel-subtitle">{isRegister ? selectedRole.description : t.logInToContinue}</p>
         <form onSubmit={handleSubmit}>
-          {isRegister && <label>{t.name}<input name="name" type="text" placeholder="Your full name" onInput={(event) => { event.target.value = event.target.value.toUpperCase() }} required /></label>}
-          <label>{t.email}<input name="email" type="email" placeholder="you@example.com" required /></label>
-          {isRegister && <label>{t.phone}<input name="phone" type="tel" placeholder="+91 00000 00000" required /></label>}
-          {isRegister && <label>{t.pincode}<input name="pincode" type="text" inputMode="numeric" pattern="[0-9]{6}" placeholder="6-digit pincode" required /></label>}
-          <label>{t.password}<input name="password" type="password" placeholder="Enter your password" minLength="6" required /></label>
-          {isRegister && <label>{t.confirmPassword}<input name="confirmPassword" type="password" placeholder="Re-enter your password" minLength="6" required /></label>}
+          {isRegister && <label>{t.name}<input name="name" type="text" placeholder={t.namePlaceholder} onInput={(event) => { event.target.value = event.target.value.toUpperCase() }} required /></label>}
+          <label>{t.email}<input name="email" type="email" placeholder={t.emailPlaceholder} required /></label>
+          {isRegister && <label>{t.phone}<input name="phone" type="tel" placeholder={t.phonePlaceholder} required /></label>}
+          {isRegister && <label>{t.pincode}<input name="pincode" type="text" inputMode="numeric" pattern="[0-9]{6}" placeholder={t.pincodePlaceholder} required /></label>}
+          <label>{t.password}<input name="password" type="password" placeholder={t.passwordPlaceholder} minLength="6" required /></label>
+          {isRegister && <label>{t.confirmPassword}<input name="confirmPassword" type="password" placeholder={t.confirmPasswordPlaceholder} minLength="6" required /></label>}
           {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
           <button className="button button-primary submit-button" type="submit" disabled={isSubmitting}>{isSubmitting ? t.pleaseWait : isRegister ? t.createAccount.replace('{role}', selectedRole.title) : t.login} <span>→</span></button>
         </form>

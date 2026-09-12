@@ -3,18 +3,46 @@ import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
 import { saveFarmerData } from './api/farmer'
 
-const cropSuggestions = [
-  'Rice', 'Wheat', 'Maize', 'Bajra', 'Jowar', 'Sugarcane', 'Cotton', 'Groundnut',
-  'Soybean', 'Mustard', 'Chickpea (Gram)', 'Pigeon Pea (Tur)', 'Green Gram (Moong)',
-  'Black Gram (Urad)', 'Potato', 'Onion', 'Tomato', 'Banana', 'Mango', 'Turmeric',
-  'Chilli', 'Coconut', 'Tea', 'Coffee', 'Jute', 'Barley', 'Sunflower', 'Sesame',
-]
-
 let cropIdCounter = 1
 
 function emptyCrop() {
   cropIdCounter += 1
   return { id: `new-${Date.now()}-${cropIdCounter}`, name: '', landUsed: '', harvested: null, turnover: '', specificType: '', plantedDate: '', expectedHarvestDate: '' }
+}
+
+function CropAutocomplete({ value, onChange, suggestions, placeholder, required }) {
+  const [open, setOpen] = useState(false)
+  const blurTimer = useRef(null)
+  const filtered = value
+    ? suggestions.filter((item) => item.toLowerCase().includes(value.toLowerCase()))
+    : suggestions
+
+  function selectSuggestion(item) {
+    clearTimeout(blurTimer.current)
+    onChange(item)
+    setOpen(false)
+  }
+
+  return (
+    <div className="autocomplete-wrap">
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        required={required}
+        onChange={(event) => { onChange(event.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { blurTimer.current = setTimeout(() => setOpen(false), 150) }}
+      />
+      {open && filtered.length > 0 && (
+        <ul className="autocomplete-list">
+          {filtered.slice(0, 8).map((item) => (
+            <li key={item} onMouseDown={(event) => { event.preventDefault(); selectSuggestion(item) }}>{item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 export default function CompleteProfileFarmer({ userId, onBack, onComplete, initialData, language, setLanguage, initialStep = 0, addCropOnOpen = false }) {
@@ -26,6 +54,9 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   const formRef = useRef(null)
 
   const [photo, setPhoto] = useState(initialData?.photo || null)
+  const [photoFile, setPhotoFile] = useState(null)
+  const [name, setName] = useState(initialData?.name || '')
+  const [phone, setPhone] = useState(initialData?.phone || '')
   const [areaOfLand, setAreaOfLand] = useState(initialData?.areaOfLand || '')
   const [surveyNumber, setSurveyNumber] = useState(initialData?.surveyNumber || '')
   const [aadhaarNumber, setAadhaarNumber] = useState(initialData?.aadhaarNumber || '')
@@ -47,9 +78,8 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   function handlePhotoChange(event) {
     const file = event.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => setPhoto(reader.result)
-    reader.readAsDataURL(file)
+    setPhotoFile(file)
+    setPhoto(URL.createObjectURL(file))
   }
 
   function updateCrop(id, field, value) {
@@ -98,6 +128,10 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
     setIsSaving(true)
     try {
       const savedData = await saveFarmerData(userId, {
+        name,
+        phone,
+        photo,
+        photoFile,
         areaOfLand,
         surveyNumber,
         aadhaarNumber,
@@ -106,15 +140,44 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
         bank: { accountHolderName, accountNumber, ifsc, branch },
       })
       onComplete(savedData)
+      setPhoto(savedData.photo)
+      setPhotoFile(null)
+      setName(savedData.name)
+      setPhone(savedData.phone)
       setMode('summary')
     } catch (error) {
-      setSaveError(error.message || 'Could not save your profile. Please try again.')
+      setSaveError(error.message || t.couldNotSaveProfile)
     } finally {
       setIsSaving(false)
     }
   }
 
   const namedCrops = crops.filter((crop) => crop.name)
+
+  function computeCompletionPercent() {
+    const profileFlags = [Boolean(name), Boolean(phone), Boolean(areaOfLand), Boolean(surveyNumber), Boolean(aadhaarNumber), Boolean(cropLocation)]
+    let cropFlags = []
+    if (namedCrops.length === 0) {
+      cropFlags = new Array(6).fill(false)
+    } else {
+      namedCrops.forEach((crop) => {
+        cropFlags = cropFlags.concat([
+          Boolean(crop.name),
+          Boolean(crop.landUsed),
+          Boolean(crop.plantedDate),
+          crop.harvested !== null,
+          Boolean(crop.turnover),
+          Boolean(crop.specificType),
+        ])
+      })
+    }
+    const bankFlags = [Boolean(accountHolderName), Boolean(accountNumber), Boolean(ifsc), Boolean(branch)]
+    const allFlags = [...profileFlags, ...cropFlags, ...bankFlags]
+    const filled = allFlags.filter(Boolean).length
+    return Math.round((filled / allFlags.length) * 100)
+  }
+
+  const completionPercent = computeCompletionPercent()
 
   if (mode === 'summary') {
     return (
@@ -129,10 +192,10 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
             {photo ? (
               <img className="profile-summary-photo" src={photo} alt="" />
             ) : (
-              <div className="profile-summary-photo profile-summary-photo-empty" aria-hidden="true">{(accountHolderName || 'F')[0]}</div>
+              <div className="profile-summary-photo profile-summary-photo-empty" aria-hidden="true">{(name || accountHolderName || 'F')[0]}</div>
             )}
             <div className="profile-summary-header-text">
-              <p className="eyebrow">YOUR PROFILE</p>
+              <p className="eyebrow">{t.yourProfileEyebrow}</p>
               <h2>{t.completeYourProfileTitle}</h2>
             </div>
             <button className="button button-primary" onClick={() => setMode('edit')}>{t.editProfile}</button>
@@ -141,6 +204,8 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
           <div className="summary-section">
             <h3>{t.stepProfile}</h3>
             <div className="summary-grid">
+              <div><span>{t.name}</span><strong>{name || '—'}</strong></div>
+              <div><span>{t.phone}</span><strong>{phone || '—'}</strong></div>
               <div><span>{t.areaOfLand}</span><strong>{areaOfLand || '—'}</strong></div>
               <div><span>{t.surveyNumber}</span><strong>{surveyNumber || '—'}</strong></div>
               <div><span>{t.aadhaarNumber}</span><strong>{aadhaarNumber || '—'}</strong></div>
@@ -156,7 +221,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
                 <strong>{crop.name}{crop.specificType ? ` · ${crop.specificType}` : ''}</strong>
                 <div className="summary-grid">
                   <div><span>{t.landLabel}</span><strong>{crop.landUsed ? `${crop.landUsed} ${t.acres}` : '—'}</strong></div>
-                  <div><span>{crop.harvested ? t.turnover : t.expectedTurnover}</span><strong>{crop.turnover || '—'}</strong></div>
+                  <div><span>{crop.harvested ? t.turnover : t.expectedTurnover}</span><strong>{crop.turnover ? `${crop.turnover} ${t.quintals}` : '—'}</strong></div>
                   <div><span>{t.datePlanted}</span><strong>{crop.plantedDate || '—'}</strong></div>
                   <div><span>{crop.harvested ? t.dateHarvested : t.expectedHarvestDate}</span><strong>{crop.expectedHarvestDate || '—'}</strong></div>
                 </div>
@@ -185,9 +250,16 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
           <button className="back-button" onClick={() => (initialData ? setMode('summary') : onBack())}>{t.backToDashboard}</button>
           <LanguageSwitcher language={language} setLanguage={setLanguage} />
         </div>
-        <p className="eyebrow">COMPLETE YOUR PROFILE</p>
+        <p className="eyebrow">{t.completeProfileEyebrow}</p>
         <h2>{t.completeYourProfileTitle}</h2>
         <p className="panel-subtitle">{t.completeYourProfileSubtitle}</p>
+
+        <div className="completion-bar-row">
+          <div className="progress-track completion-track">
+            <div className="progress-fill completion-fill" style={{ width: `${completionPercent}%` }} />
+          </div>
+          <span className="completion-pct">{t.percentComplete.replace('{n}', completionPercent)}</span>
+        </div>
 
         <div className="profile-steps">
           {steps.map((label, index) => (
@@ -222,41 +294,38 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
               </div>
 
               <div className="form-grid">
-                <label>{t.areaOfLand}<input type="number" step="0.01" min="0" placeholder="e.g. 2.5" value={areaOfLand} onChange={(event) => setAreaOfLand(event.target.value)} required /></label>
-                <label>{t.surveyNumber}<input type="text" placeholder="Enter the land survey number" value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value.toUpperCase())} required /></label>
-                <label>{t.aadhaarNumber}<input type="text" placeholder="Enter 12-digit Aadhaar number" value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value.toUpperCase())} required /></label>
-                <label>{t.locationOfCrop}<input type="text" placeholder="Village, district, state" value={cropLocation} onChange={(event) => setCropLocation(event.target.value.toUpperCase())} required /></label>
+                <label>{t.name}<input type="text" placeholder={t.namePlaceholder} value={name} onChange={(event) => setName(event.target.value)} required /></label>
+                <label>{t.phone}<input type="tel" placeholder={t.phonePlaceholder} value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
+                <label>{t.areaOfLand}<input type="number" step="0.01" min="0" placeholder={t.areaOfLandPlaceholder} value={areaOfLand} onChange={(event) => setAreaOfLand(event.target.value)} required /></label>
+                <label>{t.surveyNumber}<input type="text" placeholder={t.surveyNumberPlaceholder} value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value.toUpperCase())} required /></label>
+                <label>{t.aadhaarNumber}<input type="text" placeholder={t.aadhaarPlaceholder} value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value.toUpperCase())} required /></label>
+                <label>{t.locationOfCrop}<input type="text" placeholder={t.cropLocationPlaceholder} value={cropLocation} onChange={(event) => setCropLocation(event.target.value.toUpperCase())} required /></label>
               </div>
             </>
           )}
 
           {step === 1 && (
             <div className="crop-section">
-              <datalist id="crop-suggestions">
-                {cropSuggestions.map((name) => <option value={name} key={name} />)}
-              </datalist>
-
               {crops.map((crop, index) => (
                 <div className="crop-card" key={crop.id}>
                   <div className="crop-card-header">
-                    <label>{`Crop ${index + 1} ${t.cropNameLabel}`}
-                      <input
-                        type="text"
-                        list="crop-suggestions"
-                        placeholder="e.g. Rice"
+                    <label>{`${t.cropWord} ${index + 1} ${t.cropNameLabel}`}
+                      <CropAutocomplete
                         value={crop.name}
-                        onChange={(event) => updateCrop(crop.id, 'name', event.target.value)}
+                        onChange={(value) => updateCrop(crop.id, 'name', value)}
+                        suggestions={t.cropSuggestions}
+                        placeholder={t.cropNamePlaceholder}
                         required
                       />
                     </label>
                     {crops.length > 1 && (
-                      <button type="button" className="remove-crop-button" onClick={() => removeCrop(crop.id)} aria-label="Remove this crop">×</button>
+                      <button type="button" className="remove-crop-button" onClick={() => removeCrop(crop.id)} aria-label={t.removeThisCropLabel}>×</button>
                     )}
                   </div>
 
                   {crop.name && (
                     <>
-                      <label>{t.landUsed}<input type="number" step="0.01" min="0" placeholder="e.g. 2" value={crop.landUsed} onChange={(event) => updateCrop(crop.id, 'landUsed', event.target.value)} required /></label>
+                      <label>{t.landUsed}<input type="number" step="0.01" min="0" placeholder={t.landUsedPlaceholder} value={crop.landUsed} onChange={(event) => updateCrop(crop.id, 'landUsed', event.target.value)} required /></label>
 
                       <label>{t.datePlanted}<input type="date" value={crop.plantedDate} onChange={(event) => updateCrop(crop.id, 'plantedDate', event.target.value)} required /></label>
 
@@ -275,8 +344,10 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
                           </label>
                           <label>{crop.harvested ? t.turnover : t.expectedTurnover}
                             <input
-                              type="text"
-                              placeholder="e.g. ₹1,50,000"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder={t.turnoverPlaceholder}
                               value={crop.turnover}
                               onChange={(event) => updateCrop(crop.id, 'turnover', event.target.value)}
                               required
@@ -286,12 +357,11 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
                       )}
 
                       <label>{t.specificTypeOfCrop}
-                        <input
-                          type="text"
-                          list="crop-suggestions"
-                          placeholder="Start typing… e.g. Basmati rice"
+                        <CropAutocomplete
                           value={crop.specificType}
-                          onChange={(event) => updateCrop(crop.id, 'specificType', event.target.value)}
+                          onChange={(value) => updateCrop(crop.id, 'specificType', value)}
+                          suggestions={t.cropSuggestions}
+                          placeholder={t.specificTypePlaceholder}
                           required
                         />
                       </label>
@@ -308,16 +378,16 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
 
           {step === 2 && (
             <div className="form-grid">
-              <label>{t.accountHolderName}<input type="text" placeholder="Name as per bank account" value={accountHolderName} onChange={(event) => setAccountHolderName(event.target.value.toUpperCase())} required /></label>
-              <label>{t.accountNumber}<input type="text" placeholder="Enter account number" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value.toUpperCase())} required /></label>
+              <label>{t.accountHolderName}<input type="text" placeholder={t.accountHolderPlaceholder} value={accountHolderName} onChange={(event) => setAccountHolderName(event.target.value.toUpperCase())} required /></label>
+              <label>{t.accountNumber}<input type="text" placeholder={t.accountNumberPlaceholder} value={accountNumber} onChange={(event) => setAccountNumber(event.target.value.toUpperCase())} required /></label>
               <label>{t.ifscCode}
-                <input type="text" placeholder="e.g. SBIN0001234" value={ifsc} onChange={handleIfscChange} maxLength={11} required />
-                {ifscStatus === 'loading' && <small className="ifsc-hint">Looking up branch…</small>}
-                {ifscStatus === 'found' && <small className="ifsc-hint ifsc-hint-ok">Branch auto-filled ✓</small>}
-                {ifscStatus === 'notfound' && <small className="ifsc-hint ifsc-hint-warn">Couldn’t find this IFSC — enter branch manually.</small>}
+                <input type="text" placeholder={t.ifscPlaceholder} value={ifsc} onChange={handleIfscChange} maxLength={11} required />
+                {ifscStatus === 'loading' && <small className="ifsc-hint">{t.ifscLookingUp}</small>}
+                {ifscStatus === 'found' && <small className="ifsc-hint ifsc-hint-ok">{t.ifscFound}</small>}
+                {ifscStatus === 'notfound' && <small className="ifsc-hint ifsc-hint-warn">{t.ifscNotFound}</small>}
               </label>
               <label>{t.branch}
-                <input type="text" placeholder="Branch name" value={branch} onChange={(event) => setBranch(event.target.value.toUpperCase())} required />
+                <input type="text" placeholder={t.branchPlaceholder} value={branch} onChange={(event) => setBranch(event.target.value.toUpperCase())} required />
               </label>
             </div>
           )}
@@ -327,7 +397,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
             {step > 0 && <button type="button" className="button button-quiet" onClick={() => setStep(step - 1)}>{t.back}</button>}
             {step < steps.length - 1
               ? <button type="button" className="button button-primary" onClick={goNext}>{t.next}</button>
-              : <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? 'Saving…' : t.saveFinish}</button>}
+              : <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? t.savingButton : t.saveFinish}</button>}
           </div>
         </form>
       </div>
