@@ -14,22 +14,27 @@ let cropIdCounter = 1
 
 function emptyCrop() {
   cropIdCounter += 1
-  return { id: `new-${Date.now()}-${cropIdCounter}`, name: '', harvested: null, turnover: '', specificType: '', plantedDate: '', expectedHarvestDate: '' }
+  return { id: `new-${Date.now()}-${cropIdCounter}`, name: '', landUsed: '', harvested: null, turnover: '', specificType: '', plantedDate: '', expectedHarvestDate: '' }
 }
 
-export default function CompleteProfileFarmer({ userId, onBack, onComplete, initialData, language, setLanguage }) {
+export default function CompleteProfileFarmer({ userId, onBack, onComplete, initialData, language, setLanguage, initialStep = 0, addCropOnOpen = false }) {
   const t = useTranslation(language)
   const steps = [t.stepProfile, t.stepCropDetails, t.stepBankDetails]
-  const [step, setStep] = useState(0)
-  const [unlockedStep, setUnlockedStep] = useState(0)
+  const [mode, setMode] = useState(initialData ? (addCropOnOpen ? 'edit' : 'summary') : 'edit')
+  const [step, setStep] = useState(initialStep)
+  const [unlockedStep, setUnlockedStep] = useState(initialData ? steps.length - 1 : 0)
   const formRef = useRef(null)
 
+  const [photo, setPhoto] = useState(initialData?.photo || null)
   const [areaOfLand, setAreaOfLand] = useState(initialData?.areaOfLand || '')
   const [surveyNumber, setSurveyNumber] = useState(initialData?.surveyNumber || '')
   const [aadhaarNumber, setAadhaarNumber] = useState(initialData?.aadhaarNumber || '')
   const [cropLocation, setCropLocation] = useState(initialData?.cropLocation || '')
 
-  const [crops, setCrops] = useState(initialData?.crops?.length ? initialData.crops : [emptyCrop()])
+  const [crops, setCrops] = useState(() => {
+    const base = initialData?.crops?.length ? initialData.crops : [emptyCrop()]
+    return addCropOnOpen ? [...base, emptyCrop()] : base
+  })
 
   const [accountHolderName, setAccountHolderName] = useState(initialData?.bank?.accountHolderName || '')
   const [accountNumber, setAccountNumber] = useState(initialData?.bank?.accountNumber || '')
@@ -38,6 +43,14 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   const [ifscStatus, setIfscStatus] = useState('idle')
   const [saveError, setSaveError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+
+  function handlePhotoChange(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setPhoto(reader.result)
+    reader.readAsDataURL(file)
+  }
 
   function updateCrop(id, field, value) {
     setCrops((current) => current.map((crop) => (crop.id === id ? { ...crop, [field]: value } : crop)))
@@ -92,6 +105,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
         bank: { accountHolderName, accountNumber, ifsc, branch },
       })
       onComplete(savedData)
+      setMode('summary')
     } catch (error) {
       setSaveError(error.message || 'Could not save your profile. Please try again.')
     } finally {
@@ -99,11 +113,75 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
     }
   }
 
+  const namedCrops = crops.filter((crop) => crop.name)
+
+  if (mode === 'summary') {
+    return (
+      <div className="profile-page">
+        <div className="profile-page-inner">
+          <div className="profile-page-topbar">
+            <button className="back-button" onClick={onBack}>{t.backToDashboard}</button>
+            <LanguageSwitcher language={language} setLanguage={setLanguage} />
+          </div>
+
+          <div className="profile-summary-header">
+            {photo ? (
+              <img className="profile-summary-photo" src={photo} alt="" />
+            ) : (
+              <div className="profile-summary-photo profile-summary-photo-empty" aria-hidden="true">{(accountHolderName || 'F')[0]}</div>
+            )}
+            <div className="profile-summary-header-text">
+              <p className="eyebrow">YOUR PROFILE</p>
+              <h2>{t.completeYourProfileTitle}</h2>
+            </div>
+            <button className="button button-primary" onClick={() => setMode('edit')}>{t.editProfile}</button>
+          </div>
+
+          <div className="summary-section">
+            <h3>{t.stepProfile}</h3>
+            <div className="summary-grid">
+              <div><span>{t.areaOfLand}</span><strong>{areaOfLand || '—'}</strong></div>
+              <div><span>{t.surveyNumber}</span><strong>{surveyNumber || '—'}</strong></div>
+              <div><span>{t.aadhaarNumber}</span><strong>{aadhaarNumber || '—'}</strong></div>
+              <div><span>{t.locationOfCrop}</span><strong>{cropLocation || '—'}</strong></div>
+            </div>
+          </div>
+
+          <div className="summary-section">
+            <h3>{t.stepCropDetails}</h3>
+            {namedCrops.length === 0 && <p className="panel-subtitle">{t.noCropsYet}</p>}
+            {namedCrops.map((crop) => (
+              <div className="summary-crop-card" key={crop.id}>
+                <strong>{crop.name}{crop.specificType ? ` · ${crop.specificType}` : ''}</strong>
+                <div className="summary-grid">
+                  <div><span>{t.landLabel}</span><strong>{crop.landUsed ? `${crop.landUsed} ${t.acres}` : '—'}</strong></div>
+                  <div><span>{crop.harvested ? t.turnover : t.expectedTurnover}</span><strong>{crop.turnover || '—'}</strong></div>
+                  <div><span>{t.datePlanted}</span><strong>{crop.plantedDate || '—'}</strong></div>
+                  <div><span>{crop.harvested ? t.dateHarvested : t.expectedHarvestDate}</span><strong>{crop.expectedHarvestDate || '—'}</strong></div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="summary-section">
+            <h3>{t.stepBankDetails}</h3>
+            <div className="summary-grid">
+              <div><span>{t.accountHolderName}</span><strong>{accountHolderName || '—'}</strong></div>
+              <div><span>{t.accountNumber}</span><strong>{accountNumber || '—'}</strong></div>
+              <div><span>{t.ifscCode}</span><strong>{ifsc || '—'}</strong></div>
+              <div><span>{t.branch}</span><strong>{branch || '—'}</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="profile-page">
       <div className="profile-page-inner">
         <div className="profile-page-topbar">
-          <button className="back-button" onClick={onBack}>{t.backToDashboard}</button>
+          <button className="back-button" onClick={() => (initialData ? setMode('summary') : onBack())}>{t.backToDashboard}</button>
           <LanguageSwitcher language={language} setLanguage={setLanguage} />
         </div>
         <p className="eyebrow">COMPLETE YOUR PROFILE</p>
@@ -126,12 +204,29 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
 
         <form className="profile-form-card" onSubmit={handleSubmit} ref={formRef}>
           {step === 0 && (
-            <div className="form-grid">
-              <label>{t.areaOfLand}<input type="number" step="0.01" min="0" placeholder="e.g. 2.5" value={areaOfLand} onChange={(event) => setAreaOfLand(event.target.value)} required /></label>
-              <label>{t.surveyNumber}<input type="text" placeholder="Enter the land survey number" value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value)} required /></label>
-              <label>{t.aadhaarNumber}<input type="text" placeholder="Enter 12-digit Aadhaar number" value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value)} required /></label>
-              <label>{t.locationOfCrop}<input type="text" placeholder="Village, district, state" value={cropLocation} onChange={(event) => setCropLocation(event.target.value)} required /></label>
-            </div>
+            <>
+              <div className="photo-upload-row">
+                <label className="photo-upload-circle">
+                  {photo ? (
+                    <img className="photo-preview" src={photo} alt="" />
+                  ) : (
+                    <div className="photo-preview photo-preview-empty" aria-hidden="true">
+                      <span className="photo-upload-icon">📷</span>
+                      <span className="photo-upload-caption">{t.uploadPhoto}</span>
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" onChange={handlePhotoChange} />
+                </label>
+                {photo && <label className="photo-change-link">{t.changePhoto}<input type="file" accept="image/*" onChange={handlePhotoChange} /></label>}
+              </div>
+
+              <div className="form-grid">
+                <label>{t.areaOfLand}<input type="number" step="0.01" min="0" placeholder="e.g. 2.5" value={areaOfLand} onChange={(event) => setAreaOfLand(event.target.value)} required /></label>
+                <label>{t.surveyNumber}<input type="text" placeholder="Enter the land survey number" value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value)} required /></label>
+                <label>{t.aadhaarNumber}<input type="text" placeholder="Enter 12-digit Aadhaar number" value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value)} required /></label>
+                <label>{t.locationOfCrop}<input type="text" placeholder="Village, district, state" value={cropLocation} onChange={(event) => setCropLocation(event.target.value)} required /></label>
+              </div>
+            </>
           )}
 
           {step === 1 && (
@@ -160,10 +255,9 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
 
                   {crop.name && (
                     <>
-                      <div className="form-grid crop-date-grid">
-                        <label>{t.datePlanted}<input type="date" value={crop.plantedDate} onChange={(event) => updateCrop(crop.id, 'plantedDate', event.target.value)} required /></label>
-                        <label>{t.expectedHarvestDate}<input type="date" value={crop.expectedHarvestDate} onChange={(event) => updateCrop(crop.id, 'expectedHarvestDate', event.target.value)} required /></label>
-                      </div>
+                      <label>{t.landUsed}<input type="number" step="0.01" min="0" placeholder="e.g. 2" value={crop.landUsed} onChange={(event) => updateCrop(crop.id, 'landUsed', event.target.value)} required /></label>
+
+                      <label>{t.datePlanted}<input type="date" value={crop.plantedDate} onChange={(event) => updateCrop(crop.id, 'plantedDate', event.target.value)} required /></label>
 
                       <div className="harvested-toggle">
                         <span>{t.harvestedQuestion}</span>
@@ -174,15 +268,20 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
                       </div>
 
                       {crop.harvested !== null && (
-                        <label>{crop.harvested ? t.turnover : t.expectedTurnover}
-                          <input
-                            type="text"
-                            placeholder="e.g. ₹1,50,000"
-                            value={crop.turnover}
-                            onChange={(event) => updateCrop(crop.id, 'turnover', event.target.value)}
-                            required
-                          />
-                        </label>
+                        <div className="form-grid crop-date-grid">
+                          <label>{crop.harvested ? t.dateHarvested : t.expectedHarvestDate}
+                            <input type="date" value={crop.expectedHarvestDate} onChange={(event) => updateCrop(crop.id, 'expectedHarvestDate', event.target.value)} required />
+                          </label>
+                          <label>{crop.harvested ? t.turnover : t.expectedTurnover}
+                            <input
+                              type="text"
+                              placeholder="e.g. ₹1,50,000"
+                              value={crop.turnover}
+                              onChange={(event) => updateCrop(crop.id, 'turnover', event.target.value)}
+                              required
+                            />
+                          </label>
+                        </div>
                       )}
 
                       <label>{t.specificTypeOfCrop}

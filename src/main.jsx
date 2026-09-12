@@ -21,6 +21,7 @@ function App() {
   const [accessibility, setAccessibility] = useState({ largeText: false, highContrast: false, reducedMotion: false })
   const [currentUser, setCurrentUser] = useState(null)
   const [completingProfile, setCompletingProfile] = useState(false)
+  const [quickAddCrop, setQuickAddCrop] = useState(false)
   const [farmerProfile, setFarmerProfile] = useState(null)
 
   async function handleAuthenticated(user) {
@@ -96,11 +97,14 @@ function App() {
         language={language}
         setLanguage={setLanguage}
         initialData={farmerProfile}
-        onBack={() => setCompletingProfile(false)}
+        initialStep={quickAddCrop ? 1 : 0}
+        addCropOnOpen={quickAddCrop}
+        onBack={() => { setCompletingProfile(false); setQuickAddCrop(false) }}
         onComplete={(data) => {
           setFarmerProfile(data)
           setCurrentUser((user) => ({ ...user, profileComplete: data.profileComplete }))
           setCompletingProfile(false)
+          setQuickAddCrop(false)
         }}
       />
     )
@@ -114,6 +118,10 @@ function App() {
         language={language}
         setLanguage={setLanguage}
         onOpenCompleteProfile={() => setCompletingProfile(true)}
+        onQuickAddCrop={() => { setQuickAddCrop(true); setCompletingProfile(true) }}
+        onMarkCropHarvested={(cropId) => setFarmerProfile((profile) => (profile
+          ? { ...profile, crops: profile.crops.map((crop) => (crop.id === cropId ? { ...crop, harvested: true } : crop)) }
+          : profile))}
         onLogout={() => setCurrentUser(null)}
       />
     )
