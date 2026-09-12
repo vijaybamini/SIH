@@ -22,6 +22,14 @@ a { color: inherit; text-decoration: none; }
 .nav-links a:hover { color: #2f6b45; }
 .nav-links a:hover::after, .nav-links a.active::after { opacity: 1; transform: scaleX(1); }
 .nav-links a.active { color: #2f6b45; font-weight: 700; }
+.nav-item-with-submenu { position: relative; }
+.nav-submenu { left: 50%; opacity: 0; padding-top: 14px; pointer-events: none; position: absolute; top: 100%; transform: translateX(-50%) translateY(-4px); transition: opacity .2s ease, transform .2s ease; z-index: 6; }
+.nav-item-with-submenu:hover .nav-submenu, .nav-item-with-submenu:focus-within .nav-submenu { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+.nav-submenu ul { background: #fff; border: 1px solid #e2e9df; border-radius: 10px; box-shadow: 0 14px 32px rgba(35, 62, 42, .14); list-style: none; margin: 0; min-width: 190px; padding: 8px; }
+.nav-submenu a { border-radius: 7px; color: #2c4234; display: block; font-size: 14px; font-weight: 500; padding: 9px 12px; transition: background-color .2s ease, color .2s ease; white-space: nowrap; }
+.nav-submenu a:hover, .nav-submenu a:focus-visible { background: #f1f7eb; color: #2f6b45; }
+.nav-submenu a.accent { color: #71953b; font-weight: 600; }
+.nav-submenu a.accent:hover { color: #5c7a2e; }
 .text-link:hover { color: #2f6b45; }
 .utility-actions { align-items: center; display: flex; flex-shrink: 0; gap: 8px; margin-left: 24px; }
 .utility-menu { position: relative; }
@@ -105,7 +113,14 @@ h1 { font-size: clamp(42px, 5vw, 68px); line-height: 1.04; margin: 0; max-width:
 .stat-card strong, .stat-card span { display: block; }.stat-card strong { color: #2f6b45; font-size: 18px; }.stat-card span { color: #849087; font-size: 12px; margin-top: 3px; }
 .mission-card { align-items: center; background: #eef5e6; display: grid; gap: 80px; grid-template-columns: 1fr 1fr; margin: 0 auto; max-width: 1172px; padding: 45px 55px; }
 .mission-card h2 { font-size: 30px; line-height: 1.17; margin: 0; max-width: 440px; }.mission-card > p { color: #657569; font-size: 15px; line-height: 1.7; }
-footer { color: #9aa69b; font-size: 12px; margin: 55px auto 24px; max-width: 1172px; }
+.site-footer { background: #fff; margin: 55px auto 40px; max-width: 1172px; padding: 0 34px; }
+.footer-links ul { display: flex; flex-direction: column; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.footer-links a { color: #20241f; display: inline-block; font-size: 17px; font-weight: 500; padding: 9px 0; transition: color .2s ease; }
+.footer-links a:hover { color: #2f6b45; font-weight: 600; }
+.footer-links a:focus-visible { color: #2f6b45; outline: 3px solid #d6e7c2; outline-offset: 2px; }
+.footer-links a.accent { color: #71953b; font-weight: 600; }
+.footer-links a.accent:hover { color: #5c7a2e; }
+.footer-links a.active { color: #2f6b45; font-weight: 700; }
 .high-contrast .hero-text, .high-contrast .stat-card span, .high-contrast .mission-card > p { color: #405247; }.high-contrast .utility-button { color: #20382a; }
 .modal-backdrop { align-items: center; background: rgba(28, 48, 34, .45); display: flex; inset: 0; justify-content: center; padding: 20px; position: fixed; z-index: 5; }
 .auth-panel { background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(20, 44, 27, .22); max-height: 95vh; max-width: 455px; overflow-y: auto; padding: 38px; position: relative; width: 100%; }.register-panel { max-width: 610px; }
@@ -116,8 +131,8 @@ form { display: grid; gap: 16px; } label { color: #4b5e50; display: grid; font-s
 .role-panel { max-width: 700px; }.role-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); }.role-card { background: #fbfcfa; border: 1px solid #dfe8da; border-radius: 10px; color: #304336; cursor: pointer; min-height: 145px; padding: 19px; position: relative; text-align: left; transition: .2s ease; }.role-card:hover, .role-card:focus-visible { background: #f1f7eb; border-color: #71953b; box-shadow: 0 7px 18px rgba(47,107,69,.1); outline: none; transform: translateY(-2px); }.role-card strong, .role-card small { display: block; }.role-card strong { font-size: 16px; margin: 8px 0 5px; }.role-card small { color: #718076; font-size: 12px; line-height: 1.45; max-width: 190px; }.role-icon { background: #eaf2df; border-radius: 7px; display: grid; font-size: 19px; height: 32px; place-items: center; width: 32px; }.role-arrow { bottom: 17px; color: #638839; font-size: 18px; position: absolute; right: 18px; }.back-button { background: transparent; border: 0; color: #48664c; cursor: pointer; font-size: 12px; font-weight: 700; margin: -5px 0 16px; padding: 0; }.back-button:hover { color: #2f6b45; }.success-panel { max-width: 480px; text-align: center; }.success-icon { align-items: center; background: #eaf2df; border-radius: 50%; color: #2f6b45; display: flex; font-size: 27px; height: 62px; justify-content: center; margin: 0 auto 19px; width: 62px; }.success-panel .submit-button { width: 100%; }
 @media (max-width: 1160px) { .nav-links { display: none; }.menu-toggle { display: flex; }.mobile-nav { display: flex; } }
 @media (max-width: 980px) { .utility-button { padding-left: 5px; padding-right: 5px; }.utility-button { font-size: 0; }.utility-button > span:first-child { font-size: 16px; }.utility-button .chevron { font-size: 14px; } }
-@media (max-width: 800px) { .topbar { padding: 20px; }.hero { gap: 35px; grid-template-columns: 1fr; padding: 50px 20px; }.hero-art { height: 260px; order: -1; }.stats-row, .mission-card { grid-template-columns: 1fr; margin-left: 20px; margin-right: 20px; }.stats-row { padding-bottom: 42px; }.mission-card { gap: 10px; padding: 32px; } footer { margin-left: 20px; margin-right: 20px; } }
-@media (max-width: 480px) { .auth-actions .button-quiet { display: none; }.topbar { gap: 10px; padding: 15px 20px; }.utility-actions { gap: 2px; }.menu-toggle { width: 40px; }.hero { padding-top: 30px; }.hero-art { height: 220px; }.form-grid, .role-grid { grid-template-columns: 1fr; }.auth-panel { padding: 30px 22px; } }
+@media (max-width: 800px) { .topbar { padding: 20px; }.hero { gap: 35px; grid-template-columns: 1fr; padding: 50px 20px; }.hero-art { height: 260px; order: -1; }.stats-row, .mission-card { grid-template-columns: 1fr; margin-left: 20px; margin-right: 20px; }.stats-row { padding-bottom: 42px; }.mission-card { gap: 10px; padding: 32px; }.site-footer { padding: 0 20px; } }
+@media (max-width: 480px) { .auth-actions .button-quiet { display: none; }.topbar { gap: 10px; padding: 15px 20px; }.utility-actions { gap: 2px; }.menu-toggle { width: 40px; }.hero { padding-top: 30px; }.hero-art { height: 220px; }.form-grid, .role-grid { grid-template-columns: 1fr; }.auth-panel { padding: 30px 22px; }.footer-links a { font-size: 16px; padding: 11px 0; } }
 
 /* Dashboard */
 .dashboard-shell {

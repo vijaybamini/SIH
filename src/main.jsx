@@ -351,6 +351,24 @@ authRequestRef.current += 1
     { key: 'about', label: copy.navAbout, href: '#about' },
   ]
 
+  const footerLinks = [
+    { key: 'faq', label: 'FAQ', href: '#faq' },
+    { key: 'shipping', label: 'Shipping Policy', href: '#shipping-policy', accent: true },
+    { key: 'policy', label: 'Policy', href: '#policy' },
+    { key: 'cancel', label: 'cancel policy', href: '#cancel-policy' },
+    { key: 'terms', label: 'Term & Conditions', href: '#terms' },
+    { key: 'contact', label: 'Contact Us', href: '#contact' },
+  ]
+
+  const servicesLinks = [
+    { key: 'svc-farmers', label: 'Farmers', href: '#farmers' },
+    { key: 'svc-marketplace', label: 'Market Place', href: '#marketplace' },
+    { key: 'svc-processing', label: 'Processing Unit', href: '#processing-unit' },
+    { key: 'svc-logistics', label: 'Logistic', href: '#logistics' },
+  ]
+
+  const NAV_SUBMENUS = { about: footerLinks, services: servicesLinks }
+
   const toggleAccessibility = (key) => setAccessibility((current) => ({ ...current, [key]: !current[key] }))
   const setFontSizeLevel = (level) => setAccessibility((current) => ({ ...current, fontSizeLevel: Math.max(0, Math.min(FONT_SIZE_LEVELS.length - 1, level)) }))
   const setSaturationLevel = (level) => setAccessibility((current) => ({ ...current, saturationLevel: Math.max(0, Math.min(SATURATION_LEVELS.length - 1, level)) }))
@@ -471,18 +489,32 @@ authRequestRef.current += 1
         </a>
         <nav className="nav-links" aria-label={t.mainNavLabel}>
           <ul>
-            {navItems.map((item) => (
-              <li key={item.key}>
-                <a
-                  href={item.href}
-                  className={activeNav === item.key ? 'active' : ''}
-                  aria-current={activeNav === item.key ? 'page' : undefined}
-                  onClick={() => setActiveNav(item.key)}
-                >
-                  {item.label}
-                </a>
-              </li>
-            ))}
+            {navItems.map((item) => {
+              const submenuLinks = NAV_SUBMENUS[item.key]
+              return (
+                <li key={item.key} className={submenuLinks ? 'nav-item-with-submenu' : ''}>
+                  <a
+                    href={item.href}
+                    className={activeNav === item.key ? 'active' : ''}
+                    aria-current={activeNav === item.key ? 'page' : undefined}
+                    onClick={() => setActiveNav(item.key)}
+                  >
+                    {item.label}
+                  </a>
+                  {submenuLinks && (
+                    <div className="nav-submenu">
+                      <ul>
+                        {submenuLinks.map((link) => (
+                          <li key={link.key}>
+                            <a href={link.href} className={link.accent ? 'accent' : ''}>{link.label}</a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </nav>
         <div className="utility-actions">
@@ -619,6 +651,24 @@ authRequestRef.current += 1
           <p>{copy.missionText}</p>
         </section>
       </main>
+
+      <footer className="site-footer">
+        <nav className="footer-links" aria-label="Policies">
+          <ul>
+            {footerLinks.map((link) => (
+              <li key={link.key}>
+                <a
+                  href={link.href}
+                  className={activeNav === link.key ? 'active' : link.accent ? 'accent' : ''}
+                  aria-current={activeNav === link.key ? 'page' : undefined}
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </footer>
 
       {panel && (
         <AuthPanel
