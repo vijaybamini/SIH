@@ -12,7 +12,12 @@ async function readSingle(table, column, userId) {
 }
 
 function millComplete(mill) {
-  return Boolean(mill && mill.cropTypes.some((crop) => crop.trim()) && mill.gstin)
+  return Boolean(
+    mill
+    && Array.isArray(mill.cropTypes)
+    && mill.cropTypes.some((crop) => String(crop || '').trim())
+    && String(mill.gstin || '').trim(),
+  )
 }
 
 function normalizeMill(row) {
@@ -74,15 +79,20 @@ export async function saveServiceData(userId, formData) {
   await updateBasicProfile(userId, { name: formData.name, phone: formData.phone, photoUrl })
 
   const existingProvider = await readSingle('service_providers', 'profile_id', userId)
+  const email = String(formData.email || '').trim()
+  const address = String(formData.address || '').trim()
   const { error: providerError } = await supabase.from('service_providers').upsert({
     profile_id: userId,
     business_name: existingProvider?.business_name || formData.name || 'Service provider',
-    email: formData.email.trim(),
-    address: formData.address.trim(),
+    email: email || null,
+    address,
   }, { onConflict: 'profile_id' })
   if (providerError) throw providerError
 
-  const mills = (formData.mills || []).filter((mill) => mill.cropTypes.some((crop) => crop.trim()) || mill.gstin.trim())
+  const mills = (formData.mills || []).filter((mill) => {
+    const cropTypes = Array.isArray(mill.cropTypes) ? mill.cropTypes : []
+    return cropTypes.some((crop) => String(crop || '').trim()) || String(mill.gstin || '').trim()
+  })
 
   const { data: existingMills, error: existingError } = await supabase
     .from('service_provider_mills')
@@ -98,7 +108,6 @@ export async function saveServiceData(userId, formData) {
   }
 
   if (mills.length) {
-    const millRows = []
     for (const [index, mill] of mills.entries()) {
       let documentUrl = mill.documentUrl || null
       if (mill.documentFile) {
@@ -108,17 +117,21 @@ export async function saveServiceData(userId, formData) {
           documentUrl = mill.documentUrl || null
         }
       }
+      const cropTypes = Array.isArray(mill.cropTypes) ? mill.cropTypes : []
       const row = {
         service_provider_id: userId,
-        crop_types: mill.cropTypes.map((crop) => crop.trim()).filter(Boolean),
-        gstin: mill.gstin.trim().toUpperCase() || null,
+        crop_types: cropTypes.map((crop) => String(crop || '').trim()).filter(Boolean),
+        gstin: String(mill.gstin || '').trim().toUpperCase() || null,
         document_url: documentUrl,
       }
-      if (retainedIds.includes(Number(mill.id))) row.id = Number(mill.id)
-      millRows.push(row)
+      const millId = Number(mill.id)
+      const isExistingMill = Number.isInteger(millId) && millId > 0
+      const query = isExistingMill
+        ? supabase.from('service_provider_mills').update(row).eq('id', millId).eq('service_provider_id', userId)
+        : supabase.from('service_provider_mills').insert(row)
+      const { error } = await query
+      if (error) throw error
     }
-    const { error } = await supabase.from('service_provider_mills').upsert(millRows)
-    if (error) throw error
   }
 
   return loadServiceData(userId)

@@ -48,6 +48,11 @@
 
 - `npm run build` passes successfully.
 - `git diff --check` passes successfully.
+
+## Service Mill Save Fix
+
+- Fixed repeat saves of service-provider profiles failing on the generated mill `id` column.
+- Existing mills are now updated by ID, while new mills are inserted without an ID so PostgreSQL generates it.
 - Vite reports only a non-blocking bundle-size warning.
 
 ## Logistics Transportation Save Fix
@@ -72,3 +77,17 @@
 - Applied `20260912180000_repair_profile_provider_lifecycle.sql` to Supabase.
 - Repaired existing account relationships between `auth.users`, `profiles`, and `logistics_providers`.
 - Confirmed the frontend build still passes after the database changes.
+
+## Service Provider Details Connection
+
+- Connected the service-provider profile form to `service_providers` and `service_provider_mills`.
+- Added defensive payload normalization for optional email, address, crop types, and GSTIN values.
+- Applied the service-provider schema migration, including `email`, `address`, mill details, RLS policies, and service document storage policies.
+- Added an idempotent migration to backfill missing service-provider parent rows and default service-type links for legacy service accounts.
+- Repaired a duplicate migration version in the local history so local and remote Supabase migration histories match.
+
+## Validation
+
+- Supabase migration list is fully synchronized through `20260913010000`.
+- `npm run build` passes successfully.
+- `git diff --check` passes successfully.
