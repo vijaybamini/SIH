@@ -47,10 +47,47 @@ function cropProgress(plantedDate, expectedHarvestDate) {
   return { pct, daysLeft }
 }
 
+function sortCropHistory(crops) {
+  return [...crops].sort((a, b) => {
+    const aTime = a.plantedDate ? new Date(a.plantedDate).getTime() : 0
+    const bTime = b.plantedDate ? new Date(b.plantedDate).getTime() : 0
+    return bTime - aTime
+  })
+}
+
+function CropHistoryCard({ crop, t }) {
+  const progress = cropProgress(crop.plantedDate, crop.expectedHarvestDate)
+  const status = crop.harvested
+    ? t.harvested
+    : (progress && progress.daysLeft > 0 ? t.harvestIn.replace('{n}', progress.daysLeft) : t.readyToHarvest)
+  return (
+    <article className={`crop-history-card${crop.harvested ? ' harvested' : ''}`}>
+      <header>
+        <strong>{crop.name}{crop.specificType ? ` · ${crop.specificType}` : ''}</strong>
+        <span className={`crop-history-status${crop.harvested ? ' harvested' : ''}`}>{status}</span>
+      </header>
+      <div className="crop-history-grid">
+        <div><span>{t.landLabel}</span><strong>{crop.landUsed ? `${crop.landUsed} ${t.acres}` : '—'}</strong></div>
+        <div><span>{t.turnoverLabel}</span><strong>{crop.turnover ? `${crop.turnover} ${t.quintals}` : '—'}</strong></div>
+        <div><span>{t.datePlanted}</span><strong>{crop.plantedDate || '—'}</strong></div>
+        <div><span>{crop.harvested ? t.dateHarvested : t.expectedHarvestDate}</span><strong>{crop.expectedHarvestDate || '—'}</strong></div>
+      </div>
+      {progress && !crop.harvested && (
+        <div className="crop-history-progress">
+          <div className="progress-track crop-progress-track">
+            <div className="progress-fill" style={{ width: `${progress.pct}%`, background: '#000' }} />
+          </div>
+          <span className="crop-history-pct">{progress.pct}%</span>
+        </div>
+      )}
+    </article>
+  )
+}
+
 function CropHistoryPage({ crops, t }) {
-  const current = crops.filter((crop) => !crop.harvested)
-  const past = crops.filter((crop) => crop.harvested)
-  const sorted = [...current, ...past]
+  const current = sortCropHistory(crops.filter((crop) => !crop.harvested))
+  const past = sortCropHistory(crops.filter((crop) => crop.harvested))
+  const hasAny = current.length > 0 || past.length > 0
   return (
     <section className="crop-history-page">
       <div className="section-heading-row crop-history-heading">
@@ -59,44 +96,37 @@ function CropHistoryPage({ crops, t }) {
           <h3>{t.navCropHistory}</h3>
         </div>
       </div>
-      {sorted.length === 0 ? (
+      <p className="crop-history-subtitle">{t.cropHistorySubtitle}</p>
+
+      {!hasAny ? (
         <div className="empty-card">
           <p>{t.noCropsYet}</p>
         </div>
       ) : (
         <>
-          <p className="crop-history-subtitle">{t.cropHistorySubtitle}</p>
-          <div className="crop-history-list">
-            {sorted.map((crop) => {
-              const progress = cropProgress(crop.plantedDate, crop.expectedHarvestDate)
-              return (
-                <article className="crop-history-card" key={crop.id}>
-                  <header>
-                    <strong>{crop.name}{crop.specificType ? ` · ${crop.specificType}` : ''}</strong>
-                    <span className={`crop-history-status${crop.harvested ? ' harvested' : ''}`}>
-                      {crop.harvested
-                        ? t.harvested
-                        : (progress && progress.daysLeft > 0 ? t.harvestIn.replace('{n}', progress.daysLeft) : t.readyToHarvest)}
-                    </span>
-                  </header>
-                  <div className="crop-history-grid">
-                    <div><span>{t.landLabel}</span><strong>{crop.landUsed ? `${crop.landUsed} ${t.acres}` : '—'}</strong></div>
-                    <div><span>{t.turnoverLabel}</span><strong>{crop.turnover ? `${crop.turnover} ${t.quintals}` : '—'}</strong></div>
-                    <div><span>{t.datePlanted}</span><strong>{crop.plantedDate || '—'}</strong></div>
-                    <div><span>{crop.harvested ? t.dateHarvested : t.expectedHarvestDate}</span><strong>{crop.expectedHarvestDate || '—'}</strong></div>
-                  </div>
-                  {progress && !crop.harvested && (
-                    <div className="crop-history-progress">
-                      <div className="progress-track crop-progress-track">
-                        <div className="progress-fill" style={{ width: `${progress.pct}%`, background: '#000' }} />
-                      </div>
-                      <span className="crop-history-pct">{progress.pct}%</span>
-                    </div>
-                  )}
-                </article>
-              )
-            })}
-          </div>
+          {current.length > 0 && (
+            <div className="crop-history-section">
+              <div className="crop-history-section-heading">
+                <h4>{t.currentCrops}</h4>
+                <span>{current.length}</span>
+              </div>
+              <div className="crop-history-list">
+                {current.map((crop) => <CropHistoryCard key={crop.id} crop={crop} t={t} />)}
+              </div>
+            </div>
+          )}
+
+          {past.length > 0 && (
+            <div className="crop-history-section">
+              <div className="crop-history-section-heading">
+                <h4>{t.pastCrops}</h4>
+                <span>{past.length}</span>
+              </div>
+              <div className="crop-history-list">
+                {past.map((crop) => <CropHistoryCard key={crop.id} crop={crop} t={t} />)}
+              </div>
+            </div>
+          )}
         </>
       )}
     </section>
