@@ -149,6 +149,61 @@ def fetch_supply_listings(commodity: str, timeout: float = 5.0) -> Optional[List
     return rows
 
 
+def fetch_logistics_providers(timeout: float = 6.0) -> Optional[List[Dict[str, Any]]]:
+    """All registered logistics providers -- {profile_id, company_name,
+    fleet_details} -- for matching a trip's required capacity against real
+    registered vehicles (see logistics_matching.py). fleet_details is the
+    JSON-encoded string src/api/logistics.js writes (a {profile, vehicles,
+    inventory} blob); parsing it is the caller's job since Postgres stores
+    it as plain text, not jsonb.
+
+    logistics_providers is correctly RLS-locked to each provider's own row
+    (auth.uid() = profile_id) -- a plain REST select with the anon key
+    this backend uses would always return zero rows regardless of how
+    many providers exist. logistics_provider_directory() is a
+    security-definer RPC (same pattern as commodity_supply_kg for farmer
+    data) that exposes just company name + declared fleet for matching.
+
+    Returns None when Supabase is unavailable (caller should skip
+    notification entirely rather than fail the order), or a list
+    (possibly empty, if nobody has registered yet) otherwise.
+    """
+    rows = _call_rpc("logistics_provider_directory", {}, timeout=timeout)
+    if rows is None or not isinstance(rows, list):
+        return None
+    return rows
+
+
+def create_trip_notification(
+    recipient_id: str,
+    notif_type: str,
+    title: str,
+    body: str,
+    payload: Dict[str, Any],
+    timeout: float = 6.0,
+) -> Optional[int]:
+    """Notifies one logistics provider (a real registered user) about a
+    trip they're a capacity match for, via the create_trip_notification()
+    security-definer RPC -- same reasoning as create_order(): this backend
+    has no authenticated session for the provider being notified, so a
+    plain insert would be rejected by RLS. Returns the new notification's
+    id, or None if the write failed for any reason (never raises -- a
+    failed notification should never fail the order itself)."""
+    result = _call_rpc("create_trip_notification", {
+        "p_recipient_id": recipient_id,
+        "p_type": notif_type,
+        "p_title": title,
+        "p_body": body,
+        "p_payload": payload,
+    }, timeout=timeout)
+    if result is None:
+        return None
+    try:
+        return int(result)
+    except (TypeError, ValueError):
+        return None
+
+
 def create_order(
     buyer_id: str,
     commodity: str,

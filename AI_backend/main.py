@@ -288,7 +288,56 @@ def place_order(data: dict):
                    "price quote above is still accurate -- nothing was charged.",
         )
 
-    return {"order_id": order_id, **result}
+    notifications = _notify_logistics_providers_for_trips(order_id, result["logistics"]["trips"])
+
+    return {"order_id": order_id, "logistics_notifications": notifications, **result}
+
+
+def _notify_logistics_providers_for_trips(order_id: int, trips: list) -> dict:
+    """Best-effort: tells every registered logistics provider with a
+    vehicle big enough for a trip what they'd be paid for it. Never raises
+    -- a notification failure (Supabase down, nobody registered yet, a
+    provider with unparseable fleet data) must never fail an already-saved
+    order."""
+    from logistics_matching import find_matching_providers
+    from supabase_integration import fetch_logistics_providers, create_trip_notification
+
+    try:
+        providers = fetch_logistics_providers()
+        if not providers:
+            return {"notified_count": 0, "reason": "no_registered_providers_or_supabase_unavailable"}
+
+        notified = []
+        for index, trip in enumerate(trips):
+            weight_kg = trip.get("shipment_weight_kg") or 0
+            payout = trip.get("driver_payout") or trip.get("customer_pays") or 0
+            distance_km = trip.get("road_distance_km") or 0
+            vehicle_label = trip.get("vehicle_label") or "vehicle"
+
+            matches = find_matching_providers(providers, weight_kg)
+            for match in matches:
+                notif_id = create_trip_notification(
+                    recipient_id=match["profile_id"],
+                    notif_type="trip_offer",
+                    title=f"New delivery job — order #{order_id}",
+                    body=(f"{weight_kg:.0f}kg, {distance_km:.0f}km ({vehicle_label}). "
+                          f"You'd be paid ₹{payout:,.0f} for this trip."),
+                    payload={
+                        "order_id": order_id,
+                        "trip_index": index,
+                        "shipment_weight_kg": weight_kg,
+                        "distance_km": distance_km,
+                        "vehicle_label": vehicle_label,
+                        "quoted_payout": payout,
+                        "matched_vehicle_type": match["vehicle_type"],
+                    },
+                )
+                if notif_id is not None:
+                    notified.append({"provider": match["company_name"], "trip_index": index, "payout": payout})
+
+        return {"notified_count": len(notified), "notified": notified}
+    except Exception as exc:  # noqa: BLE001 -- best-effort, never fails order placement
+        return {"notified_count": 0, "reason": f"notification_error: {exc}"}
 
 
 @app.post("/calculate-price")

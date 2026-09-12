@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
+import NotificationBell from './NotificationBell'
 import { useTranslation } from './i18n'
 
 const TOOLTIP_HOLD_MS = 2000
@@ -94,6 +95,7 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
           </div>
           {chosenSection && (
             <div className="dash-topbar-actions">
+              <NotificationBell userId={user.id} />
               <LanguageSwitcher language={language} setLanguage={setLanguage} />
               <div className="dash-avatar-wrap" onMouseEnter={showTop} onMouseLeave={hideTop}>
                 <div className="dash-avatar" tabIndex={0} onFocus={showTop} onBlur={hideTop}>
