@@ -85,7 +85,7 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
   const initials = (user.name || 'U').trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
 
   const navItems = [
-    ['Dashboard', t.navDashboard], ['Analytics', t.navAnalytics], ['Finances', t.navFinances], ['Settings', t.navSettings],
+    ['Dashboard', t.navDashboard],
   ]
 
   const profile = logisticsProfile?.profile
@@ -156,7 +156,7 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
 
         <div className="dash-grid dash-grid-reverse">
           <div className="dash-col-side">
-            <h3>Provider details</h3>
+            <h3>{t.providerDetails}</h3>
             <div className="farmer-details-card">
               <div className="farmer-photo-wrap">
                 {logisticsProfile?.photo ? (
@@ -178,7 +178,7 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
                 <strong>{profile?.address || '—'}</strong>
               </div>
               <div className="farmer-details-row">
-                <span>Crops</span>
+                <span>{t.cropsLabel}</span>
                 <strong>{(profile?.crops || []).filter(Boolean).join(', ') || '—'}</strong>
               </div>
             </div>

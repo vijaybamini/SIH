@@ -182,7 +182,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
   const initials = (user.name || 'U').trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
 
   const navItems = [
-    ['Dashboard', t.navDashboard], ['Fields', t.navFields], ['CropHistory', t.navCropHistory],
+    ['Dashboard', t.navDashboard], ['CropHistory', t.navCropHistory],
   ]
 
   function handleNavClick(key) {
@@ -259,7 +259,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
                   <strong>{farmerProfile?.areaOfLand ? `${farmerProfile.areaOfLand} ${t.acres}` : '—'}</strong>
                 </div>
                 <div className="farmer-details-row">
-                  <span>Crops</span>
+                  <span>{t.cropsLabel}</span>
                   <strong>{allCrops.map((crop) => crop.name).filter(Boolean).join(', ') || '—'}</strong>
                 </div>
                 <div className="farmer-details-row">
@@ -270,7 +270,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
             </div>
 
             <div className="dash-col-main">
-            <PriceWidget crops={allCrops} />
+            <PriceWidget crops={allCrops} t={t} />
             <div className="section-heading-row">
               <h3>{t.currentCrops}</h3>
               <button className="icon-add-button" onClick={onQuickAddCrop} aria-label={t.addAnotherCrop} title={t.addAnotherCrop}>+</button>

@@ -13,7 +13,7 @@ function trendArrow(pct) {
   return '→'
 }
 
-function CropPriceRow({ cropName }) {
+function CropPriceRow({ cropName, t }) {
   const [state, setState] = useState({ status: 'loading' })
 
   useEffect(() => {
@@ -29,7 +29,7 @@ function CropPriceRow({ cropName }) {
     return (
       <div className="price-widget-row">
         <span className="price-widget-crop">{cropName}</span>
-        <span className="price-widget-loading">Checking…</span>
+        <span className="price-widget-loading">{t.checkingPrice}</span>
       </div>
     )
   }
@@ -38,7 +38,7 @@ function CropPriceRow({ cropName }) {
     return (
       <div className="price-widget-row">
         <span className="price-widget-crop">{cropName}</span>
-        <span className="price-widget-unavailable">Price unavailable</span>
+        <span className="price-widget-unavailable">{t.priceUnavailable}</span>
       </div>
     )
   }
@@ -57,17 +57,17 @@ function CropPriceRow({ cropName }) {
   )
 }
 
-export default function PriceWidget({ crops }) {
+export default function PriceWidget({ crops, t }) {
   const cropNames = [...new Set((crops || []).map((crop) => crop.name).filter(Boolean))]
   if (cropNames.length === 0) return null
 
   return (
     <div className="price-widget">
-      <h3>Today's prices</h3>
+      <h3>{t.todaysPrices}</h3>
       <div className="price-widget-card">
-        {cropNames.map((name) => <CropPriceRow key={name} cropName={name} />)}
+        {cropNames.map((name) => <CropPriceRow key={name} cropName={name} t={t} />)}
       </div>
-      <p className="price-widget-note">What you'd net per kg today, after the platform's commission — before any buyer's shipping cost.</p>
+      <p className="price-widget-note">{t.priceWidgetNote}</p>
     </div>
   )
 }

@@ -123,7 +123,7 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
 
         <div className="dash-grid dash-grid-reverse">
           <div className="dash-col-side">
-            <h3>Profile details</h3>
+            <h3>{t.profileDetails}</h3>
             <div className="farmer-details-card">
               <div className="farmer-photo-wrap">
                 {serviceProfile?.photo ? (
@@ -145,7 +145,7 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
                 <strong>{serviceProfile?.address || '—'}</strong>
               </div>
               <div className="farmer-details-row">
-                <span>Crops serviced</span>
+                <span>{t.cropsServiced}</span>
                 <strong>{[...new Set(mills.flatMap((mill) => mill.cropTypes.filter(Boolean)))].join(', ') || '—'}</strong>
               </div>
             </div>
@@ -153,12 +153,12 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
 
           <div className="dash-col-main">
             <div className="section-heading-row">
-              <h3>Your mills</h3>
+              <h3>{t.yourMills}</h3>
               <button className="icon-add-button" onClick={onOpenCompleteProfile} aria-label={t.editProfile} title={t.editProfile}>+</button>
             </div>
             {mills.length === 0 ? (
               <div className="empty-card">
-                <p>{user.profileComplete ? 'No mills added yet.' : 'Complete your profile to see your mills here.'}</p>
+                <p>{user.profileComplete ? t.noMillsYet : t.completeServicePrompt}</p>
                 {!user.profileComplete && <button className="button button-primary" onClick={onOpenCompleteProfile}>{t.completeProfile}</button>}
               </div>
             ) : (
@@ -166,15 +166,15 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
                 {mills.map((mill, index) => (
                   <article className="crop-progress-card" key={mill.id}>
                     <div className="crop-progress-header">
-                      <strong>{`Mill ${index + 1}`}</strong>
-                      <span className="crop-status">{mill.gstin ? 'GSTIN on file' : 'GSTIN pending'}</span>
+                      <strong>{t.millNumber.replace('{n}', index + 1)}</strong>
+                      <span className="crop-status">{mill.gstin ? t.gstinOnFile : t.gstinPending}</span>
                     </div>
                     <div className="crop-meta-row">
-                      <span>Crop services: <b>{mill.cropTypes.filter(Boolean).join(', ') || '—'}</b></span>
+                      <span>{t.cropServices}: <b>{mill.cropTypes.filter(Boolean).join(', ') || '—'}</b></span>
                     </div>
                     {mill.documentUrl && (
                       <div className="crop-meta-row">
-                        <a href={mill.documentUrl} target="_blank" rel="noreferrer">📄 View GSTIN document</a>
+                        <a href={mill.documentUrl} target="_blank" rel="noreferrer">📄 {t.viewGstinDocument}</a>
                       </div>
                     )}
                   </article>
@@ -182,9 +182,9 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
               </div>
             )}
 
-            <h3>Past services</h3>
+            <h3>{t.pastServices}</h3>
             {pastServices.length === 0 ? (
-              <div className="empty-card"><p>No past services yet.</p></div>
+              <div className="empty-card"><p>{t.noPastServicesYet}</p></div>
             ) : (
               <div className="past-crop-list">
                 {pastServices.map((service) => (
