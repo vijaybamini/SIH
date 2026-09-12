@@ -104,7 +104,7 @@ except ImportError:
 # ------------------------------------------------------------------------- #
 # Config
 # ------------------------------------------------------------------------- #
-DATA_PATH = str(Path(__file__).resolve().parent.parent / 'agmarknet_data' /
+DATA_PATH = str(Path(__file__).resolve().parent / 'agmarknet_data' /
                  'agmarknet-india-commodity-prices-2024-2025' /
                  'india_mandi_prices_population_proportional.csv')
 EXTRA_REAL_DATA_PATHS = []   # optional: paths to additional REAL data you've separately
