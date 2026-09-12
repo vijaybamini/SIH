@@ -21,17 +21,16 @@ function useHoverMenu() {
 function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, onOpen, onClose, visible, t }) {
   return (
     <div className="profile-tooltip" role="menu" onMouseEnter={onOpen} onMouseLeave={onClose} hidden={!visible}>
-      {!profileComplete ? (
+      {!profileComplete && (
         <>
           <p>{t.profileIncompleteMsg}</p>
           <button onClick={onOpenCompleteProfile}>{t.completeProfile} →</button>
         </>
-      ) : (
-        <div className="profile-menu-list">
-          <button className="menu-item" onClick={onOpenCompleteProfile}><span aria-hidden="true">👤</span> {t.viewProfile}</button>
-          <button className="menu-item" onClick={onLogout}><span aria-hidden="true">⤶</span> {t.logout}</button>
-        </div>
       )}
+      <div className="profile-menu-list">
+        <button className="menu-item" onClick={onOpenCompleteProfile}><span aria-hidden="true">👤</span> {t.viewProfile}</button>
+        <button className="menu-item" onClick={onLogout}><span aria-hidden="true">⤶</span> {t.logout}</button>
+      </div>
     </div>
   )
 }

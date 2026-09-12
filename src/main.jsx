@@ -1,4 +1,4 @@
-import { StrictMode, useState } from 'react'
+import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import { isSupabaseConfigured, supabase } from './supabase'
@@ -37,6 +37,41 @@ function App() {
       console.error('Could not load farmer data:', error)
     }
   }
+
+  const restoreUserRef = useRef()
+  if (!restoreUserRef.current) {
+    restoreUserRef.current = (session) => {
+      const user = session?.user
+      if (!user) return
+      const metadata = user.user_metadata || {}
+      handleAuthenticated({
+        id: user.id,
+        name: metadata.first_name || user.email?.split('@')[0].replace(/[._]/g, ' '),
+        role: metadata.role || 'farmer',
+        profileComplete: false,
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (!supabase) return
+    let active = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (active && data.session) restoreUserRef.current(data.session)
+    })
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return
+      if (session) {
+        restoreUserRef.current(session)
+      } else {
+        setCurrentUser(null)
+      }
+    })
+    return () => {
+      active = false
+      subscription.subscription.unsubscribe()
+    }
+  }, [])
 
   const copy = language === 'hi' ? {
     about: 'परियोजना के बारे में', how: 'यह कैसे काम करता है', login: 'लॉग इन', register: 'रजिस्टर',
