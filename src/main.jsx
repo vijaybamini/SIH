@@ -4,7 +4,9 @@ import './styles.css'
 import { isSupabaseConfigured, supabase } from './supabase'
 import Dashboard from './Dashboard'
 import BulkBuyerDashboard from './BulkBuyerDashboard'
+import LogisticsDashboard from './LogisticsDashboard'
 import CompleteProfileFarmer from './CompleteProfileFarmer'
+import CompleteProfileLogistics from './CompleteProfileLogistics'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
 import { loadFarmerData } from './api/farmer'
@@ -25,10 +27,12 @@ function App() {
   const [completingProfile, setCompletingProfile] = useState(false)
   const [quickAddCrop, setQuickAddCrop] = useState(false)
   const [farmerProfile, setFarmerProfile] = useState(null)
+  const [logisticsProfile, setLogisticsProfile] = useState(null)
 
   async function handleAuthenticated(user) {
     setCurrentUser(user)
     setFarmerProfile(null)
+    setLogisticsProfile(null)
     if (user.role !== 'farmer' || !user.id) return
     try {
       const data = await loadFarmerData(user.id)
@@ -127,7 +131,21 @@ function App() {
   const toggleAccessibility = (key) => setAccessibility((current) => ({ ...current, [key]: !current[key] }))
   const accessibilityClass = [accessibility.largeText && 'large-text', accessibility.highContrast && 'high-contrast', accessibility.reducedMotion && 'reduced-motion'].filter(Boolean).join(' ')
 
-  if (currentUser && completingProfile) {
+  if (currentUser && completingProfile && currentUser.role === 'logistics') {
+    return (
+      <CompleteProfileLogistics
+        language={language}
+        setLanguage={setLanguage}
+        onBack={() => setCompletingProfile(false)}
+        onComplete={(serviceType) => {
+          setLogisticsProfile({ serviceType })
+          setCompletingProfile(false)
+        }}
+      />
+    )
+  }
+
+  if (currentUser && completingProfile && currentUser.role === 'farmer') {
     return (
       <CompleteProfileFarmer
         userId={currentUser.id}
@@ -153,6 +171,19 @@ function App() {
         user={currentUser}
         language={language}
         setLanguage={setLanguage}
+        onLogout={() => setCurrentUser(null)}
+      />
+    )
+  }
+
+  if (currentUser && currentUser.role === 'logistics') {
+    return (
+      <LogisticsDashboard
+        user={currentUser}
+        logisticsProfile={logisticsProfile}
+        language={language}
+        setLanguage={setLanguage}
+        onOpenCompleteProfile={() => setCompletingProfile(true)}
         onLogout={() => setCurrentUser(null)}
       />
     )
