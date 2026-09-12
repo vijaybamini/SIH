@@ -154,26 +154,29 @@ def forecast_price_trend(df, commodity, market, forecast_days=7):
             f"({len(series)} days) -- need at least ~3 weeks."
         )
 
-    # --- Backtest: hold out last 7 days ---
-    train = series[:-forecast_days]
-    test = series[-forecast_days:]
-
-    # use_brute=False skips statsmodels' brute-force grid search over initial
-    # optimizer starting points (a handful of extra SSE evaluations that cost
-    # little on a normal CPU but add up on a throttled one) in favor of a
-    # single heuristic starting guess -- roughly 2x faster locally, same
-    # final optimizer, negligible difference in fit quality for a demo.
-    model = ExponentialSmoothing(
-        train, trend="add", seasonal="add", seasonal_periods=7,
-    ).fit(use_brute=False)
-    backtest_pred = model.forecast(forecast_days)
-    mae = np.mean(np.abs(backtest_pred.values - test.values))
-    mape = np.mean(np.abs((backtest_pred.values - test.values) / test.values)) * 100
-
-    # --- Real forecast: refit on FULL history ---
+    # Fit ONCE on the full series rather than fitting twice (once on a
+    # held-out train split for backtesting, once again on the full series for
+    # the real forecast). Two ExponentialSmoothing().fit() calls means two
+    # full scipy optimizer runs -- cheap locally (~0.1-0.3s each) but this
+    # module's whole reason for existing is that the same call was observed
+    # taking 25s+ on Render's throttled free-tier CPU, and every extra fit
+    # doubles that cost and doubles how long a background thread lingers
+    # eating CPU after a caller times out and moves on. use_brute=False
+    # additionally skips statsmodels' brute-force grid search over initial
+    # optimizer starting points, roughly halving fit time again.
     full_model = ExponentialSmoothing(
         series, trend="add", seasonal="add", seasonal_periods=7,
     ).fit(use_brute=False)
+
+    # Backtest accuracy is derived from the full model's own in-sample fitted
+    # values on the last `forecast_days` days, instead of a true held-out
+    # refit -- an in-sample approximation, not a strict backtest, but it
+    # costs nothing extra (no second fit) and is only ever surfaced as an
+    # informational accuracy metric, not used in any pricing decision.
+    fitted_tail = full_model.fittedvalues[-forecast_days:]
+    actual_tail = series[-forecast_days:]
+    mae = np.mean(np.abs(fitted_tail.values - actual_tail.values))
+    mape = np.mean(np.abs((fitted_tail.values - actual_tail.values) / actual_tail.values)) * 100
 
     future_dates = pd.date_range(
         series.index[-1] + pd.Timedelta(days=1), periods=forecast_days, freq="D"

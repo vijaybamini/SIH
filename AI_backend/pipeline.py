@@ -392,11 +392,22 @@ _forecast_cache: Dict[Tuple[str, str, int], Tuple[float, Dict[str, Any], Optiona
 FORECAST_CACHE_TTL_SECONDS = 600.0
 FORECAST_TIMEOUT_SECONDS = 12.0
 
+# In-flight registry so concurrent/rapid-repeat requests for the SAME
+# (commodity, market, forecast_days) share one fit instead of each spawning
+# its own background thread. This matters specifically because a timed-out
+# fit is abandoned, not killed -- it keeps running and consuming CPU. On a
+# severely CPU-throttled host (observed: Render free tier), every caller
+# that piles on a redundant fit for the same key makes EVERY fit slower,
+# including the earlier ones still in flight -- a self-reinforcing slowdown
+# under exactly the kind of repeated-clicks load a live demo produces.
+_forecast_inflight_lock = threading.Lock()
+_forecast_inflight: Dict[Tuple[str, str, int], Tuple[threading.Event, List[Any]]] = {}
+
 
 def forecast_with_fallback(df: pd.DataFrame, commodity: str, market: str,
                            forecast_days: int = 7) -> Tuple[Dict[str, Any], Optional[str]]:
-    """Try the Holt-Winters forecast (cached, time-boxed); if the market
-    lacks enough history OR the fit doesn't finish within
+    """Try the Holt-Winters forecast (cached, time-boxed, de-duplicated); if
+    the market lacks enough history OR the fit doesn't finish within
     FORECAST_TIMEOUT_SECONDS, fall back to the recent observed mean
     (drawdown) with a warning instead of hanging the request."""
     import time
@@ -406,31 +417,46 @@ def forecast_with_fallback(df: pd.DataFrame, commodity: str, market: str,
     if cached is not None and (time.monotonic() - cached[0]) < FORECAST_CACHE_TTL_SECONDS:
         return cached[1], cached[2]
 
-    result_queue: "queue.Queue" = queue.Queue(maxsize=1)
+    with _forecast_inflight_lock:
+        existing = _forecast_inflight.get(cache_key)
+        if existing is None:
+            done_event = threading.Event()
+            box: List[Any] = []
+            _forecast_inflight[cache_key] = (done_event, box)
 
-    def _worker():
-        try:
-            result_queue.put(("ok", forecast_for(df, commodity, market, forecast_days)))
-        except ValueError as e:
-            result_queue.put(("value_error", e))
-        except Exception as exc:  # noqa: BLE001 -- reported back, not raised cross-thread
-            result_queue.put(("error", exc))
+            def _worker():
+                try:
+                    box.append(("ok", forecast_for(df, commodity, market, forecast_days)))
+                except ValueError as e:
+                    box.append(("value_error", e))
+                except Exception as exc:  # noqa: BLE001 -- reported back, not raised cross-thread
+                    box.append(("error", exc))
+                finally:
+                    done_event.set()
+                    with _forecast_inflight_lock:
+                        # Only the owner of the current in-flight slot clears
+                        # it; a slot may already belong to a NEWER attempt if
+                        # this one timed out and TTL later expired.
+                        if _forecast_inflight.get(cache_key) == (done_event, box):
+                            del _forecast_inflight[cache_key]
 
-    threading.Thread(target=_worker, daemon=True).start()
+            threading.Thread(target=_worker, daemon=True).start()
+        else:
+            done_event, box = existing
 
-    try:
-        status, payload = result_queue.get(timeout=FORECAST_TIMEOUT_SECONDS)
-    except queue.Empty:
+    finished = done_event.wait(timeout=FORECAST_TIMEOUT_SECONDS)
+    if not finished:
         outcome = _recent_average_fallback(
             df, commodity, market, forecast_days,
             f"forecast fell back to recent average: took longer than "
             f"{FORECAST_TIMEOUT_SECONDS:.0f}s (host under CPU pressure)",
         )
-        # Deliberately not cached: a slow fit may finish moments later on its
-        # own thread and is worth trying again on the next request rather
-        # than pinning every buyer to the fallback for the full TTL.
+        # Deliberately not cached: the in-flight fit is still running (and
+        # every other waiter on this key is sharing it, not duplicating it)
+        # and may populate the real cache moments later for the next caller.
         return outcome
 
+    status, payload = box[0]
     if status == "ok":
         outcome = (payload, None)
     elif status == "value_error":
