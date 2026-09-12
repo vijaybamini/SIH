@@ -347,7 +347,7 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
         <h2 id="auth-title">{isRegister ? t.createAccount.replace('{role}', selectedRole.title) : t.welcomeBack}</h2>
         <p className="panel-subtitle">{isRegister ? selectedRole.description : t.logInToContinue}</p>
         <form onSubmit={handleSubmit}>
-          {isRegister && <label>{t.name}<input name="name" type="text" placeholder="Your full name" required /></label>}
+          {isRegister && <label>{t.name}<input name="name" type="text" placeholder="Your full name" onInput={(event) => { event.target.value = event.target.value.toUpperCase() }} required /></label>}
           <label>{t.email}<input name="email" type="email" placeholder="you@example.com" required /></label>
           {isRegister && <label>{t.phone}<input name="phone" type="tel" placeholder="+91 00000 00000" required /></label>}
           {isRegister && <label>{t.pincode}<input name="pincode" type="text" inputMode="numeric" pattern="[0-9]{6}" placeholder="6-digit pincode" required /></label>}

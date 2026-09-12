@@ -53,7 +53,8 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   }
 
   function updateCrop(id, field, value) {
-    setCrops((current) => current.map((crop) => (crop.id === id ? { ...crop, [field]: value } : crop)))
+    const nextValue = field === 'name' || field === 'specificType' ? value.toUpperCase() : value
+    setCrops((current) => current.map((crop) => (crop.id === id ? { ...crop, [field]: nextValue } : crop)))
   }
   function addCrop() {
     setCrops((current) => [...current, emptyCrop()])
@@ -222,9 +223,9 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
 
               <div className="form-grid">
                 <label>{t.areaOfLand}<input type="number" step="0.01" min="0" placeholder="e.g. 2.5" value={areaOfLand} onChange={(event) => setAreaOfLand(event.target.value)} required /></label>
-                <label>{t.surveyNumber}<input type="text" placeholder="Enter the land survey number" value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value)} required /></label>
-                <label>{t.aadhaarNumber}<input type="text" placeholder="Enter 12-digit Aadhaar number" value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value)} required /></label>
-                <label>{t.locationOfCrop}<input type="text" placeholder="Village, district, state" value={cropLocation} onChange={(event) => setCropLocation(event.target.value)} required /></label>
+                <label>{t.surveyNumber}<input type="text" placeholder="Enter the land survey number" value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value.toUpperCase())} required /></label>
+                <label>{t.aadhaarNumber}<input type="text" placeholder="Enter 12-digit Aadhaar number" value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value.toUpperCase())} required /></label>
+                <label>{t.locationOfCrop}<input type="text" placeholder="Village, district, state" value={cropLocation} onChange={(event) => setCropLocation(event.target.value.toUpperCase())} required /></label>
               </div>
             </>
           )}
@@ -307,8 +308,8 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
 
           {step === 2 && (
             <div className="form-grid">
-              <label>{t.accountHolderName}<input type="text" placeholder="Name as per bank account" value={accountHolderName} onChange={(event) => setAccountHolderName(event.target.value)} required /></label>
-              <label>{t.accountNumber}<input type="text" placeholder="Enter account number" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} required /></label>
+              <label>{t.accountHolderName}<input type="text" placeholder="Name as per bank account" value={accountHolderName} onChange={(event) => setAccountHolderName(event.target.value.toUpperCase())} required /></label>
+              <label>{t.accountNumber}<input type="text" placeholder="Enter account number" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value.toUpperCase())} required /></label>
               <label>{t.ifscCode}
                 <input type="text" placeholder="e.g. SBIN0001234" value={ifsc} onChange={handleIfscChange} maxLength={11} required />
                 {ifscStatus === 'loading' && <small className="ifsc-hint">Looking up branch…</small>}
@@ -316,7 +317,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
                 {ifscStatus === 'notfound' && <small className="ifsc-hint ifsc-hint-warn">Couldn’t find this IFSC — enter branch manually.</small>}
               </label>
               <label>{t.branch}
-                <input type="text" placeholder="Branch name" value={branch} onChange={(event) => setBranch(event.target.value)} required />
+                <input type="text" placeholder="Branch name" value={branch} onChange={(event) => setBranch(event.target.value.toUpperCase())} required />
               </label>
             </div>
           )}
