@@ -49,27 +49,14 @@ COLUMN_MAP = {
 }
 
 
-# Only these 4 of the CSV's 11 columns are ever read by the live pipeline
-# (list_commodities/list_markets/forecast_price_trend/pick_default_market) --
-# district/variety/grade/state/min_price/max_price/Sl-no. are dead weight for
-# this dataframe. Skipping them via `usecols` cuts both parse time and (more
-# importantly on a memory-constrained host) peak RAM, since the dropped
-# columns are the highest-cardinality string ones. This mattered in practice:
-# on Render's free tier, loading the full 1.1M-row/97MB CSV was intermittently
-# taking 20s+ (sometimes much more) and made /api/quote look hung.
-_NEEDED_RAW_COLUMNS = ["Market Name", "Commodity", "Modal Price (Rs./Quintal)", "Price Date"]
-
-
 def load_kaggle_data(csv_path):
     """
     Loads the real Kaggle Agmarknet CSV and standardizes column names.
     Expected raw columns: Sl no., District Name, Market Name, Commodity,
     Variety, Grade, Min Price (Rs./Quintal), Max Price (Rs./Quintal),
-    Modal Price (Rs./Quintal), Price Date, State -- only Market Name,
-    Commodity, Modal Price, and Price Date are actually loaded (see
-    _NEEDED_RAW_COLUMNS).
+    Modal Price (Rs./Quintal), Price Date, State
     """
-    df = pd.read_csv(csv_path, usecols=lambda c: c in _NEEDED_RAW_COLUMNS)
+    df = pd.read_csv(csv_path)
     df = df.rename(columns=COLUMN_MAP)
 
     # Price Date appears in the wild in several formats:
@@ -154,29 +141,21 @@ def forecast_price_trend(df, commodity, market, forecast_days=7):
             f"({len(series)} days) -- need at least ~3 weeks."
         )
 
-    # Fit ONCE on the full series rather than fitting twice (once on a
-    # held-out train split for backtesting, once again on the full series for
-    # the real forecast). Two ExponentialSmoothing().fit() calls means two
-    # full scipy optimizer runs -- cheap locally (~0.1-0.3s each) but this
-    # module's whole reason for existing is that the same call was observed
-    # taking 25s+ on Render's throttled free-tier CPU, and every extra fit
-    # doubles that cost and doubles how long a background thread lingers
-    # eating CPU after a caller times out and moves on. use_brute=False
-    # additionally skips statsmodels' brute-force grid search over initial
-    # optimizer starting points, roughly halving fit time again.
+    # --- Backtest: hold out last 7 days ---
+    train = series[:-forecast_days]
+    test = series[-forecast_days:]
+
+    model = ExponentialSmoothing(
+        train, trend="add", seasonal="add", seasonal_periods=7,
+    ).fit()
+    backtest_pred = model.forecast(forecast_days)
+    mae = np.mean(np.abs(backtest_pred.values - test.values))
+    mape = np.mean(np.abs((backtest_pred.values - test.values) / test.values)) * 100
+
+    # --- Real forecast: refit on FULL history ---
     full_model = ExponentialSmoothing(
         series, trend="add", seasonal="add", seasonal_periods=7,
-    ).fit(use_brute=False)
-
-    # Backtest accuracy is derived from the full model's own in-sample fitted
-    # values on the last `forecast_days` days, instead of a true held-out
-    # refit -- an in-sample approximation, not a strict backtest, but it
-    # costs nothing extra (no second fit) and is only ever surfaced as an
-    # informational accuracy metric, not used in any pricing decision.
-    fitted_tail = full_model.fittedvalues[-forecast_days:]
-    actual_tail = series[-forecast_days:]
-    mae = np.mean(np.abs(fitted_tail.values - actual_tail.values))
-    mape = np.mean(np.abs((fitted_tail.values - actual_tail.values) / actual_tail.values)) * 100
+    ).fit()
 
     future_dates = pd.date_range(
         series.index[-1] + pd.Timedelta(days=1), periods=forecast_days, freq="D"
