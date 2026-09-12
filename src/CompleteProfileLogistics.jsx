@@ -36,7 +36,7 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
     setVehicleCount(value)
     setVehicles((current) => {
       const next = [...current]
-      while (next.length < count) next.push({ type: '', location: '', registration: '' })
+      while (next.length < count) next.push({ type: '', location: '', registration: '', capacity: '' })
       return next.slice(0, count)
     })
   }
@@ -55,7 +55,7 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
     setIsSaving(true)
     try {
       const vehicleRows = wantTransport
-        ? vehicles.filter((vehicle) => vehicle.type.trim()).map((vehicle) => ({ type: vehicle.type, location: vehicle.location, registration: vehicle.registration }))
+        ? vehicles.filter((vehicle) => vehicle.type.trim()).map((vehicle) => ({ type: vehicle.type, location: vehicle.location, registration: vehicle.registration, capacity: vehicle.capacity }))
         : []
       const storageData = wantStorage ? storage : { capacity: '', location: '', fillPercentage: '' }
       const savedData = await saveLogisticsData(userId, { serviceType: chosen, vehicles: vehicleRows, storage: storageData })
@@ -169,6 +169,17 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
                               required
                             />
                           </label>
+                          <label>Load carrying capacity (kg)
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="e.g. 1500"
+                              value={vehicle.capacity}
+                              onChange={(event) => updateVehicle(index, 'capacity', event.target.value)}
+                              required
+                            />
+                          </label>
                         </div>
                       )}
                     </div>
@@ -180,7 +191,7 @@ export default function CompleteProfileLogistics({ userId, onBack, onComplete, i
 
           {wantStorage && (
             <section className="logistics-section">
-              <h3 className="form-section-title">🏬 Inventory</h3>
+              <h3 className="form-section-title">🏬 Storage services</h3>
               <div className="form-grid">
                 <label>Capacity of cold storage (tonnes)
                   <input

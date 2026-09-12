@@ -33,6 +33,7 @@ export async function loadLogisticsData(userId) {
     type: vehicle.vehicle_type || '',
     location: vehicle.location || '',
     registration: vehicle.registration_number || '',
+    capacity: vehicle.vehicle_capacity == null ? '' : String(vehicle.vehicle_capacity),
   }))
 
   const data = {
@@ -75,6 +76,7 @@ export async function saveLogisticsData(userId, formData) {
         vehicle_type: vehicle.type.trim(),
         registration_number: vehicle.registration.trim(),
         location: vehicle.location.trim(),
+        vehicle_capacity: asNumberOrNull(vehicle.capacity),
       }))
       const { error: insertError } = await supabase.from('fleet_vehicles').insert(rows)
       if (insertError) throw insertError

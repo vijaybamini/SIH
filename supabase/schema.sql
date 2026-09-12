@@ -40,6 +40,7 @@ create table public.fleet_vehicles (
   vehicle_type text not null,
   registration_number text,
   location text,
+  vehicle_capacity numeric(12, 2) check (vehicle_capacity >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
