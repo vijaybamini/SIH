@@ -100,6 +100,16 @@ def road_distance_km(a, b):
     return haversine_km(a["lat"], a["lon"], b["lat"], b["lon"]) * ROAD_FACTOR
 
 
+def _stop_label(node):
+    """A route's `stops` list is shown to the logistics provider as the
+    actual pickup/drop points on their job -- a farmer's raw UUID (their
+    node "id", used internally for allocation tracking) tells a driver
+    nothing about where to go. Prefer a human-meaningful pincode when the
+    node carries one; only fall back to the id for nodes that don't
+    (e.g. a synthetic depot)."""
+    return str(node.get("pincode") or node.get("id", "NODE"))
+
+
 # ---------------------------------------------------------------------------
 # PHASE 1: ALLOCATION 
 # ---------------------------------------------------------------------------
@@ -247,11 +257,11 @@ def optimize_single_trip_route(shed, trip_farmers, buyer, cost_per_km):
     route_distance_m = 0
     while not routing.IsEnd(index):
         node = manager.IndexToNode(index)
-        route_nodes.append(nodes[node].get("id", "SHED"))
+        route_nodes.append(_stop_label(nodes[node]))
         prev_index = index
         index = solution.Value(routing.NextVar(index))
         route_distance_m += dist_matrix[manager.IndexToNode(prev_index)][manager.IndexToNode(index)]
-    route_nodes.append(nodes[manager.IndexToNode(index)].get("id", "SHED"))
+    route_nodes.append(_stop_label(nodes[manager.IndexToNode(index)]))
 
     return {
         "stops": route_nodes,
@@ -402,7 +412,7 @@ def _optimize_pooled_route(farmer_nodes, customer_nodes, time_limit_s=5):
         return None  # not every pickup/delivery got visited -- treat as infeasible
 
     return {
-        "stops": [str(nodes[i].get("id", "NODE")) for i in route_node_indices],
+        "stops": [_stop_label(nodes[i]) for i in route_node_indices],
         "distance_km": round(route_distance_m / 1000.0, 2),
     }
 
@@ -449,7 +459,7 @@ def _greedy_pooled_route(farmer_nodes, customer_nodes):
         total_distance_km += cust_dist
 
     return {
-        "stops": [str(n.get("id", "NODE")) for n in route],
+        "stops": [_stop_label(n) for n in route],
         "distance_km": round(total_distance_km, 2),
     }
 
@@ -712,6 +722,7 @@ def plan_multi_farmer_delivery(buyer_pincode, buyer_demand_kg, farmer_candidates
         resolved_farmers.append({
             "id": cand["farmer_id"],
             "crop_id": cand.get("crop_id"),
+            "pincode": cand.get("pincode"),
             "lat": lat,
             "lon": lon,
             "weight_kg": float(cand["available_kg"]),
