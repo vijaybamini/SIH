@@ -205,8 +205,6 @@ authRequestRef.current += 1
     }
   }, [])
 
-  if (authStatus === 'loading') return <AuthLoadingScreen />
-
   function handleChooseSection(section) {
     rememberLogisticsChoice(currentUser?.id, section)
     setChosenSection(section)
@@ -320,6 +318,8 @@ authRequestRef.current += 1
 
   const toggleAccessibility = (key) => setAccessibility((current) => ({ ...current, [key]: !current[key] }))
   const accessibilityClass = [accessibility.largeText && 'large-text', accessibility.highContrast && 'high-contrast', accessibility.reducedMotion && 'reduced-motion'].filter(Boolean).join(' ')
+
+  if (authStatus === 'loading') return <AuthLoadingScreen />
 
   if (showLanguageSelection) {
     return <LanguageSelection onSelect={handleSelectLanguage} />
