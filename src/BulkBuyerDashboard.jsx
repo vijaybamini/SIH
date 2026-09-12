@@ -14,6 +14,34 @@ function commodityCategory(name) {
   return 'Other'
 }
 
+// Wikimedia Commons photos of the raw commodity (not a dish/logo/diagram).
+// Keyed by the exact commodity strings the AI backend returns.
+const COMMODITY_IMAGES = {
+  'Apple': 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Apples_in_basket_2018_G2.jpg/500px-Apples_in_basket_2018_G2.jpg',
+  'Arhar (Tur/Red Gram)(Whole)': 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Pigeon_pea_pods_dried_with_ruler.jpg/500px-Pigeon_pea_pods_dried_with_ruler.jpg',
+  'Bajra(Pearl Millet/Cumbu)': 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Pearl_millet_grain.jpg/500px-Pearl_millet_grain.jpg',
+  'Banana': 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Bunch_of_bananas_on_sale.jpg/500px-Bunch_of_bananas_on_sale.jpg',
+  'Bhindi(Ladies Finger)': 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/Bucket_of_raw_okra_pods.jpg/500px-Bucket_of_raw_okra_pods.jpg',
+  'Brinjal': 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/An_Indian_Purple_Eggplant_%28Brinjal%29.jpg/500px-An_Indian_Purple_Eggplant_%28Brinjal%29.jpg',
+  'Cabbage': 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Fresh_Cabbage_vegetables.jpg/500px-Fresh_Cabbage_vegetables.jpg',
+  'Carrot': 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/Carrots_of_many_colors.jpg/500px-Carrots_of_many_colors.jpg',
+  'Cauliflower': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Tray_of_cauliflowers_on_Lordship_Lane_Tottenham_London_England.jpg/500px-Tray_of_cauliflowers_on_Lordship_Lane_Tottenham_London_England.jpg',
+  'Cotton': 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Mature_cotton_boll_in_Raichur%2C_Karnataka.jpg/500px-Mature_cotton_boll_in_Raichur%2C_Karnataka.jpg',
+  'Garlic': 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Garlic_bulbs_and_cloves.jpg/500px-Garlic_bulbs_and_cloves.jpg',
+  'Ginger(Green)': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Fresh_ginger_rhizome_01.jpg/500px-Fresh_ginger_rhizome_01.jpg',
+  'Green Chilli': 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Green_chili_peppers.jpg/500px-Green_chili_peppers.jpg',
+  'Green Gram (Moong)(Whole)': 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/Mung_beans_%28Vigna_radiata%29.jpg/500px-Mung_beans_%28Vigna_radiata%29.jpg',
+  'Groundnut': 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/Groundnut_of_Salem.jpg/500px-Groundnut_of_Salem.jpg',
+  'Gur(Jaggery)': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Sa-indian-gud.jpg/500px-Sa-indian-gud.jpg',
+  'Jowar(Sorghum)': 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Sorghum_seed.jpg/500px-Sorghum_seed.jpg',
+  'Lentil (Masur)(Whole)': 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Lens_culinaris_seeds.jpg/500px-Lens_culinaris_seeds.jpg',
+  'Maize': 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Dried_corn_cobs_and_kernels_stored_in_a_rustic_barn_during_autumn_harvest_season.jpg/500px-Dried_corn_cobs_and_kernels_stored_in_a_rustic_barn_during_autumn_harvest_season.jpg',
+  'Mango': 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Mango_fruit_Nam_Dok_Mai.jpg/500px-Mango_fruit_Nam_Dok_Mai.jpg',
+  'Mustard': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Mustard_Seeds_in_a_plate_at_Reganigudem.jpg/500px-Mustard_Seeds_in_a_plate_at_Reganigudem.jpg',
+  'Soyabean': 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Soybean.USDA.jpg/500px-Soybean.USDA.jpg',
+  'Wheat': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Wheat_close-up.JPG/500px-Wheat_close-up.JPG',
+}
+
 function commodityIcon(name) {
   const n = name.toLowerCase()
   if (/apple|banana|mango/.test(n)) return '🍎'
@@ -32,10 +60,17 @@ function money(value) {
 }
 
 function CommodityCard({ commodity, onSelect }) {
+  const [imageFailed, setImageFailed] = useState(false)
+  const imageUrl = COMMODITY_IMAGES[commodity]
+
   return (
     <article className="buyer-product-card">
       <div className="buyer-product-media">
-        <div className="buyer-product-media-fallback" aria-hidden="true">{commodityIcon(commodity)}</div>
+        {imageUrl && !imageFailed ? (
+          <img src={imageUrl} alt={commodity} loading="lazy" onError={() => setImageFailed(true)} />
+        ) : (
+          <div className="buyer-product-media-fallback" aria-hidden="true">{commodityIcon(commodity)}</div>
+        )}
       </div>
       <div className="buyer-product-body">
         <h4 className="buyer-product-name">{commodity}</h4>
