@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './styles.css'
 import { isSupabaseConfigured, supabase } from './supabase'
 import Dashboard from './Dashboard'
+import BulkBuyerDashboard from './BulkBuyerDashboard'
 import CompleteProfileFarmer from './CompleteProfileFarmer'
 import LogisticsDashboard from './LogisticsDashboard'
 import TransportationDashboard from './TransportationDashboard'
@@ -12,6 +13,7 @@ import LanguageSelection from './LanguageSelection'
 import { getStoredLanguage, storeLanguage, useTranslation } from './i18n'
 import { loadFarmerData } from './api/farmer'
 import { loadLogisticsData } from './api/logistics'
+import { loadBuyerData } from './api/buyer'
 import { loadUserRole } from './api/profile'
 
 const stats = [
@@ -58,8 +60,9 @@ function App() {
   const [chosenSection, setChosenSection] = useState(null)
   const [farmerProfile, setFarmerProfile] = useState(null)
   const [logisticsProfile, setLogisticsProfile] = useState(null)
-  const authRequestRef = useRef(0)
+const authRequestRef = useRef(0)
   const lastSessionUserRef = useRef(null)
+  const [buyerProfile, setBuyerProfile] = useState(null)
 
   async function resolveUserRole(user) {
     if (user.id) {
@@ -77,6 +80,7 @@ function App() {
     setCurrentUser(null)
     setFarmerProfile(null)
     setLogisticsProfile(null)
+    setBuyerProfile(null)
     setLogisticsPage(null)
     setChosenSection(null)
     setCompletingProfile(false)
@@ -131,6 +135,10 @@ function App() {
         setLogisticsProfile(data)
         const profileComplete = choice ? logisticsSectionDone(data, choice) : false
         setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete } : current)
+      } else if (role === 'buyer') {
+        const data = await loadBuyerData(user.id)
+        setBuyerProfile(data)
+        setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
       }
     } catch (error) {
       console.error('Could not load profile data:', error)
@@ -140,7 +148,7 @@ function App() {
   }
 
   async function handleLogout() {
-    authRequestRef.current += 1
+authRequestRef.current += 1
     lastSessionUserRef.current = null
     clearAuthenticatedState('loading')
 
@@ -243,7 +251,7 @@ function App() {
     title: 'നമ്മുടെ ഭക്ഷണം കൃഷി ചെയ്യുന്നവർക്ക് മികച്ച വിലകൾ.',
     hero: 'കർഷകരെയും ഉപഭോക്താക്കളെയും നേരിട്ട് ബന്ധിപ്പിക്കുന്നു. കർഷകർക്ക് കൂടുതൽ വരുമാനവും കുടുംബങ്ങൾക്ക് ന്യായമായ വിലയിൽ പുതിയ ഉൽപ്പന്നങ്ങളും ലഭിക്കുന്നു.',
     join: 'പ്ലാറ്റ്‌ഫോമിൽ ചേരുക', learn: 'ഇത് എങ്ങനെ പ്രവർത്തിക്കുന്നുവെന്ന് അറിയുക', middlemen: 'അനാവശ്യ ഇടനിലക്കാർ', connection: 'കർഷകനിൽ നിന്ന് വാങ്ങുന്നയാളിലേക്ക് നേരിട്ടുള്ള ബന്ധം', transparency: 'പൂർണ്ണ വില സുതാര്യത',
-    challenge: 'വെല്ലുവിളി', mission: 'ഒരേയൊരു ലക്ഷ്യം: ഭക്ഷണ യാത്ര കൂടുതൽ നീതിയുക്തമാക്കുക.',
+    challenge: 'വെല്ലുവിളി', mission: 'ഒരേയൊരു ലക്ഷ്യം: ഭക്ഷണ യാത്ര കൂടുതൽ നീதിயுக്തമാക്കുക.',
     missionText: 'നിരവധി ഇടനിലക്കാർ കർഷകരുടെ വരുമാനം കുറയ്ക്കുകയും ഉപഭോക്തൃ വില വർധിപ്പിക്കുകയും ചെയ്യുന്നു. FarmDirect സുതാര്യമായ ഒരു പ്ലാറ്റ്‌ഫോമിലൂടെ ഇരുപക്ഷത്തെയും അടുപ്പിക്കുന്നു.',
     accessibility: 'പ്രവേശനക്ഷമത', language: 'ഭാഷ', largeText: 'വലിയ അക്ഷരങ്ങൾ', contrast: 'ഉയർന്ന കോൺട്രാസ്റ്റ്', motion: 'കുറഞ്ഞ ചലനം'
   } : language === 'kn' ? {
@@ -287,6 +295,18 @@ function App() {
           setCompletingProfile(false)
           setQuickAddCrop(false)
         }}
+      />
+    )
+  }
+
+  if (currentUser && currentUser.role === 'buyer') {
+    return (
+      <BulkBuyerDashboard
+        user={currentUser}
+        buyerProfile={buyerProfile}
+        language={language}
+        setLanguage={handleSetLanguage}
+        onLogout={handleLogout}
       />
     )
   }
@@ -458,7 +478,7 @@ function RolePlaceholder({ user, language, setLanguage, onLogout }) {
             <h2 className="dash-greeting">{t.welcomeBack}{user.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>
           </div>
           <div className="dash-topbar-actions">
-            <LanguageSwitcher language={language} setLanguage={handleSetLanguage} />
+            <LanguageSwitcher language={language} setLanguage={setLanguage} />
             <div className="dash-avatar" tabIndex={0}>{initials}</div>
           </div>
         </header>
@@ -493,7 +513,7 @@ function AuthPanel({ type, onClose, onSwitch, language, setLanguage }) {
   const [registeredName, setRegisteredName] = useState('')
   const roles = {
     farmer: { title: t.farmer, description: t.farmerRoleDesc, icon: '🌱', requiredKey: 'farm_name' },
-    buyer: { title: t.bulkBuyer, description: t.buyerRoleDesc, icon: '🏪', requiredKey: 'business_name' },
+    buyer: { title: t.bulkBuyer, description: t.buyerRoleDesc, icon: '🏪', requiredKey: 'name' },
     logistics: { title: t.logisticsProvider, description: t.logisticsRoleDesc, icon: '🚚', requiredKey: 'company_name' },
     service: { title: t.serviceProvider, description: t.serviceRoleDesc, icon: '🛠', requiredKey: 'business_name' },
   }

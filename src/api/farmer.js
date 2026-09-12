@@ -35,6 +35,7 @@ function mapFarmerData(profile, crops, bank, basicProfile) {
     surveyNumber: profile?.survey_number || '',
     aadhaarNumber: profile?.aadhaar_number || '',
     cropLocation: profile?.crop_location || '',
+    pincode: profile?.pincode || '',
     crops: mappedCrops.length ? mappedCrops : undefined,
     bank: bank
       ? {
@@ -87,6 +88,7 @@ export async function saveFarmerData(userId, formData) {
     survey_number: formData.surveyNumber.trim(),
     aadhaar_number: formData.aadhaarNumber.trim(),
     crop_location: formData.cropLocation.trim(),
+    pincode: formData.pincode.trim(),
   }, { onConflict: 'farmer_id' })
   if (profileError) throw profileError
 

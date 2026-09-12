@@ -59,6 +59,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   const [surveyNumber, setSurveyNumber] = useState(initialData?.surveyNumber || '')
   const [aadhaarNumber, setAadhaarNumber] = useState(initialData?.aadhaarNumber || '')
   const [cropLocation, setCropLocation] = useState(initialData?.cropLocation || '')
+  const [pincode, setPincode] = useState(initialData?.pincode || '')
 
   const [crops, setCrops] = useState(() => {
     const base = initialData?.crops?.length ? initialData.crops : [emptyCrop()]
@@ -124,6 +125,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
         surveyNumber,
         aadhaarNumber,
         cropLocation,
+        pincode,
         crops,
         bank: { accountHolderName, accountNumber, ifsc, branch },
       })
@@ -144,7 +146,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   const namedCrops = crops.filter((crop) => crop.name)
 
   function computeCompletionPercent() {
-    const profileFlags = [Boolean(name), Boolean(phone), Boolean(areaOfLand), Boolean(surveyNumber), Boolean(aadhaarNumber), Boolean(cropLocation)]
+    const profileFlags = [Boolean(name), Boolean(phone), Boolean(areaOfLand), Boolean(surveyNumber), Boolean(aadhaarNumber), Boolean(cropLocation), Boolean(pincode)]
     const bankFlags = [Boolean(accountHolderName), Boolean(accountNumber), Boolean(ifsc), Boolean(branch)]
     const allFlags = [...profileFlags, ...bankFlags]
     const filled = allFlags.filter(Boolean).length
@@ -277,6 +279,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
               <div><span>{t.surveyNumber}</span><strong>{surveyNumber || '—'}</strong></div>
               <div><span>{t.aadhaarNumber}</span><strong>{aadhaarNumber || '—'}</strong></div>
               <div><span>{t.locationOfCrop}</span><strong>{cropLocation || '—'}</strong></div>
+              <div><span>{t.pincode}</span><strong>{pincode || '—'}</strong></div>
             </div>
           </div>
 
@@ -335,6 +338,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
             <label>{t.surveyNumber}<input type="text" placeholder={t.surveyNumberPlaceholder} value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value.toUpperCase())} required /></label>
             <label>{t.aadhaarNumber}<input type="text" placeholder={t.aadhaarPlaceholder} value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value.toUpperCase())} required /></label>
             <label>{t.locationOfCrop}<input type="text" placeholder={t.cropLocationPlaceholder} value={cropLocation} onChange={(event) => setCropLocation(event.target.value.toUpperCase())} required /></label>
+            <label>{t.pincode}<input type="text" inputMode="numeric" pattern="[0-9]{6}" placeholder={t.pincodePlaceholder} value={pincode} onChange={(event) => setPincode(event.target.value)} required /></label>
           </div>
 
           <h3 className="form-section-title">{t.stepBankDetails}</h3>
