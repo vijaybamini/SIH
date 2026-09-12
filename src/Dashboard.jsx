@@ -11,17 +11,21 @@ function useHoverMenu() {
   function show() {
     clearTimeout(timer.current)
     setVisible(true)
+    timer.current = setTimeout(() => setVisible(false), TOOLTIP_HOLD_MS)
+  }
+  function keep() {
+    clearTimeout(timer.current)
   }
   function hide() {
     clearTimeout(timer.current)
     timer.current = setTimeout(() => setVisible(false), TOOLTIP_HOLD_MS)
   }
-  return [visible, show, hide]
+  return [visible, show, keep, hide]
 }
 
-function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, onOpen, onClose, visible, t }) {
+function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, onKeep, onClose, visible, t }) {
   return (
-    <div className="profile-tooltip" role="menu" onMouseEnter={onOpen} onMouseLeave={onClose} hidden={!visible}>
+    <div className="profile-tooltip" role="menu" onMouseEnter={onKeep} onMouseLeave={onClose} hidden={!visible}>
       {!profileComplete && (
         <>
           <p>{t.profileIncompleteMsg}</p>
@@ -136,7 +140,7 @@ function CropHistoryPage({ crops, t }) {
 export default function Dashboard({ user, farmerProfile, language, setLanguage, onOpenCompleteProfile, onQuickAddCrop, onMarkCropHarvested, onLogout }) {
   const t = useTranslation(language)
   const [activeNav, setActiveNav] = useState('Dashboard')
-  const [showTopMenu, showTop, hideTop] = useHoverMenu()
+  const [showTopMenu, showTop, keepTop, hideTop] = useHoverMenu()
   const [dismissedIds, setDismissedIds] = useState([])
   const initials = (user.name || 'U').trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
 
@@ -183,7 +187,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
                 profileComplete={user.profileComplete}
                 onOpenCompleteProfile={onOpenCompleteProfile}
                 onLogout={onLogout}
-                onOpen={showTop}
+                onKeep={keepTop}
                 onClose={hideTop}
                 visible={showTopMenu}
                 t={t}
