@@ -174,10 +174,26 @@ export async function saveLogisticsData(userId, formData) {
 
   await updateBasicProfile(userId, { name: profile.name, phone: profile.phone })
 
+  const { data: existingProvider, error: providerReadError } = await supabase
+    .from('logistics_providers')
+    .select('company_name, service_areas')
+    .eq('profile_id', userId)
+    .maybeSingle()
+  if (providerReadError) throw providerReadError
+
+  const companyName = String(
+    formData.companyName || existingProvider?.company_name || profile.name || 'Logistics Provider'
+  ).trim()
+  if (!companyName) throw new Error('A logistics provider name is required before saving transportation details.')
+
   const { error: providerError } = await supabase
     .from('logistics_providers')
-    .update({ fleet_details: fleetPayload })
-    .eq('profile_id', userId)
+    .upsert({
+      profile_id: userId,
+      company_name: companyName,
+      service_areas: String(formData.serviceAreas || existingProvider?.service_areas || '').trim() || null,
+      fleet_details: fleetPayload,
+    }, { onConflict: 'profile_id' })
   if (providerError) throw providerError
 
   const primary = vehicles[0]
