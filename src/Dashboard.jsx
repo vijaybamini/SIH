@@ -25,7 +25,7 @@ function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, onOpen,
       {!profileComplete && (
         <>
           <p>{t.profileIncompleteMsg}</p>
-          <button onClick={onOpenCompleteProfile}>{t.completeProfile} →</button>
+          <button className="profile-tooltip-cta" onClick={onOpenCompleteProfile}>{t.completeProfile} →</button>
         </>
       )}
       <div className="profile-menu-list">
@@ -195,8 +195,42 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
         {activeNav === 'CropHistory' ? (
           <CropHistoryPage crops={allCrops} t={t} />
         ) : (
-          <div className="dash-grid">
+          <div className="dash-grid dash-grid-reverse">
+            <div className="dash-col-side">
+              <h3>{t.farmerDetails}</h3>
+              <div className="farmer-details-card">
+                <div className="farmer-photo-wrap">
+                  {farmerProfile?.photo ? (
+                    <img className="farmer-photo" src={farmerProfile.photo} alt="" />
+                  ) : (
+                    <div className="farmer-photo farmer-photo-empty" aria-hidden="true">{initials}</div>
+                  )}
+                </div>
+                <div className="farmer-details-row">
+                  <span>{t.name}</span>
+                  <strong>{user.name || '—'}</strong>
+                </div>
+                <div className="farmer-details-row">
+                  <span>{t.locationLabel}</span>
+                  <strong>{farmerProfile?.cropLocation || '—'}</strong>
+                </div>
+                <div className="farmer-details-row">
+                  <span>{t.farmSize}</span>
+                  <strong>{farmerProfile?.areaOfLand ? `${farmerProfile.areaOfLand} ${t.acres}` : '—'}</strong>
+                </div>
+                <div className="farmer-details-row">
+                  <span>Crops</span>
+                  <strong>{allCrops.map((crop) => crop.name).filter(Boolean).join(', ') || '—'}</strong>
+                </div>
+                <div className="farmer-details-row">
+                  <span>{t.joined}</span>
+                  <strong>{user.joinedAt ? new Date(user.joinedAt).toLocaleDateString() : '—'}</strong>
+                </div>
+              </div>
+            </div>
+
             <div className="dash-col-main">
+            <PriceWidget crops={allCrops} />
             <div className="section-heading-row">
               <h3>{t.currentCrops}</h3>
               <button className="icon-add-button" onClick={onQuickAddCrop} aria-label={t.addAnotherCrop} title={t.addAnotherCrop}>+</button>
@@ -274,37 +308,6 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
                 ))}
               </div>
             )}
-          </div>
-
-          <div className="dash-col-side">
-            <PriceWidget crops={allCrops} />
-
-            <h3>{t.farmerDetails}</h3>
-            <div className="farmer-details-card">
-              <div className="farmer-photo-wrap">
-                {farmerProfile?.photo ? (
-                  <img className="farmer-photo" src={farmerProfile.photo} alt="" />
-                ) : (
-                  <div className="farmer-photo farmer-photo-empty" aria-hidden="true">{initials}</div>
-                )}
-              </div>
-              <div className="farmer-details-row">
-                <span>{t.name}</span>
-                <strong>{user.name || '—'}</strong>
-              </div>
-              <div className="farmer-details-row">
-                <span>{t.locationLabel}</span>
-                <strong>{farmerProfile?.cropLocation || '—'}</strong>
-              </div>
-              <div className="farmer-details-row">
-                <span>{t.farmSize}</span>
-                <strong>{farmerProfile?.areaOfLand ? `${farmerProfile.areaOfLand} ${t.acres}` : '—'}</strong>
-              </div>
-              <div className="farmer-details-row">
-                <span>{t.joined}</span>
-                <strong>{user.joinedAt ? new Date(user.joinedAt).toLocaleDateString() : '—'}</strong>
-              </div>
-            </div>
           </div>
         </div>
         )}

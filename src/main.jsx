@@ -5,6 +5,8 @@ import { isSupabaseConfigured, supabase } from './supabase'
 import Dashboard from './Dashboard'
 import BulkBuyerDashboard from './BulkBuyerDashboard'
 import CompleteProfileFarmer from './CompleteProfileFarmer'
+import CompleteProfileService from './CompleteProfileService'
+import ServiceDashboard from './ServiceDashboard'
 import LogisticsDashboard from './LogisticsDashboard'
 import TransportationDashboard from './TransportationDashboard'
 import InventoryDashboard from './InventoryDashboard'
@@ -14,6 +16,7 @@ import { getStoredLanguage, storeLanguage, useTranslation } from './i18n'
 import { loadFarmerData } from './api/farmer'
 import { loadLogisticsData } from './api/logistics'
 import { loadBuyerData } from './api/buyer'
+import { loadServiceData } from './api/service'
 import { loadUserRole } from './api/profile'
 
 const stats = [
@@ -26,7 +29,7 @@ const FONT_SIZE_LEVELS = [87.5, 93.75, 100, 106.25, 112.5]
 const DEFAULT_FONT_SIZE_LEVEL = 2
 const SATURATION_LEVELS = [0.55, 0.8, 1, 1.35]
 const DEFAULT_SATURATION_LEVEL = 2
-const SPEECH_LANG_CODES = { en: 'en-US', hi: 'hi-IN', te: 'te-IN', ta: 'ta-IN', ml: 'ml-IN', kn: 'kn-IN' }
+const SPEECH_LANG_CODES = { en: 'en-US', hi: 'hi-IN', te: 'te-IN', ta: 'ta-IN', ml: 'ml-IN', kn: 'kn-IN', mr: 'mr-IN', bn: 'bn-IN' }
 
 const LOGISTICS_CHOICE_KEY = (userId) => `farmdirect:logistics_choice:${userId}`
 
@@ -77,6 +80,7 @@ const authRequestRef = useRef(0)
   const lastSessionUserRef = useRef(null)
   const heroVideoRef = useRef(null)
   const [buyerProfile, setBuyerProfile] = useState(null)
+  const [serviceProfile, setServiceProfile] = useState(null)
 
   async function resolveUserRole(user) {
     if (user.id) {
@@ -95,6 +99,7 @@ const authRequestRef = useRef(0)
     setFarmerProfile(null)
     setLogisticsProfile(null)
     setBuyerProfile(null)
+    setServiceProfile(null)
     setLogisticsPage(null)
     setChosenSection(null)
     setCompletingProfile(false)
@@ -152,6 +157,11 @@ const authRequestRef = useRef(0)
       } else if (role === 'buyer') {
         const data = await loadBuyerData(user.id)
         setBuyerProfile(data)
+        setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
+      } else if (role === 'service') {
+        const data = await loadServiceData(baseUser.id)
+        if (authRequestRef.current !== requestId) return
+        setServiceProfile(data)
         setCurrentUser((current) => current ? { ...current, name: data.name || current.name, profileComplete: data.profileComplete } : current)
       }
     } catch (error) {
@@ -301,7 +311,9 @@ authRequestRef.current += 1
     challenge: 'चुनौती', mission: 'एक सरल लक्ष्य: भोजन की यात्रा को अधिक निष्पक्ष बनाना।',
     missionText: 'कई बिचौलिए किसानों की कमाई घटाते हैं और उपभोक्ताओं की कीमतें बढ़ाते हैं। FarmDirect एक पारदर्शी प्लेटफ़ॉर्म के ज़रिए दोनों पक्षों को करीब लाता है।',
     accessibility: 'सुलभता', language: 'भाषा',
-    fontSize: 'फ़ॉन्ट आकार', saturation: 'संतृप्ति', screenReader: 'स्क्रीन रीडर', highContrastTheme: 'हाई कॉन्ट्रास्ट थीम', resetLabel: 'रीसेट'
+    fontSize: 'फ़ॉन्ट आकार', saturation: 'संतृप्ति', screenReader: 'स्क्रीन रीडर', highContrastTheme: 'हाई कॉन्ट्रास्ट थीम', resetLabel: 'रीसेट',
+    faq: 'सामान्य प्रश्न', shippingPolicy: 'शिपिंग नीति', policy: 'नीति', cancelPolicy: 'रद्द करने की नीति', termsConditions: 'नियम व शर्तें', contactUs: 'संपर्क करें',
+    svcFarmers: 'किसान', svcMarketplace: 'बाज़ार', svcProcessing: 'प्रसंस्करण इकाई', svcLogistics: 'लॉजिस्टिक्स'
   } : language === 'te' ? {
     about: 'ప్రాజెక్ట్ గురించి', how: 'ఇది ఎలా పనిచేస్తుంది', login: 'లాగిన్', register: 'నమోదు',
     navServices: 'మా సేవలు', navHow: 'ఇది ఎలా పనిచేస్తుంది', navAbout: 'ప్రాజెక్ట్ గురించి',
@@ -311,7 +323,9 @@ authRequestRef.current += 1
     challenge: 'సవాలు', mission: 'ఒకే లక్ష్యం: ఆహార ప్రయాణాన్ని మరింత న్యాయంగా చేయడం.',
     missionText: 'అనేక మధ్యవర్తులు రైతుల ఆదాయాన్ని తగ్గించి వినియోగదారుల ధరలను పెంచుతారు. FarmDirect పారదర్శక వేదిక ద్వారా ఇరుపక్షాలను దగ్గర చేస్తుంది.',
     accessibility: 'అందుబాటు', language: 'భాష',
-    fontSize: 'ఫాంట్ పరిమాణం', saturation: 'సంతృప్తత', screenReader: 'స్క్రీన్ రీడర్', highContrastTheme: 'హై కాంట్రాస్ట్ థీమ్', resetLabel: 'రీసెట్'
+    fontSize: 'ఫాంట్ పరిమాణం', saturation: 'సంతృప్తత', screenReader: 'స్క్రీన్ రీడర్', highContrastTheme: 'హై కాంట్రాస్ట్ థీమ్', resetLabel: 'రీసెట్',
+    faq: 'తరచుగా అడిగే ప్రశ్నలు', shippingPolicy: 'షిప్పింగ్ విధానం', policy: 'విధానం', cancelPolicy: 'రద్దు విధానం', termsConditions: 'నిబంధనలు & షరతులు', contactUs: 'మమ్మల్ని సంప్రదించండి',
+    svcFarmers: 'రైతులు', svcMarketplace: 'మార్కెట్ ప్లేస్', svcProcessing: 'ప్రాసెసింగ్ యూనిట్', svcLogistics: 'లాజిస్టిక్స్'
   } : language === 'ta' ? {
     about: 'திட்டத்தைப் பற்றி', how: 'இது எப்படி செயல்படுகிறது', login: 'உள்நுழைவு', register: 'பதிவு',
     navServices: 'எங்கள் சேவைகள்', navHow: 'இது எப்படி செயல்படுகிறது', navAbout: 'திட்டத்தைப் பற்றி',
@@ -321,7 +335,9 @@ authRequestRef.current += 1
     challenge: 'சவால்', mission: 'ஒரே குறிக்கோள்: உணவுப் பயணத்தை நியாயமானதாக மாற்றுவது.',
     missionText: 'பல இடைத்தரகர்கள் விவசாயிகளின் வருமானத்தைக் குறைத்து நுகர்வோர் விலைகளை அதிகரிக்கின்றனர். FarmDirect வெளிப்படையான தளத்தின் மூலம் இரு தரப்பினரையும் இணைக்கிறது.',
     accessibility: 'அணுகல்தன்மை', language: 'மொழி',
-    fontSize: 'எழுத்துரு அளவு', saturation: 'செறிவூட்டல்', screenReader: 'திரை வாசகர்', highContrastTheme: 'உயர் மாறுபாடு தீம்', resetLabel: 'மீட்டமை'
+    fontSize: 'எழுத்துரு அளவு', saturation: 'செறிவூட்டல்', screenReader: 'திரை வாசகர்', highContrastTheme: 'உயர் மாறுபாடு தீம்', resetLabel: 'மீட்டமை',
+    faq: 'அடிக்கடி கேட்கப்படும் கேள்விகள்', shippingPolicy: 'அனுப்புகை கொள்கை', policy: 'கொள்கை', cancelPolicy: 'ரத்து கொள்கை', termsConditions: 'விதிமுறைகள் & நிபந்தனைகள்', contactUs: 'எங்களை தொடர்பு கொள்ள',
+    svcFarmers: 'விவசாயிகள்', svcMarketplace: 'சந்தை இடம்', svcProcessing: 'செயலாக்க அலகு', svcLogistics: 'லாஜிஸ்டிக்'
   } : language === 'ml' ? {
     about: 'പ്രോജക്റ്റിനെക്കുറിച്ച്', how: 'ഇത് എങ്ങനെ പ്രവർത്തിക്കുന്നു', login: 'ലോഗിൻ', register: 'രജിസ്റ്റർ',
     navServices: 'ഞങ്ങളുടെ സേവനങ്ങൾ', navHow: 'ഇത് എങ്ങനെ പ്രവർത്തിക്കുന്നു', navAbout: 'പ്രോജക്റ്റിനെക്കുറിച്ച്',
@@ -331,7 +347,9 @@ authRequestRef.current += 1
     challenge: 'വെല്ലുവിളി', mission: 'ഒരേയൊരു ലക്ഷ്യം: ഭക്ഷണ യാത്ര കൂടുതൽ നീതിയുക്തമാക്കുക.',
     missionText: 'നിരവധി ഇടനിലക്കാർ കർഷകരുടെ വരുമാനം കുറയ്ക്കുകയും ഉപഭോക്തൃ വില വർധിപ്പിക്കുകയും ചെയ്യുന്നു. FarmDirect സുതാര്യമായ ഒരു പ്ലാറ്റ്‌ഫോമിലൂടെ ഇരുപക്ഷത്തെയും അടുപ്പിക്കുന്നു.',
     accessibility: 'പ്രവേശനക്ഷമത', language: 'ഭാഷ',
-    fontSize: 'ഫോണ്ട് വലുപ്പം', saturation: 'സാച്ചുറേഷൻ', screenReader: 'സ്ക്രീൻ റീഡർ', highContrastTheme: 'ഹൈ കോൺട്രാസ്റ്റ് തീം', resetLabel: 'പുനഃസജ്ജമാക്കുക'
+    fontSize: 'ഫോണ്ട് വലുപ്പം', saturation: 'സാച്ചുറേഷൻ', screenReader: 'സ്ക്രീൻ റീഡർ', highContrastTheme: 'ഹൈ കോൺട്രാസ്റ്റ് തീം', resetLabel: 'പുനഃസജ്ജമാക്കുക',
+    faq: 'പതിവ് ചോദ്യങ്ങൾ', shippingPolicy: 'ഷിപ്പിംഗ് നയം', policy: 'നയം', cancelPolicy: 'റദ്ദാക്കൽ നയം', termsConditions: 'നിബന്ധനകളും വ്യവസ്ഥകളും', contactUs: 'ഞങ്ങളെ ബന്ധപ്പെടുക',
+    svcFarmers: 'കർഷകർ', svcMarketplace: 'മാർക്കറ്റ് പ്ലേസ്', svcProcessing: 'പ്രോസസ്സിംഗ് യൂണിറ്റ്', svcLogistics: 'ലോജിസ്റ്റിക്'
   } : language === 'kn' ? {
     about: 'ಯೋಜನೆಯ ಬಗ್ಗೆ', how: 'ಇದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ', login: 'ಲಾಗಿನ್', register: 'ನೋಂದಣಿ',
     navServices: 'ನಮ್ಮ ಸೇವೆಗಳು', navHow: 'ಇದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ', navAbout: 'ಯೋಜನೆಯ ಬಗ್ಗೆ',
@@ -341,7 +359,33 @@ authRequestRef.current += 1
     challenge: 'ಸವಾಲು', mission: 'ಒಂದು ಸರಳ ಗುರಿ: ಆಹಾರದ ಪ್ರಯಾಣವನ್ನು ಹೆಚ್ಚು ನ್ಯಾಯಯುತಗೊಳಿಸುವುದು.',
     missionText: 'ಹಲವು ಮಧ್ಯವರ್ತಿಗಳು ರೈತರ ಆದಾಯವನ್ನು ಕಡಿಮೆ ಮಾಡಿ ಗ್ರಾಹಕರ ಬೆಲೆಗಳನ್ನು ಹೆಚ್ಚಿಸುತ್ತಾರೆ. FarmDirect ಪಾರದರ್ಶಕ ವೇದಿಕೆಯ ಮೂಲಕ ಎರಡೂ ಬದಿಗಳನ್ನು ಹತ್ತಿರ ತರುತ್ತದೆ.',
     accessibility: 'ಪ್ರವೇಶಿಸುವಿಕೆ', language: 'ಭಾಷೆ',
-    fontSize: 'ಫಾಂಟ್ ಗಾತ್ರ', saturation: 'ಸ್ಯಾಚುರೇಶನ್', screenReader: 'ಸ್ಕ್ರೀನ್ ರೀಡರ್', highContrastTheme: 'ಹೈ ಕಾಂಟ್ರಾಸ್ಟ್ ಥೀಮ್', resetLabel: 'ಮರುಹೊಂದಿಸಿ'
+    fontSize: 'ಫಾಂಟ್ ಗಾತ್ರ', saturation: 'ಸ್ಯಾಚುರೇಶನ್', screenReader: 'ಸ್ಕ್ರೀನ್ ರೀಡರ್', highContrastTheme: 'ಹೈ ಕಾಂಟ್ರಾಸ್ಟ್ ಥೀಮ್', resetLabel: 'ಮರುಹೊಂದಿಸಿ',
+    faq: 'ಪದೇ ಪದೇ ಕೇಳಲಾಗುವ ಪ್ರಶ್ನೆಗಳು', shippingPolicy: 'ಶಿಪ್ಪಿಂಗ್ ನೀತಿ', policy: 'ನೀತಿ', cancelPolicy: 'ರದ್ದತಿ ನೀತಿ', termsConditions: 'ನಿಯಮಗಳು ಮತ್ತು ಷರತ್ತುಗಳು', contactUs: 'ನಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸಿ',
+    svcFarmers: 'ರೈತರು', svcMarketplace: 'ಮಾರುಕಟ್ಟೆ', svcProcessing: 'ಸಂಸ್ಕರಣಾ ಘಟಕ', svcLogistics: 'ಲಾಜಿಸ್ಟಿಕ್ಸ್'
+  } : language === 'mr' ? {
+    about: 'प्रकल्पाबद्दल', how: 'हे कसे कार्य करते', login: 'लॉग इन', register: 'नोंदणी करा',
+    navServices: 'आमच्या सेवा', navHow: 'हे कसे कार्य करते', navAbout: 'प्रकल्पाबद्दल',
+    title: 'आपले अन्न पिकवणाऱ्यांसाठी चांगल्या किमती.',
+    hero: 'शेतकरी आणि ग्राहकांमधील थेट संपर्क, ज्यामुळे शेतकऱ्यांना अधिक कमाई आणि कुटुंबांना योग्य किमतीत ताजा भाजीपाला मिळतो.',
+    join: 'प्लॅटफॉर्ममध्ये सामील व्हा', middlemen: 'अनावश्यक मध्यस्थ', connection: 'शेतकरी ते खरेदीदार थेट संपर्क', transparency: '100% किंमत पारदर्शकता',
+    challenge: 'आव्हान', mission: 'एक साधे ध्येय: अन्नाचा प्रवास अधिक न्याय्य बनवणे.',
+    missionText: 'अनेक मध्यस्थ शेतकऱ्यांची कमाई कमी करतात आणि ग्राहकांच्या किमती वाढवतात. FarmDirect एका पारदर्शक प्लॅटफॉर्मद्वारे दोन्ही बाजूंना जवळ आणते.',
+    accessibility: 'सुलभता', language: 'भाषा',
+    fontSize: 'फॉन्ट आकार', saturation: 'संपृक्तता', screenReader: 'स्क्रीन रीडर', highContrastTheme: 'हाय काँट्रास्ट थीम', resetLabel: 'रीसेट',
+    faq: 'वारंवार विचारले जाणारे प्रश्न', shippingPolicy: 'शिपिंग धोरण', policy: 'धोरण', cancelPolicy: 'रद्द करण्याचे धोरण', termsConditions: 'नियम व अटी', contactUs: 'आमच्याशी संपर्क साधा',
+    svcFarmers: 'शेतकरी', svcMarketplace: 'मार्केट प्लेस', svcProcessing: 'प्रक्रिया युनिट', svcLogistics: 'लॉजिस्टिक'
+  } : language === 'bn' ? {
+    about: 'প্রকল্প সম্পর্কে', how: 'এটি কীভাবে কাজ করে', login: 'লগ ইন', register: 'নিবন্ধন',
+    navServices: 'আমাদের পরিষেবা', navHow: 'এটি কীভাবে কাজ করে', navAbout: 'প্রকল্প সম্পর্কে',
+    title: 'আমাদের খাদ্য উৎপাদনকারীদের জন্য ভালো দাম।',
+    hero: 'কৃষক ও ভোক্তাদের মধ্যে সরাসরি সংযোগ, যা কৃষকদের বেশি আয় করতে এবং পরিবারগুলিকে ন্যায্য মূল্যে তাজা ফসল কিনতে সাহায্য করে।',
+    join: 'প্ল্যাটফর্মে যোগ দিন', middlemen: 'অপ্রয়োজনীয় মধ্যস্বত্বভোগী', connection: 'কৃষক থেকে ক্রেতার সরাসরি সংযোগ', transparency: '১০০% মূল্য স্বচ্ছতা',
+    challenge: 'চ্যালেঞ্জ', mission: 'একটি সহজ লক্ষ্য: খাদ্যের যাত্রাকে আরও ন্যায্য করা।',
+    missionText: 'অনেক মধ্যস্বত্বভোগী কৃষকদের আয় কমিয়ে দেয় এবং ভোক্তাদের দাম বাড়িয়ে দেয়। FarmDirect একটি স্বচ্ছ প্ল্যাটফর্মের মাধ্যমে উভয় পক্ষকে কাছাকাছি নিয়ে আসে।',
+    accessibility: 'অ্যাক্সেসিবিলিটি', language: 'ভাষা',
+    fontSize: 'ফন্ট সাইজ', saturation: 'স্যাচুরেশন', screenReader: 'স্ক্রিন রিডার', highContrastTheme: 'হাই কনট্রাস্ট থিম', resetLabel: 'রিসেট',
+    faq: 'প্রায়শই জিজ্ঞাসিত প্রশ্ন', shippingPolicy: 'শিপিং নীতি', policy: 'নীতি', cancelPolicy: 'বাতিলকরণ নীতি', termsConditions: 'শর্তাবলী', contactUs: 'যোগাযোগ করুন',
+    svcFarmers: 'কৃষক', svcMarketplace: 'মার্কেটপ্লেস', svcProcessing: 'প্রসেসিং ইউনিট', svcLogistics: 'লজিস্টিক'
   } : {
     about: 'About the project', how: 'How it works', login: 'Login', register: 'Register',
     navServices: 'Our Services', navHow: 'How it works', navAbout: 'About',
@@ -351,7 +395,9 @@ authRequestRef.current += 1
     challenge: 'THE CHALLENGE', mission: 'One simple goal: make the food journey fairer.',
     missionText: 'Multiple intermediaries reduce farmers’ earnings and increase consumer prices. FarmDirect brings both sides closer together through one transparent platform.',
     accessibility: 'Accessibility', language: 'Language',
-    fontSize: 'Font Size', saturation: 'Saturation', screenReader: 'Screen Reader', highContrastTheme: 'High Contrast Theme', resetLabel: 'Reset'
+    fontSize: 'Font Size', saturation: 'Saturation', screenReader: 'Screen Reader', highContrastTheme: 'High Contrast Theme', resetLabel: 'Reset',
+    faq: 'FAQ', shippingPolicy: 'Shipping Policy', policy: 'Policy', cancelPolicy: 'cancel policy', termsConditions: 'Term & Conditions', contactUs: 'Contact Us',
+    svcFarmers: 'Farmers', svcMarketplace: 'Market Place', svcProcessing: 'Processing Unit', svcLogistics: 'Logistic'
   }
 
   const navItems = [
@@ -361,19 +407,19 @@ authRequestRef.current += 1
   ]
 
   const footerLinks = [
-    { key: 'faq', label: 'FAQ', href: '#faq' },
-    { key: 'shipping', label: 'Shipping Policy', href: '#shipping-policy', accent: true },
-    { key: 'policy', label: 'Policy', href: '#policy' },
-    { key: 'cancel', label: 'cancel policy', href: '#cancel-policy' },
-    { key: 'terms', label: 'Term & Conditions', href: '#terms' },
-    { key: 'contact', label: 'Contact Us', href: '#contact' },
+    { key: 'faq', label: copy.faq, href: '#faq' },
+    { key: 'shipping', label: copy.shippingPolicy, href: '#shipping-policy', accent: true },
+    { key: 'policy', label: copy.policy, href: '#policy' },
+    { key: 'cancel', label: copy.cancelPolicy, href: '#cancel-policy' },
+    { key: 'terms', label: copy.termsConditions, href: '#terms' },
+    { key: 'contact', label: copy.contactUs, href: '#contact' },
   ]
 
   const servicesLinks = [
-    { key: 'svc-farmers', label: 'Farmers', href: '#farmers' },
-    { key: 'svc-marketplace', label: 'Market Place', href: '#marketplace' },
-    { key: 'svc-processing', label: 'Processing Unit', href: '#processing-unit' },
-    { key: 'svc-logistics', label: 'Logistic', href: '#logistics' },
+    { key: 'svc-farmers', label: copy.svcFarmers, href: '#farmers' },
+    { key: 'svc-marketplace', label: copy.svcMarketplace, href: '#marketplace' },
+    { key: 'svc-processing', label: copy.svcProcessing, href: '#processing-unit' },
+    { key: 'svc-logistics', label: copy.svcLogistics, href: '#logistics' },
   ]
 
   const NAV_SUBMENUS = { about: footerLinks, services: servicesLinks }
@@ -389,6 +435,23 @@ authRequestRef.current += 1
 
   if (showLanguageSelection) {
     return <LanguageSelection onSelect={handleSelectLanguage} />
+  }
+
+  if (currentUser && completingProfile && currentUser.role === 'service') {
+    return (
+      <CompleteProfileService
+        userId={currentUser.id}
+        language={language}
+        setLanguage={handleSetLanguage}
+        initialData={serviceProfile}
+        onBack={() => setCompletingProfile(false)}
+        onComplete={(data) => {
+          setServiceProfile(data)
+          setCurrentUser((user) => ({ ...user, name: data.name || user.name, profileComplete: data.profileComplete }))
+          setCompletingProfile(false)
+        }}
+      />
+    )
   }
 
   if (currentUser && completingProfile) {
@@ -459,6 +522,18 @@ authRequestRef.current += 1
           onChooseSection={handleChooseSection}
           onSelectSection={setLogisticsPage}
           onOpenCompleteProfile={() => chosenSection && setLogisticsPage(logisticsFirstIncomplete(logisticsProfile) || chosenSection)}
+          onLogout={handleLogout}
+        />
+      )
+    }
+    if (currentUser.role === 'service') {
+      return (
+        <ServiceDashboard
+          user={currentUser}
+          serviceProfile={serviceProfile}
+          language={language}
+          setLanguage={handleSetLanguage}
+          onOpenCompleteProfile={() => setCompletingProfile(true)}
           onLogout={handleLogout}
         />
       )

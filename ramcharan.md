@@ -49,6 +49,16 @@
   - Removing a duplicate `authStatus === 'loading'` early return introduced by the merge (kept exactly one, placed after all hooks).
 - `src/styles.css` auto-merged with no conflict.
 
+### 7. Nav submenus + site footer (`src/main.jsx`, `src/styles.css`) — pushed `3f04bfc`
+- Added hover dropdown submenus under "About" and "Services" nav items (`NAV_SUBMENUS`, `.nav-submenu`), and a new site footer with policy links (`footerLinks`, `.site-footer`).
+
+### 8. Marathi & Bengali support + localized footer/submenu (`src/main.jsx`, `src/styles.css`)
+Changes by the user in this push:
+- Added full **Marathi (`mr`)** and **Bengali (`bn`)** translation blocks to the landing-page `copy` object.
+- Extended `SPEECH_LANG_CODES` with `mr-IN` and `bn-IN` for the screen-reader feature.
+- Localized the previously hardcoded footer links and services submenu labels through new `copy` keys: `faq`, `shippingPolicy`, `policy`, `cancelPolicy`, `termsConditions`, `contactUs`, `svcFarmers`, `svcMarketplace`, `svcProcessing`, `svcLogistics` (across all 8 languages).
+- Responsive tweaks: `.topbar` and `.nav-links ul` now `flex-wrap` so the wider multi-language nav stays tidy.
+
 ### Files touched
 - `.gitignore`
 - `src/main.jsx`
@@ -57,4 +67,5 @@
 
 ### Pushed
 - Final push on `master`: commit `33b5251` ("Fix hooks-order white page and redesign accessibility menu"), on top of remote `eac4eef`.
-- Verified with a clean `vite build` after the final rebase.
+- Next push `3f04bfc` ("Add nested nav submenus and site footer with policy links") on top of `9c230cf`.
+- Verified with a clean `vite build` after each rebase.
