@@ -42,7 +42,7 @@ export const translations = {
     supabaseNotConfigured: 'Supabase is not configured yet. Add your project URL and publishable key to .env.local.',
     registrationReceived: 'REGISTRATION RECEIVED', registeredAs: 'You’re registered as a {role}.',
     accountSubmittedText: 'Your account details have been submitted. We’ll guide you through the next steps shortly.', doneButton: 'Done',
-    changeRole: '← Change role', closeLabel: 'Close', footerText: 'Built for SIH',
+    changeRole: '← Change role', closeLabel: 'Close', footerText: '',
     homeLabel: 'FarmDirect home', mainNavLabel: 'Main navigation', heroIllustrationLabel: 'Illustration of a farm field',
     dashboardNavLabel: 'Dashboard navigation', profileIncompleteLabel: 'Profile incomplete',
     yourProfileEyebrow: 'YOUR PROFILE', completeProfileEyebrow: 'COMPLETE YOUR PROFILE',
