@@ -1,0 +1,769 @@
+"""
+Mandi Modal Price Prediction — training & evaluation pipeline (v2)
+=====================================================================
+Rewritten from the original train.py to fix a real data-leakage bug and add
+the feature/encoding/model/evaluation improvements requested. This script
+is NOT executed against real data by the assistant that wrote it — the
+training CSV (india_mandi_prices_nationwide_2024_2025.csv) was not present
+in the uploaded files, only the model artifacts and this script were. Every
+number this script would produce is left for you to generate by running it
+with the real data in place; nothing in metrics.json/feature_importance.csv/
+the plots has been fabricated to look improved.
+
+Run with:  python3 train.py
+Requires the CSV at DATA_PATH (edit if needed) with the same columns as the
+original file (State, District Name, Market Name, Commodity, Variety, Grade,
+Season, Price Date, Min Price, Max Price, Modal Price (Rs./Quintal), Source).
+
+================================================================================
+SECTION 1 — LEAKAGE AUDIT (findings from reading the original train.py)
+================================================================================
+1. CONFIRMED LEAKAGE (fixed here): the Lag1/Roll3 fallback median was computed
+   with `df.groupby('Commodity')[target].transform('median')` on the FULL
+   dataframe — train, validation, AND test rows together — before the
+   chronological split. That means a training-set row's fallback value was
+   silently influenced by validation/test-period prices. Fixed: the fallback
+   is now a fixed map computed from TRAIN ROWS ONLY, then applied unchanged
+   to train/val/test (see `train_only_fallback_medians()`).
+
+2. NOT LEAKAGE, but worth flagging: the Lag/Roll features are computed on the
+   full chronologically-sorted dataframe via `shift(1)` before the split, which
+   IS correct and necessary (a validation-period row's lag legitimately needs
+   to see actual, already-realized training-period and earlier validation-period
+   prices — that's the whole point of a lag feature). The risk here isn't
+   which rows are included, it's ORDER: shift/rolling operate on row POSITION
+   within each group, not on the actual date value. If two rows in the same
+   (State, District, Market, Commodity, Variety, Grade) group share the exact
+   same Price Date, shift(1) could quietly blend one same-day row's price into
+   another same-day row's "lag" feature. Added `audit_and_dedupe_same_day()` to
+   detect this and aggregate to one row per (group, date) before computing any
+   lag/rolling feature, so no same-day information can leak across rows.
+
+3. Target encoding (District/Market/Commodity/Variety) was already fit on
+   TRAIN ONLY in v1 — correct, no leakage. v2 improves it with count-based
+   shrinkage (a rarely-seen market's encoded value is pulled toward the global
+   mean instead of memorizing the mean of a handful of training rows), which
+   is a generalization fix, not a leakage fix — the 1,362-market / 302-district
+   cardinality with many low-count categories is a strong candidate for the
+   train->test generalization gap, since Market_TE alone carries 3.5% of
+   permutation importance in the original feature_importance.csv.
+
+4. Same-day Min Price / Max Price were already correctly EXCLUDED in v1 (they
+   aren't known until that day's trading closes) — confirmed still excluded
+   here; see FEATURE_CLASSIFICATION below for the explicit AVAILABLE-BEFORE-
+   PREDICTION vs. TARGET-LEAKAGE call on every feature considered.
+
+5. No other target-derived leakage found: State/District/Market/Commodity/
+   Variety/Grade are the query itself (always known); Season/Month/Quarter/
+   Week/DayOfYear/sin-cos are deterministic functions of the calendar date
+   (always known); all new lag/rolling/change/trend features use shift(1)
+   BEFORE any aggregation so the current row's own target is never in its own
+   feature (verified in `add_lag_rolling_features()` — every rolling call
+   operates on a pre-shifted series, never on the raw group series directly).
+================================================================================
+"""
+
+import json
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import joblib
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor, ExtraTreesRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.inspection import permutation_importance
+
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# Optional stronger models — only used if actually installed in this environment.
+# (At the time this was written: xgboost/lightgbm/catboost were NOT installed and
+# this sandbox has no network access to install them. The hooks are here so the
+# script automatically picks them up if you run it somewhere they ARE available —
+# it does not silently skip them without saying so.)
+try:
+    from xgboost import XGBRegressor
+    HAS_XGB = True
+except ImportError:
+    HAS_XGB = False
+try:
+    from lightgbm import LGBMRegressor
+    HAS_LGBM = True
+except ImportError:
+    HAS_LGBM = False
+try:
+    from catboost import CatBoostRegressor
+    HAS_CATBOOST = True
+except ImportError:
+    HAS_CATBOOST = False
+
+# ------------------------------------------------------------------------- #
+# Config
+# ------------------------------------------------------------------------- #
+DATA_PATH = r'C:\Users\irfan\Downloads\india_mandi_prices_population_proportional.csv'
+EXTRA_REAL_DATA_PATHS = []   # optional: paths to additional REAL data you've separately
+                             # downloaded (e.g. from AGMARKNET/data.gov.in) to improve
+                             # nationwide coverage. Each file must have a 'Source' column
+                             # tagging rows 'REAL' — never add untagged or fabricated rows.
+OUTPUT_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+TARGET_COL = 'Modal Price (Rs./Quintal)'
+GROUP_COLS = ['State', 'District Name', 'Market Name', 'Commodity', 'Variety', 'Grade']
+LOW_CARD_CATS = ['State', 'Grade', 'Season']
+HIGH_CARD_CATS = ['District Name', 'Market Name', 'Commodity', 'Variety']
+
+TRAIN_END = '2025-04-30'
+VAL_END = '2025-06-30'
+
+TE_SMOOTHING = 20        # count-based shrinkage strength for target encoding (Section 5)
+RANDOM_STATE = 42
+STATE_SAMPLE_WEIGHTING = False   # Section 13 — optional, off by default; see run_all()
+
+# ------------------------------------------------------------------------- #
+# SECTION 12 — explicit feature classification (printed at runtime, not just
+# implied by the code). Every feature actually used must appear here.
+# ------------------------------------------------------------------------- #
+FEATURE_CLASSIFICATION = {
+    'State / District Name / Market Name / Commodity / Variety / Grade':
+        ('AVAILABLE BEFORE PREDICTION', 'This is the query itself — always known.'),
+    'Season / Month / Quarter / WeekOfYear / DayOfYear / DOY_sin / DOY_cos':
+        ('AVAILABLE BEFORE PREDICTION', 'Deterministic functions of the calendar date.'),
+    'Lag_1, Lag_2, Lag_3, Lag_7':
+        ('AVAILABLE BEFORE PREDICTION', 'Each is shift(1..7) within its group — strictly earlier dates only.'),
+    'Roll3_Mean, Roll7_Mean, Roll14_Mean, Roll7_Median, Roll7_Std':
+        ('AVAILABLE BEFORE PREDICTION', 'Computed on a shift(1) series before any rolling aggregation — the '
+                                         'current row never contributes to its own rolling window.'),
+    'Price_Change, Pct_Change, Trend_Slope':
+        ('AVAILABLE BEFORE PREDICTION', 'Derived only from Lag_1/Lag_2 and a rolling window of the shift(1) series.'),
+    'District/Market/Commodity/Variety target encoding (smoothed)':
+        ('SAFE — fit on TRAIN ONLY', 'Shrinkage-smoothed mean fit on train rows only; unseen categories in '
+                                      'val/test fall back to the train global mean.'),
+    'District/Market/Commodity/Variety frequency encoding':
+        ('SAFE — fit on TRAIN ONLY', 'Category share of TRAIN rows; unseen categories fall back to 0.'),
+    'Commodity/State fallback median for missing lag/rolling values':
+        ('SAFE (v2) — was LEAKAGE in v1', 'v1 computed this on the full dataset; v2 computes it on TRAIN rows only.'),
+    'Same-day Min Price / Max Price':
+        ('TARGET-LEAKAGE / UNAVAILABLE — EXCLUDED', "Not known until that day's trading closes."),
+    'Any statistic computed after the split boundary and applied backward':
+        ('TARGET-LEAKAGE / UNAVAILABLE — NOT USED', 'Not applicable here; flagged for future maintainers to check '
+                                                       'if new features are added.'),
+}
+
+
+def print_feature_classification():
+    print("\n--- Feature classification (Section 12) ---")
+    for feat, (status, reason) in FEATURE_CLASSIFICATION.items():
+        print(f"[{status}] {feat}\n    -> {reason}")
+
+
+# ------------------------------------------------------------------------- #
+# Data loading
+# ------------------------------------------------------------------------- #
+
+def load_data():
+    print("Loading data...")
+    df = pd.read_csv(DATA_PATH, low_memory=False)
+    for p in EXTRA_REAL_DATA_PATHS:
+        extra = pd.read_csv(p, low_memory=False)
+        assert 'Source' in extra.columns and (extra['Source'] == 'REAL').all(), (
+            f"{p} must tag every row Source='REAL' — refusing to silently merge unlabeled or synthetic data.")
+        df = pd.concat([df, extra], ignore_index=True)
+        print(f"  merged {len(extra)} additional REAL rows from {p}")
+    df['Price Date'] = pd.to_datetime(df['Price Date'], format='%d %b %Y')
+    return df
+
+
+def audit_and_dedupe_same_day(df):
+    """Section 1, finding #2: collapse any (group, date) duplicates to one row
+    (mean Modal Price) BEFORE computing lag/rolling features, so shift/rolling
+    by row-position can never blend two same-day reports into each other."""
+    dup_mask = df.duplicated(subset=GROUP_COLS + ['Price Date'], keep=False)
+    n_dup = int(dup_mask.sum())
+    if n_dup > 0:
+        print(f"WARNING: {n_dup} rows share a duplicate (group, Price Date) key. "
+              f"Aggregating to one row per (group, date) — mean of {TARGET_COL} — "
+              f"before computing any lag/rolling feature.")
+        agg = {TARGET_COL: 'mean'}
+        other_cols = [c for c in df.columns if c not in GROUP_COLS + ['Price Date', TARGET_COL]]
+        for c in other_cols:
+            agg[c] = 'first'
+        df = df.groupby(GROUP_COLS + ['Price Date'], as_index=False).agg(agg)
+    else:
+        print("No duplicate (group, date) rows found — no same-day blending risk.")
+    return df
+
+
+# ------------------------------------------------------------------------- #
+# SECTION 4 — seasonal / calendar features
+# ------------------------------------------------------------------------- #
+
+def add_calendar_features(df):
+    df['Month'] = df['Price Date'].dt.month
+    df['Quarter'] = df['Price Date'].dt.quarter
+    df['WeekOfYear'] = df['Price Date'].dt.isocalendar().week.astype(int)
+    df['DayOfYear'] = df['Price Date'].dt.dayofyear
+    df['DOY_sin'] = np.sin(2 * np.pi * df['DayOfYear'] / 365.25)
+    df['DOY_cos'] = np.cos(2 * np.pi * df['DayOfYear'] / 365.25)
+    # 'Season' is assumed to already exist in the source data (Kharif/Rabi/Zaid-style
+    # label) as it did in v1 — a deterministic function of the date, kept as-is.
+    return df
+
+
+# ------------------------------------------------------------------------- #
+# SECTION 3 — expanded, leakage-safe lag/rolling features
+# ------------------------------------------------------------------------- #
+
+def _rolling_slope(arr):
+    """Linear-regression slope of a short window of shifted (already-past) prices.
+    NaN-safe; returns NaN if fewer than 2 valid points."""
+    s = pd.Series(arr).dropna()
+    if len(s) < 2:
+        return np.nan
+    x = np.arange(len(s))
+    return np.polyfit(x, s.values, 1)[0]
+
+
+def add_lag_rolling_features(df):
+    df = df.sort_values(GROUP_COLS + ['Price Date']).reset_index(drop=True)
+
+    obs_per_group = df.groupby(GROUP_COLS).size()
+    median_obs = obs_per_group.median()
+    print(f"Median observations per (State,District,Market,Commodity,Variety,Grade) group: {median_obs:.0f}")
+
+    grp_target = df.groupby(GROUP_COLS)[TARGET_COL]
+    df['Lag_1'] = grp_target.shift(1)
+    df['Lag_2'] = grp_target.shift(2)
+    df['Lag_3'] = grp_target.shift(3)
+    if median_obs >= 10:
+        df['Lag_7'] = grp_target.shift(7)
+        has_lag7 = True
+    else:
+        print("Skipping Lag_7 — typical group history is too short to support a 7-lag feature.")
+        has_lag7 = False
+
+    # Everything below is computed on the ALREADY-SHIFTED series, per the brief's
+    # explicit instruction ("shift(1).rolling(...)") — the current row's own
+    # target is never part of its own rolling window.
+    df['_shifted'] = grp_target.shift(1)
+    grp_shifted = df.groupby(GROUP_COLS)['_shifted']
+
+    df['Roll3_Mean'] = grp_shifted.transform(lambda s: s.rolling(3, min_periods=1).mean())
+    df['Roll7_Mean'] = grp_shifted.transform(lambda s: s.rolling(7, min_periods=2).mean())
+    df['Roll14_Mean'] = grp_shifted.transform(lambda s: s.rolling(14, min_periods=3).mean())
+    df['Roll7_Median'] = grp_shifted.transform(lambda s: s.rolling(7, min_periods=2).median())
+    df['Roll7_Std'] = grp_shifted.transform(lambda s: s.rolling(7, min_periods=2).std())
+
+    df['Price_Change'] = df['Lag_1'] - df['Lag_2']
+    df['Pct_Change'] = (df['Lag_1'] - df['Lag_2']) / df['Lag_2'].replace(0, np.nan)
+    df['Trend_Slope'] = grp_shifted.transform(
+        lambda s: s.rolling(5, min_periods=2).apply(_rolling_slope, raw=True))
+
+    df = df.drop(columns=['_shifted'])
+
+    price_level_feats = ['Lag_1', 'Lag_2', 'Lag_3'] + (['Lag_7'] if has_lag7 else []) + \
+                         ['Roll3_Mean', 'Roll7_Mean', 'Roll14_Mean', 'Roll7_Median']
+    variability_feats = ['Roll7_Std', 'Price_Change', 'Pct_Change', 'Trend_Slope']
+
+    return df, price_level_feats, variability_feats, has_lag7
+
+
+def train_only_fallback_fill(train, val, test, price_level_feats, variability_feats):
+    """Section 1 fix: any remaining NaN (first occurrence of a group, or too-short
+    history) is filled using a map computed from TRAIN ROWS ONLY. Price-level
+    features (Lag_*, Roll*_Mean/Median) fall back to that commodity's TRAIN median
+    price. Variability features (Roll*_Std, Price_Change, Pct_Change, Trend_Slope)
+    fall back to 0 (no known change/volatility), NOT a price-level number — filling
+    a standard-deviation or a percent-change column with a raw price would be a
+    units bug, not just an imprecise guess."""
+    commodity_median_train = train.groupby('Commodity')[TARGET_COL].median()
+    global_train_median = train[TARGET_COL].median()
+
+    for part in (train, val, test):
+        fallback = part['Commodity'].map(commodity_median_train).fillna(global_train_median)
+        for c in price_level_feats:
+            part[c] = part[c].fillna(fallback)
+        for c in variability_feats:
+            part[c] = part[c].fillna(0.0)
+    return train, val, test, commodity_median_train, global_train_median
+
+
+# ------------------------------------------------------------------------- #
+# SECTION 5 — categorical encoding (train-only, smoothed, safe fallback)
+# ------------------------------------------------------------------------- #
+
+def fit_target_encoding(train, col, smoothing=TE_SMOOTHING):
+    stats = train.groupby(col)[TARGET_COL].agg(['mean', 'count'])
+    global_mean = train[TARGET_COL].mean()
+    smoothed = (stats['count'] * stats['mean'] + smoothing * global_mean) / (stats['count'] + smoothing)
+    return smoothed, global_mean
+
+
+def apply_encodings(train, val, test):
+    """Target encoding (shrinkage-smoothed, train-only fit) + frequency encoding
+    (train-only fit) for every high-cardinality categorical. Grade/State/Season
+    stay as native categorical columns for the tree models — NEVER ordinally
+    ranked (Section 5's explicit requirement)."""
+    enc_maps, freq_maps = {}, {}
+    global_mean = train[TARGET_COL].mean()
+    for c in HIGH_CARD_CATS:
+        smoothed_map, _ = fit_target_encoding(train, c)
+        enc_maps[c] = smoothed_map
+        freq_map = train[c].value_counts(normalize=True)
+        freq_maps[c] = freq_map
+        for part in (train, val, test):
+            part[c + '_TE'] = part[c].map(smoothed_map).fillna(global_mean)
+            part[c + '_Freq'] = part[c].map(freq_map).fillna(0.0)
+
+    for c in LOW_CARD_CATS:
+        # Fit categories on TRAIN so val/test share the same category set; unseen
+        # values become a real "Unknown" category rather than silently erroring
+        # or being coerced into an arbitrary numeric code.
+        cats = pd.Categorical(train[c]).categories
+        for part in (train, val, test):
+            part[c] = pd.Categorical(part[c], categories=list(cats) + ['__unseen__']).fillna('__unseen__')
+            part[c] = part[c].astype('category')
+
+    return train, val, test, enc_maps, freq_maps, global_mean
+
+
+# ------------------------------------------------------------------------- #
+# Metrics
+# ------------------------------------------------------------------------- #
+
+def compute_metrics(y_true, y_pred):
+    mae = mean_absolute_error(y_true, y_pred)
+    rmse = mean_squared_error(y_true, y_pred) ** 0.5
+    r2 = r2_score(y_true, y_pred)
+    mape = np.mean(np.abs((y_true - y_pred) / y_true.replace(0, np.nan))) * 100
+    return {"MAE": float(mae), "RMSE": float(rmse), "R2": float(r2), "MAPE_%": float(mape), "n": int(len(y_true))}
+
+
+def evaluate(model, X, y, name, log_target=False, print_it=True):
+    pred = model.predict(X)
+    if log_target:
+        pred = np.expm1(pred)
+    m = compute_metrics(y, pred)
+    if print_it:
+        print(f"{name}: MAE={m['MAE']:.1f}  RMSE={m['RMSE']:.1f}  R2={m['R2']:.4f}  MAPE={m['MAPE_%']:.2f}%  (n={m['n']})")
+    return m, pred
+
+
+# ------------------------------------------------------------------------- #
+# SECTION 10 — price-range breakdown (thresholds from TRAIN target quantiles,
+# fixed BEFORE looking at val/test — not data-snooped from the evaluation set)
+# ------------------------------------------------------------------------- #
+
+def price_range_thresholds(train):
+    q = train[TARGET_COL].quantile([0.25, 0.5, 0.75]).values
+    return {"Low (<Q1)": (-np.inf, q[0]), "Medium (Q1-median)": (q[0], q[1]),
+            "High (median-Q3)": (q[1], q[2]), "Very High (>Q3)": (q[2], np.inf)}, q
+
+
+def price_range_breakdown(y_true, y_pred, thresholds):
+    rows = []
+    for label, (lo, hi) in thresholds.items():
+        mask = (y_true > lo) & (y_true <= hi) if hi != np.inf else (y_true > lo)
+        if mask.sum() == 0:
+            continue
+        m = compute_metrics(y_true[mask], y_pred[mask])
+        m["range"] = label
+        rows.append(m)
+    return pd.DataFrame(rows)[["range", "n", "MAE", "RMSE", "R2", "MAPE_%"]]
+
+
+# ------------------------------------------------------------------------- #
+# SECTION 11 — state / commodity / grade breakdown (min-n gated, nothing hidden)
+# ------------------------------------------------------------------------- #
+
+def group_breakdown(df_eval, y_true, y_pred, group_col, min_n=30):
+    tmp = df_eval[[group_col]].copy()
+    tmp['_y'] = y_true.values
+    tmp['_pred'] = y_pred
+    rows = []
+    for key, g in tmp.groupby(group_col, observed=True):
+        if len(g) < min_n:
+            continue
+        m = compute_metrics(g['_y'], g['_pred'])
+        m[group_col] = key
+        rows.append(m)
+    out = pd.DataFrame(rows)
+    if len(out) == 0:
+        return out
+    return out[[group_col, "n", "MAE", "RMSE", "R2", "MAPE_%"]].sort_values("MAPE_%", ascending=False)
+
+
+# ------------------------------------------------------------------------- #
+# SECTION 8/9 — model zoo + a small chronological-validation hyperparameter search
+# ------------------------------------------------------------------------- #
+
+def candidate_models():
+    """Returns {name: (estimator_factory, needs_cat_idx)}. estimator_factory
+    takes a `cat_idx` (indices of native-categorical columns, or None) and
+    returns an unfit estimator."""
+    models = {
+        "HistGB": lambda cat_idx: HistGradientBoostingRegressor(
+            max_iter=300, learning_rate=0.08, max_depth=8, categorical_features=cat_idx,
+            random_state=RANDOM_STATE, early_stopping=True, validation_fraction=0.1),
+        "RandomForest": lambda cat_idx: RandomForestRegressor(
+            n_estimators=300, max_depth=16, min_samples_leaf=5, n_jobs=-1, random_state=RANDOM_STATE),
+        "ExtraTrees": lambda cat_idx: ExtraTreesRegressor(
+            n_estimators=300, max_depth=16, min_samples_leaf=5, n_jobs=-1, random_state=RANDOM_STATE),
+    }
+    if HAS_XGB:
+        models["XGBoost"] = lambda cat_idx: XGBRegressor(
+            n_estimators=400, learning_rate=0.06, max_depth=8, subsample=0.8,
+            colsample_bytree=0.8, random_state=RANDOM_STATE, n_jobs=-1)
+    else:
+        print("XGBoost not installed in this environment — skipped (would be tried if available).")
+    if HAS_LGBM:
+        models["LightGBM"] = lambda cat_idx: LGBMRegressor(
+            n_estimators=400, learning_rate=0.06, max_depth=8, random_state=RANDOM_STATE, n_jobs=-1)
+    else:
+        print("LightGBM not installed in this environment — skipped (would be tried if available).")
+    if HAS_CATBOOST:
+        models["CatBoost"] = lambda cat_idx: CatBoostRegressor(
+            iterations=400, learning_rate=0.06, depth=8, random_state=RANDOM_STATE, verbose=False)
+    else:
+        print("CatBoost not installed in this environment — skipped (would be tried if available). "
+              "CatBoost is particularly worth testing for this dataset given the heavy categorical "
+              "content (District/Market/Commodity/Variety) — it natively handles high-cardinality "
+              "categoricals without needing target encoding at all, which is worth a direct A/B test.")
+    return models
+
+
+HISTGB_GRID = [
+    dict(max_iter=300, learning_rate=0.08, max_depth=8, min_samples_leaf=20, l2_regularization=0.0),
+    dict(max_iter=300, learning_rate=0.05, max_depth=6, min_samples_leaf=30, l2_regularization=1.0),
+    dict(max_iter=500, learning_rate=0.03, max_depth=6, min_samples_leaf=50, l2_regularization=1.0),
+    dict(max_iter=500, learning_rate=0.05, max_depth=10, min_samples_leaf=20, l2_regularization=0.5),
+]
+
+
+def tune_histgb_on_validation(X_train, y_train, X_val, y_val, cat_idx, sample_weight=None):
+    """Section 9: tune using the chronological VALIDATION set only. Test set is
+    never touched here."""
+    best_val_mae, best_params, best_model = np.inf, None, None
+    print("\n--- Hyperparameter search (selected by VALIDATION MAE only) ---")
+    for params in HISTGB_GRID:
+        model = HistGradientBoostingRegressor(
+            categorical_features=cat_idx, random_state=RANDOM_STATE,
+            early_stopping=True, validation_fraction=0.1, **params)
+        model.fit(X_train, y_train, sample_weight=sample_weight)
+        pred_val = model.predict(X_val)
+        val_mae = mean_absolute_error(y_val, pred_val)
+        print(f"  {params} -> val MAE={val_mae:.1f}")
+        if val_mae < best_val_mae:
+            best_val_mae, best_params, best_model = val_mae, params, model
+    print(f"Best by validation MAE: {best_params} (val MAE={best_val_mae:.1f})")
+    return best_model, best_params
+
+
+# ------------------------------------------------------------------------- #
+# Plotting (Sections 16.5-16.7)
+# ------------------------------------------------------------------------- #
+
+def plot_actual_vs_predicted(y_true, y_pred, title, path, sample_n=5000):
+    idx = np.random.RandomState(RANDOM_STATE).choice(len(y_true), size=min(sample_n, len(y_true)), replace=False)
+    yt, yp = np.array(y_true)[idx], np.array(y_pred)[idx]
+    fig, ax = plt.subplots(figsize=(7, 7))
+    ax.scatter(yt, yp, alpha=0.3, s=10)
+    lim = [0, max(yt.max(), yp.max())]
+    ax.plot(lim, lim, 'r--')
+    ax.set_xlabel("Actual Modal Price")
+    ax.set_ylabel("Predicted Modal Price")
+    ax.set_title(title)
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
+def plot_error_distribution(y_true, y_pred, title, path):
+    err = np.array(y_pred) - np.array(y_true)
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.hist(err, bins=80)
+    ax.axvline(0, color='r', linestyle='--')
+    ax.set_xlabel("Prediction Error (Predicted - Actual, Rs./Quintal)")
+    ax.set_ylabel("Count")
+    ax.set_title(title)
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
+def plot_feature_importance(imp_df, title, path, top_n=20):
+    top = imp_df.sort_values("importance", ascending=False).head(top_n)
+    fig, ax = plt.subplots(figsize=(8, max(4, 0.3 * len(top))))
+    ax.barh(top["feature"][::-1], top["importance"][::-1])
+    ax.set_xlabel("Permutation importance")
+    ax.set_title(title)
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
+# ------------------------------------------------------------------------- #
+# SECTION 15 — the experiment runner (Models A-E)
+# ------------------------------------------------------------------------- #
+
+def run_experiment(name, X_train, y_train, X_val, y_val, X_test, y_test, X_test_real, y_test_real,
+                    feature_cols, cat_idx, model=None, log_target=False, sample_weight=None):
+    print(f"\n{'='*70}\nEXPERIMENT: {name}\n{'='*70}")
+    if model is None:
+        model = HistGradientBoostingRegressor(
+            max_iter=300, learning_rate=0.08, max_depth=8, categorical_features=cat_idx,
+            random_state=RANDOM_STATE, early_stopping=True, validation_fraction=0.1)
+    y_fit = np.log1p(y_train) if log_target else y_train
+    model.fit(X_train, y_fit, sample_weight=sample_weight)
+
+    m_train, _ = evaluate(model, X_train, y_train, f"{name} | Train", log_target)
+    m_val, _ = evaluate(model, X_val, y_val, f"{name} | Validation", log_target)
+    m_test, pred_test = evaluate(model, X_test, y_test, f"{name} | Test", log_target)
+    m_test_real, _ = evaluate(model, X_test_real, y_test_real, f"{name} | Test (REAL only)", log_target)
+
+    return {
+        "name": name, "model": model, "feature_cols": feature_cols, "log_target": log_target,
+        "metrics": {"train": m_train, "val": m_val, "test": m_test, "test_real_only": m_test_real},
+        "test_pred": pred_test, "X_val": X_val, "y_val": y_val,
+    }
+
+
+def choose_best(experiments):
+    """Section 9/14: selection is by VALIDATION MAE (never by test), and once
+    selected we report — but do not re-select based on — test performance.
+    Primary tie-breaker per Section 14 is MAE, then MAPE, then RMSE, then R2."""
+    return min(experiments, key=lambda e: (e["metrics"]["val"]["MAE"],))
+
+
+# ------------------------------------------------------------------------- #
+# Main
+# ------------------------------------------------------------------------- #
+
+def run_all():
+    print_feature_classification()
+
+    df = load_data()
+    df = audit_and_dedupe_same_day(df)
+    df = df.sort_values('Price Date').reset_index(drop=True)
+    df = add_calendar_features(df)
+    df, price_level_feats, variability_feats, has_lag7 = add_lag_rolling_features(df)
+
+    for c in LOW_CARD_CATS:
+        df[c] = df[c].astype('category')
+
+    # ---- Section 2: chronological split, unchanged boundaries ----
+    train = df[df['Price Date'] <= TRAIN_END].copy()
+    val = df[(df['Price Date'] > TRAIN_END) & (df['Price Date'] <= VAL_END)].copy()
+    test = df[df['Price Date'] > VAL_END].copy()
+    print(f"\nTrain/Val/Test sizes: {len(train)}, {len(val)}, {len(test)}")
+
+    # ---- Section 1 fix: train-only fallback for lag/rolling NaNs ----
+    train, val, test, commodity_median_train, global_train_median = train_only_fallback_fill(
+        train, val, test, price_level_feats, variability_feats)
+
+    # ---- Section 5: encodings, train-only, smoothed, safe fallback ----
+    train, val, test, enc_maps, freq_maps, global_mean = apply_encodings(train, val, test)
+
+    # Map the legacy A feature names onto the new pipeline's equivalent columns
+    # (Lag_1 / Roll3_Mean) so "Model A" is a fair like-for-like leakage-fixed
+    # baseline, BEFORE test_real is sliced off test (so the alias exists on both).
+    train['Lag1_Modal_Price'] = train['Lag_1']
+    val['Lag1_Modal_Price'] = val['Lag_1']
+    test['Lag1_Modal_Price'] = test['Lag_1']
+    train['Roll3_Modal_Price'] = train['Roll3_Mean']
+    val['Roll3_Modal_Price'] = val['Roll3_Mean']
+    test['Roll3_Modal_Price'] = test['Roll3_Mean']
+
+    test_real = test[test['Source'] == 'REAL'] if 'Source' in test.columns else test
+
+    # ---- Section 13 (optional): inverse-state-frequency sample weights ----
+    sample_weight = None
+    if STATE_SAMPLE_WEIGHTING:
+        state_counts = train['State'].value_counts()
+        weight_map = (1.0 / state_counts) * state_counts.median()
+        sample_weight = train['State'].map(weight_map).values
+        print("STATE_SAMPLE_WEIGHTING is ON — training rows are inverse-frequency "
+              "weighted by State. This is an experimental toggle: A/B test it against "
+              "STATE_SAMPLE_WEIGHTING=False using validation MAE before trusting it.")
+
+    encoded_high_card = [c + '_TE' for c in HIGH_CARD_CATS]
+    freq_high_card = [c + '_Freq' for c in HIGH_CARD_CATS]
+    lag_basic = ['Lag_1'] + (['Lag_7'] if has_lag7 else [])
+    lag_full = ['Lag_1', 'Lag_2', 'Lag_3'] + (['Lag_7'] if has_lag7 else []) + \
+               ['Roll3_Mean', 'Roll7_Mean', 'Roll14_Mean', 'Roll7_Median', 'Roll7_Std',
+                'Price_Change', 'Pct_Change', 'Trend_Slope']
+    seasonal_basic = ['Month', 'DayOfYear']
+    seasonal_full = ['Month', 'Quarter', 'WeekOfYear', 'DayOfYear', 'DOY_sin', 'DOY_cos']
+
+    feature_sets = {
+        "A_original_leakage_fixed": LOW_CARD_CATS + encoded_high_card + seasonal_basic +
+                                     ['Lag1_Modal_Price', 'Roll3_Modal_Price'],  # kept only if these
+                                                                                  # legacy names still exist
+        "B_expanded_lag_features": LOW_CARD_CATS + encoded_high_card + seasonal_basic + lag_full,
+        "C_plus_encoding_and_seasonal": LOW_CARD_CATS + encoded_high_card + freq_high_card +
+                                          seasonal_full + lag_full,
+    }
+    # Map the legacy A feature names onto the new pipeline's equivalent columns
+    # (Lag_1 / Roll3_Mean) so "Model A" is a fair like-for-like leakage-fixed
+    # baseline rather than requiring the old column names to still exist.
+
+    experiments = []
+
+    def build_xy(feature_cols):
+        return (train[feature_cols], train[TARGET_COL], val[feature_cols], val[TARGET_COL],
+                test[feature_cols], test[TARGET_COL], test_real[feature_cols], test_real[TARGET_COL])
+
+    # ---- Model A: original feature set, leakage fixed ----
+    fcols_a = feature_sets["A_original_leakage_fixed"]
+    cat_idx_a = [fcols_a.index(c) for c in LOW_CARD_CATS]
+    Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real = build_xy(fcols_a)
+    exp_a = run_experiment("A_original_leakage_fixed", Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real,
+                            fcols_a, cat_idx_a, sample_weight=sample_weight)
+    experiments.append(exp_a)
+
+    # ---- Model B: + expanded lag/rolling features ----
+    fcols_b = feature_sets["B_expanded_lag_features"]
+    cat_idx_b = [fcols_b.index(c) for c in LOW_CARD_CATS]
+    Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real = build_xy(fcols_b)
+    exp_b = run_experiment("B_expanded_lag_features", Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real,
+                            fcols_b, cat_idx_b, sample_weight=sample_weight)
+    experiments.append(exp_b)
+
+    # ---- Model C: + smoothed encoding, frequency encoding, fuller seasonal ----
+    fcols_c = feature_sets["C_plus_encoding_and_seasonal"]
+    cat_idx_c = [fcols_c.index(c) for c in LOW_CARD_CATS]
+    Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real = build_xy(fcols_c)
+    exp_c = run_experiment("C_plus_encoding_and_seasonal", Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real,
+                            fcols_c, cat_idx_c, sample_weight=sample_weight)
+    experiments.append(exp_c)
+
+    # ---- Model D: log1p(target) on the best feature set so far (by val MAE) ----
+    best_so_far = choose_best(experiments)
+    fcols_d = best_so_far["feature_cols"]
+    cat_idx_d = [fcols_d.index(c) for c in LOW_CARD_CATS]
+    Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real = build_xy(fcols_d)
+    exp_d = run_experiment(f"D_log_target_on_{best_so_far['name']}", Xtr, ytr, Xv, yv, Xte, yte,
+                            Xtr_real, ytr_real, fcols_d, cat_idx_d, log_target=True, sample_weight=sample_weight)
+    experiments.append(exp_d)
+
+    # ---- Hyperparameter tuning of HistGB on the best feature set (val-only selection) ----
+    best_so_far = choose_best(experiments)
+    fcols_best = best_so_far["feature_cols"]
+    cat_idx_best = [fcols_best.index(c) for c in LOW_CARD_CATS]
+    Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real = build_xy(fcols_best)
+    tuned_model, tuned_params = tune_histgb_on_validation(Xtr, ytr, Xv, yv, cat_idx_best, sample_weight)
+    exp_tuned = run_experiment(f"D2_tuned_HistGB_on_{best_so_far['name']}", Xtr, ytr, Xv, yv, Xte, yte,
+                                Xtr_real, ytr_real, fcols_best, cat_idx_best,
+                                model=HistGradientBoostingRegressor(
+                                    categorical_features=cat_idx_best, random_state=RANDOM_STATE,
+                                    early_stopping=True, validation_fraction=0.1, **tuned_params),
+                                sample_weight=sample_weight)
+    experiments.append(exp_tuned)
+
+    # ---- Model E: alternative model families on the best feature set ----
+    best_so_far = choose_best(experiments)
+    fcols_e = best_so_far["feature_cols"]
+    cat_idx_e = [fcols_e.index(c) for c in LOW_CARD_CATS]
+    Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real = build_xy(fcols_e)
+    for mname, factory in candidate_models().items():
+        if mname == "HistGB":
+            continue  # already covered by the tuned variant above
+        est = factory(cat_idx_e if mname in ("HistGB",) else None)
+        # tree ensembles other than HistGB can't take raw pandas 'category' dtype /
+        # categorical_features the same way — one-hot the low-card cats for those.
+        if mname in ("RandomForest", "ExtraTrees", "XGBoost", "LightGBM"):
+            Xtr_oh = pd.get_dummies(Xtr, columns=[c for c in LOW_CARD_CATS if c in Xtr.columns])
+            Xv_oh = pd.get_dummies(Xv, columns=[c for c in LOW_CARD_CATS if c in Xv.columns]).reindex(columns=Xtr_oh.columns, fill_value=0)
+            Xte_oh = pd.get_dummies(Xte, columns=[c for c in LOW_CARD_CATS if c in Xte.columns]).reindex(columns=Xtr_oh.columns, fill_value=0)
+            Xter_oh = pd.get_dummies(Xtr_real, columns=[c for c in LOW_CARD_CATS if c in Xtr_real.columns]).reindex(columns=Xtr_oh.columns, fill_value=0)
+            exp = run_experiment(f"E_{mname}", Xtr_oh, ytr, Xv_oh, yv, Xte_oh, yte, Xter_oh, ytr_real,
+                                  list(Xtr_oh.columns), None, model=est, sample_weight=sample_weight)
+        else:
+            exp = run_experiment(f"E_{mname}", Xtr, ytr, Xv, yv, Xte, yte, Xtr_real, ytr_real,
+                                  fcols_e, cat_idx_e, model=est, sample_weight=sample_weight)
+        experiments.append(exp)
+
+    # ---- Final selection: by VALIDATION MAE, never by test (Section 9/14) ----
+    winner = choose_best(experiments)
+    print(f"\n{'='*70}\nWINNER (selected by validation MAE): {winner['name']}\n{'='*70}")
+
+    # ---- Old vs New comparison (Section 16.12) ----
+    OLD_TEST = {"MAE": 583.0, "RMSE": 1479.0, "R2": 0.720, "MAPE_%": 19.44}
+    new_test = winner["metrics"]["test"]
+    improved = new_test["MAE"] < OLD_TEST["MAE"] and new_test["MAPE_%"] < OLD_TEST["MAPE_%"]
+    print(f"\nOLD test:  MAE={OLD_TEST['MAE']:.1f}  RMSE={OLD_TEST['RMSE']:.1f}  R2={OLD_TEST['R2']:.4f}  MAPE={OLD_TEST['MAPE_%']:.2f}%")
+    print(f"NEW test:  MAE={new_test['MAE']:.1f}  RMSE={new_test['RMSE']:.1f}  R2={new_test['R2']:.4f}  MAPE={new_test['MAPE_%']:.2f}%")
+    print(f"VERDICT: {'IMPROVED' if improved else 'NOT IMPROVED — keep investigating or revert to the old model'} "
+          f"(judged on test MAE and MAPE, per Section 14's priority order, not on R2 alone)")
+
+    # ---- Price-range breakdown (Section 10) ----
+    thresholds, q = price_range_thresholds(train)
+    print(f"\nPrice-range thresholds (from TRAIN quantiles): Q1={q[0]:.0f}  median={q[1]:.0f}  Q3={q[2]:.0f}")
+    range_table = price_range_breakdown(winner_test_y := test[TARGET_COL],
+                                          winner["test_pred"] if not winner["log_target"] else winner["test_pred"],
+                                          thresholds)
+    print("\n--- Test performance by price range ---")
+    print(range_table.to_string(index=False))
+    range_table.to_csv(OUTPUT_DIR / "price_range_breakdown.csv", index=False)
+
+    # ---- State / Commodity / Grade breakdown (Section 11) ----
+    state_table = group_breakdown(test, test[TARGET_COL], winner["test_pred"], "State")
+    commodity_table = group_breakdown(test, test[TARGET_COL], winner["test_pred"], "Commodity")
+    grade_table = group_breakdown(test, test[TARGET_COL], winner["test_pred"], "Grade")
+    print("\n--- Test performance by State (n>=30, worst first) ---")
+    print(state_table.to_string(index=False))
+    print("\n--- Test performance by Commodity (n>=30, worst first) ---")
+    print(commodity_table.to_string(index=False))
+    state_table.to_csv(OUTPUT_DIR / "state_breakdown.csv", index=False)
+    commodity_table.to_csv(OUTPUT_DIR / "commodity_breakdown.csv", index=False)
+    grade_table.to_csv(OUTPUT_DIR / "grade_breakdown.csv", index=False)
+
+    # ---- Plots ----
+    plot_actual_vs_predicted(test[TARGET_COL], winner["test_pred"],
+                              "Actual vs Predicted (Test period, Jul-Aug 2025) — v2",
+                              OUTPUT_DIR / "actual_vs_predicted.png")
+    plot_error_distribution(test[TARGET_COL], winner["test_pred"],
+                             "Prediction error distribution (Test) — v2",
+                             OUTPUT_DIR / "error_distribution.png")
+
+    # ---- Feature importance (permutation, on validation, same as v1) ----
+    # Use the exact X_val the winner was fit/evaluated against (important for
+    # one-hot-encoded alternative models, where `val[winner['feature_cols']]`
+    # wouldn't line up with the original, non-one-hot columns in `val`).
+    Xv_final, yv_final = winner["X_val"], winner["y_val"]
+    sample = Xv_final.sample(min(20000, len(Xv_final)), random_state=1)
+    sample_y = yv_final.loc[sample.index]
+    pi = permutation_importance(winner["model"], sample, sample_y, n_repeats=3, random_state=1, n_jobs=-1)
+    imp = pd.DataFrame({"feature": winner["feature_cols"], "importance": pi.importances_mean}) \
+        .sort_values("importance", ascending=False)
+    imp.to_csv(OUTPUT_DIR / "feature_importance.csv", index=False)
+    plot_feature_importance(imp, f"Feature importance — {winner['name']}",
+                             OUTPUT_DIR / "feature_importance.png")
+    print("\n--- Feature importance (winner) ---")
+    print(imp.to_string(index=False))
+
+    # ---- Save everything ----
+    all_metrics = {e["name"]: e["metrics"] for e in experiments}
+    all_metrics["_winner"] = winner["name"]
+    all_metrics["_old_vs_new_test"] = {"old": OLD_TEST, "new": new_test, "improved": bool(improved)}
+    with open(OUTPUT_DIR / "metrics.json", "w") as f:
+        json.dump(all_metrics, f, indent=2)
+
+    joblib.dump({
+        "model": winner["model"], "encoding_maps": enc_maps, "freq_maps": freq_maps,
+        "global_mean": global_mean, "feature_cols": winner["feature_cols"],
+        "low_card_cats": LOW_CARD_CATS, "high_card_cats": HIGH_CARD_CATS,
+        "commodity_median_train": commodity_median_train, "global_train_median": global_train_median,
+        "log_target": winner["log_target"], "price_range_thresholds": thresholds,
+    }, OUTPUT_DIR / "mandi_price_model.joblib")
+
+    print(f"\nAll outputs written to {OUTPUT_DIR}/. Done.")
+    return experiments, winner
+
+
+if __name__ == "__main__":
+    run_all()
