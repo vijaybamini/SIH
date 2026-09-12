@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
 import NotificationBell from './NotificationBell'
+import MyJobsPanel from './MyJobsPanel'
 import { useTranslation } from './i18n'
 
 const MENU_PROXIMITY_MARGIN = 28
@@ -87,6 +88,7 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
 
   const navItems = [
     ['Dashboard', t.navDashboard],
+    ['Jobs', 'My Jobs'],
     ['Transport', t.stepTransportation],
     ['Storage', t.stepInventory],
   ]
@@ -197,7 +199,14 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
           </div>
 
           <div className="dash-col-main">
-            {!chosenSection ? (
+            {activeNav === 'Jobs' ? (
+              <>
+                <p className="eyebrow">LOGISTICS</p>
+                <h2 className="dash-greeting" style={{ marginBottom: 10 }}>My Jobs</h2>
+                <p className="panel-subtitle">Jobs you've accepted from the notification bell, and their delivery status.</p>
+                <MyJobsPanel userId={user.id} />
+              </>
+            ) : !chosenSection ? (
               <div className="section-choice">
                 <h2 className="dash-greeting" style={{ marginBottom: 10 }}>{t.chooseOneSection}</h2>
                 <p className="panel-subtitle">{t.chooseOneSub}</p>

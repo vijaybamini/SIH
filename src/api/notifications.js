@@ -28,6 +28,20 @@ export async function markAllNotificationsRead(userId) {
   if (error) throw error
 }
 
+// Atomic "first to accept wins" claim on a trip -- see accept_trip_offer()
+// in the migration. Returns {success:true, ...} or {success:false, reason}
+// (e.g. someone else already accepted it); never throws for that case,
+// only for a genuine request failure.
+export async function acceptTripOffer(orderTripId, providerId) {
+  requireSupabase()
+  const { data, error } = await supabase.rpc('accept_trip_offer', {
+    p_order_trip_id: orderTripId,
+    p_provider_id: providerId,
+  })
+  if (error) throw error
+  return data
+}
+
 // Live updates so a job offer appears the moment the backend creates it,
 // without the provider needing to refresh. Returns an unsubscribe function.
 export function subscribeToNotifications(userId, onInsert) {

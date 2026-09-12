@@ -288,31 +288,46 @@ def place_order(data: dict):
                    "price quote above is still accurate -- nothing was charged.",
         )
 
-    notifications = _notify_logistics_providers_for_trips(order_id, result["logistics"]["trips"])
+    notifications = _notify_logistics_providers_for_trips(order_id, result["commodity"], result["logistics"]["trips"])
 
     return {"order_id": order_id, "logistics_notifications": notifications, **result}
 
 
-def _notify_logistics_providers_for_trips(order_id: int, trips: list) -> dict:
+_TRIP_COST_FIELDS = [
+    "fuel_cost", "driver_cost", "toll_cost", "maintenance_cost", "depreciation_cost",
+    "loading_unloading_cost", "insurance_cost", "permit_cost", "other_operating_cost",
+    "total_operating_cost", "recommended_freight", "driver_payout", "driver_margin",
+    "driver_margin_pct", "market_position", "gst_note",
+]
+
+
+def _notify_logistics_providers_for_trips(order_id: int, commodity: str, trips: list) -> dict:
     """Best-effort: tells every registered logistics provider with a
-    vehicle big enough for a trip what they'd be paid for it. Never raises
-    -- a notification failure (Supabase down, nobody registered yet, a
-    provider with unparseable fleet data) must never fail an already-saved
-    order."""
+    vehicle big enough for a trip what they'd be paid for it, with enough
+    route/cost detail to actually decide, plus the real order_trips row id
+    so they can accept it (accept_trip_offer() claims that exact row).
+    Never raises -- a notification failure (Supabase down, nobody
+    registered yet, a provider with unparseable fleet data) must never
+    fail an already-saved order."""
     from logistics_matching import find_matching_providers
-    from supabase_integration import fetch_logistics_providers, create_trip_notification
+    from supabase_integration import fetch_logistics_providers, fetch_order_trips, create_trip_notification
 
     try:
         providers = fetch_logistics_providers()
         if not providers:
             return {"notified_count": 0, "reason": "no_registered_providers_or_supabase_unavailable"}
 
+        db_trips = fetch_order_trips(order_id)
+        if not db_trips or len(db_trips) != len(trips):
+            return {"notified_count": 0, "reason": "could_not_resolve_order_trip_ids"}
+
         notified = []
-        for index, trip in enumerate(trips):
+        for db_trip, trip in zip(db_trips, trips):
             weight_kg = trip.get("shipment_weight_kg") or 0
             payout = trip.get("driver_payout") or trip.get("customer_pays") or 0
             distance_km = trip.get("road_distance_km") or 0
             vehicle_label = trip.get("vehicle_label") or "vehicle"
+            order_trip_id = db_trip["id"]
 
             matches = find_matching_providers(providers, weight_kg)
             for match in matches:
@@ -324,16 +339,23 @@ def _notify_logistics_providers_for_trips(order_id: int, trips: list) -> dict:
                           f"You'd be paid ₹{payout:,.0f} for this trip."),
                     payload={
                         "order_id": order_id,
-                        "trip_index": index,
+                        "order_trip_id": order_trip_id,
+                        "commodity": commodity,
                         "shipment_weight_kg": weight_kg,
                         "distance_km": distance_km,
+                        "estimated_travel_time": trip.get("estimated_travel_time"),
                         "vehicle_label": vehicle_label,
+                        "vehicle_capacity_kg": trip.get("vehicle_capacity_kg"),
+                        "pickup": trip.get("pickup"),
+                        "destination": trip.get("destination"),
+                        "stops": trip.get("stops", []),
                         "quoted_payout": payout,
                         "matched_vehicle_type": match["vehicle_type"],
+                        "cost_breakdown": {field: trip.get(field) for field in _TRIP_COST_FIELDS},
                     },
                 )
                 if notif_id is not None:
-                    notified.append({"provider": match["company_name"], "trip_index": index, "payout": payout})
+                    notified.append({"provider": match["company_name"], "order_trip_id": order_trip_id, "payout": payout})
 
         return {"notified_count": len(notified), "notified": notified}
     except Exception as exc:  # noqa: BLE001 -- best-effort, never fails order placement
