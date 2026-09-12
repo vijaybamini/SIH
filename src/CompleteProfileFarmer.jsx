@@ -47,10 +47,8 @@ function CropAutocomplete({ value, onChange, suggestions, placeholder, required 
 
 export default function CompleteProfileFarmer({ userId, onBack, onComplete, initialData, language, setLanguage, initialStep = 0, addCropOnOpen = false }) {
   const t = useTranslation(language)
-  const steps = [t.stepProfile, t.stepCropDetails, t.stepBankDetails]
-  const [mode, setMode] = useState(initialData ? (addCropOnOpen ? 'edit' : 'summary') : 'edit')
-  const [step, setStep] = useState(initialStep)
-  const [unlockedStep, setUnlockedStep] = useState(initialData ? steps.length - 1 : 0)
+  const [mode, setMode] = useState(initialData ? 'summary' : 'edit')
+  const [editingCrops, setEditingCrops] = useState(addCropOnOpen)
   const formRef = useRef(null)
 
   const [photo, setPhoto] = useState(initialData?.photo || null)
@@ -112,16 +110,6 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
     }
   }
 
-  function goNext() {
-    if (formRef.current && !formRef.current.reportValidity()) return
-    setUnlockedStep((current) => Math.max(current, step + 1))
-    setStep((current) => Math.min(current + 1, steps.length - 1))
-  }
-
-  function goToStep(index) {
-    if (index <= unlockedStep) setStep(index)
-  }
-
   async function handleSubmit(event) {
     event.preventDefault()
     setSaveError('')
@@ -144,6 +132,7 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
       setPhotoFile(null)
       setName(savedData.name)
       setPhone(savedData.phone)
+      setEditingCrops(false)
       setMode('summary')
     } catch (error) {
       setSaveError(error.message || t.couldNotSaveProfile)
@@ -156,30 +145,15 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
 
   function computeCompletionPercent() {
     const profileFlags = [Boolean(name), Boolean(phone), Boolean(areaOfLand), Boolean(surveyNumber), Boolean(aadhaarNumber), Boolean(cropLocation)]
-    let cropFlags = []
-    if (namedCrops.length === 0) {
-      cropFlags = new Array(6).fill(false)
-    } else {
-      namedCrops.forEach((crop) => {
-        cropFlags = cropFlags.concat([
-          Boolean(crop.name),
-          Boolean(crop.landUsed),
-          Boolean(crop.plantedDate),
-          crop.harvested !== null,
-          Boolean(crop.turnover),
-          Boolean(crop.specificType),
-        ])
-      })
-    }
     const bankFlags = [Boolean(accountHolderName), Boolean(accountNumber), Boolean(ifsc), Boolean(branch)]
-    const allFlags = [...profileFlags, ...cropFlags, ...bankFlags]
+    const allFlags = [...profileFlags, ...bankFlags]
     const filled = allFlags.filter(Boolean).length
     return Math.round((filled / allFlags.length) * 100)
   }
 
   const completionPercent = computeCompletionPercent()
 
-  if (mode === 'summary') {
+  if (editingCrops) {
     return (
       <div className="profile-page">
         <div className="profile-page-inner">
@@ -187,124 +161,11 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
             <button className="back-button" onClick={onBack}>{t.backToDashboard}</button>
             <LanguageSwitcher language={language} setLanguage={setLanguage} />
           </div>
+          <p className="eyebrow">{t.stepCropDetails}</p>
+          <h2>{t.manageCropsTitle}</h2>
+          <p className="panel-subtitle">{t.completeYourProfileSubtitle}</p>
 
-          <div className="profile-summary-header">
-            {photo ? (
-              <img className="profile-summary-photo" src={photo} alt="" />
-            ) : (
-              <div className="profile-summary-photo profile-summary-photo-empty" aria-hidden="true">{(name || accountHolderName || 'F')[0]}</div>
-            )}
-            <div className="profile-summary-header-text">
-              <p className="eyebrow">{t.yourProfileEyebrow}</p>
-              <h2>{t.completeYourProfileTitle}</h2>
-            </div>
-            <button className="button button-primary" onClick={() => setMode('edit')}>{t.editProfile}</button>
-          </div>
-
-          <div className="summary-section">
-            <h3>{t.stepProfile}</h3>
-            <div className="summary-grid">
-              <div><span>{t.name}</span><strong>{name || '—'}</strong></div>
-              <div><span>{t.phone}</span><strong>{phone || '—'}</strong></div>
-              <div><span>{t.areaOfLand}</span><strong>{areaOfLand || '—'}</strong></div>
-              <div><span>{t.surveyNumber}</span><strong>{surveyNumber || '—'}</strong></div>
-              <div><span>{t.aadhaarNumber}</span><strong>{aadhaarNumber || '—'}</strong></div>
-              <div><span>{t.locationOfCrop}</span><strong>{cropLocation || '—'}</strong></div>
-            </div>
-          </div>
-
-          <div className="summary-section">
-            <h3>{t.stepCropDetails}</h3>
-            {namedCrops.length === 0 && <p className="panel-subtitle">{t.noCropsYet}</p>}
-            {namedCrops.map((crop) => (
-              <div className="summary-crop-card" key={crop.id}>
-                <strong>{crop.name}{crop.specificType ? ` · ${crop.specificType}` : ''}</strong>
-                <div className="summary-grid">
-                  <div><span>{t.landLabel}</span><strong>{crop.landUsed ? `${crop.landUsed} ${t.acres}` : '—'}</strong></div>
-                  <div><span>{crop.harvested ? t.turnover : t.expectedTurnover}</span><strong>{crop.turnover ? `${crop.turnover} ${t.quintals}` : '—'}</strong></div>
-                  <div><span>{t.datePlanted}</span><strong>{crop.plantedDate || '—'}</strong></div>
-                  <div><span>{crop.harvested ? t.dateHarvested : t.expectedHarvestDate}</span><strong>{crop.expectedHarvestDate || '—'}</strong></div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="summary-section">
-            <h3>{t.stepBankDetails}</h3>
-            <div className="summary-grid">
-              <div><span>{t.accountHolderName}</span><strong>{accountHolderName || '—'}</strong></div>
-              <div><span>{t.accountNumber}</span><strong>{accountNumber || '—'}</strong></div>
-              <div><span>{t.ifscCode}</span><strong>{ifsc || '—'}</strong></div>
-              <div><span>{t.branch}</span><strong>{branch || '—'}</strong></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="profile-page">
-      <div className="profile-page-inner">
-        <div className="profile-page-topbar">
-          <button className="back-button" onClick={() => (initialData ? setMode('summary') : onBack())}>{t.backToDashboard}</button>
-          <LanguageSwitcher language={language} setLanguage={setLanguage} />
-        </div>
-        <p className="eyebrow">{t.completeProfileEyebrow}</p>
-        <h2>{t.completeYourProfileTitle}</h2>
-        <p className="panel-subtitle">{t.completeYourProfileSubtitle}</p>
-
-        <div className="completion-bar-row">
-          <div className="progress-track completion-track">
-            <div className="progress-fill completion-fill" style={{ width: `${completionPercent}%` }} />
-          </div>
-          <span className="completion-pct">{t.percentComplete.replace('{n}', completionPercent)}</span>
-        </div>
-
-        <div className="profile-steps">
-          {steps.map((label, index) => (
-            <button
-              key={label}
-              type="button"
-              className={`${index === step ? 'active' : index < step ? 'done' : ''} ${index > unlockedStep ? 'locked' : ''}`}
-              aria-disabled={index > unlockedStep}
-              onClick={() => goToStep(index)}
-            >
-              <span>{index + 1}</span>{label}
-            </button>
-          ))}
-        </div>
-
-        <form className="profile-form-card" onSubmit={handleSubmit} ref={formRef}>
-          {step === 0 && (
-            <>
-              <div className="photo-upload-row">
-                <label className="photo-upload-circle">
-                  {photo ? (
-                    <img className="photo-preview" src={photo} alt="" />
-                  ) : (
-                    <div className="photo-preview photo-preview-empty" aria-hidden="true">
-                      <span className="photo-upload-icon">📷</span>
-                      <span className="photo-upload-caption">{t.uploadPhoto}</span>
-                    </div>
-                  )}
-                  <input type="file" accept="image/*" onChange={handlePhotoChange} />
-                </label>
-                {photo && <label className="photo-change-link">{t.changePhoto}<input type="file" accept="image/*" onChange={handlePhotoChange} /></label>}
-              </div>
-
-              <div className="form-grid">
-                <label>{t.name}<input type="text" placeholder={t.namePlaceholder} value={name} onChange={(event) => setName(event.target.value)} required /></label>
-                <label>{t.phone}<input type="tel" placeholder={t.phonePlaceholder} value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
-                <label>{t.areaOfLand}<input type="number" step="0.01" min="0" placeholder={t.areaOfLandPlaceholder} value={areaOfLand} onChange={(event) => setAreaOfLand(event.target.value)} required /></label>
-                <label>{t.surveyNumber}<input type="text" placeholder={t.surveyNumberPlaceholder} value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value.toUpperCase())} required /></label>
-                <label>{t.aadhaarNumber}<input type="text" placeholder={t.aadhaarPlaceholder} value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value.toUpperCase())} required /></label>
-                <label>{t.locationOfCrop}<input type="text" placeholder={t.cropLocationPlaceholder} value={cropLocation} onChange={(event) => setCropLocation(event.target.value.toUpperCase())} required /></label>
-              </div>
-            </>
-          )}
-
-          {step === 1 && (
+          <form className="profile-form-card" onSubmit={handleSubmit} ref={formRef}>
             <div className="crop-section">
               {crops.map((crop, index) => (
                 <div className="crop-card" key={crop.id}>
@@ -374,30 +235,128 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
                 <span aria-hidden="true">+</span> {t.addAnotherCrop}
               </button>
             </div>
-          )}
 
-          {step === 2 && (
-            <div className="form-grid">
-              <label>{t.accountHolderName}<input type="text" placeholder={t.accountHolderPlaceholder} value={accountHolderName} onChange={(event) => setAccountHolderName(event.target.value.toUpperCase())} required /></label>
-              <label>{t.accountNumber}<input type="text" placeholder={t.accountNumberPlaceholder} value={accountNumber} onChange={(event) => setAccountNumber(event.target.value.toUpperCase())} required /></label>
-              <label>{t.ifscCode}
-                <input type="text" placeholder={t.ifscPlaceholder} value={ifsc} onChange={handleIfscChange} maxLength={11} required />
-                {ifscStatus === 'loading' && <small className="ifsc-hint">{t.ifscLookingUp}</small>}
-                {ifscStatus === 'found' && <small className="ifsc-hint ifsc-hint-ok">{t.ifscFound}</small>}
-                {ifscStatus === 'notfound' && <small className="ifsc-hint ifsc-hint-warn">{t.ifscNotFound}</small>}
-              </label>
-              <label>{t.branch}
-                <input type="text" placeholder={t.branchPlaceholder} value={branch} onChange={(event) => setBranch(event.target.value.toUpperCase())} required />
-              </label>
+            <div className="profile-actions">
+              {saveError && <p className="form-error" role="alert">{saveError}</p>}
+              <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? t.savingButton : t.saveFinish}</button>
             </div>
-          )}
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  if (mode === 'summary') {
+    return (
+      <div className="profile-page">
+        <div className="profile-page-inner">
+          <div className="profile-page-topbar">
+            <button className="back-button" onClick={onBack}>{t.backToDashboard}</button>
+            <LanguageSwitcher language={language} setLanguage={setLanguage} />
+          </div>
+
+          <div className="profile-summary-header">
+            {photo ? (
+              <img className="profile-summary-photo" src={photo} alt="" />
+            ) : (
+              <div className="profile-summary-photo profile-summary-photo-empty" aria-hidden="true">{(name || accountHolderName || 'F')[0]}</div>
+            )}
+            <div className="profile-summary-header-text">
+              <p className="eyebrow">{t.yourProfileEyebrow}</p>
+              <h2>{t.completeYourProfileTitle}</h2>
+            </div>
+            <button className="button button-primary" onClick={() => setMode('edit')}>{t.editProfile}</button>
+          </div>
+
+          <div className="summary-section">
+            <h3>{t.stepProfile}</h3>
+            <div className="summary-grid">
+              <div><span>{t.name}</span><strong>{name || '—'}</strong></div>
+              <div><span>{t.phone}</span><strong>{phone || '—'}</strong></div>
+              <div><span>{t.areaOfLand}</span><strong>{areaOfLand || '—'}</strong></div>
+              <div><span>{t.surveyNumber}</span><strong>{surveyNumber || '—'}</strong></div>
+              <div><span>{t.aadhaarNumber}</span><strong>{aadhaarNumber || '—'}</strong></div>
+              <div><span>{t.locationOfCrop}</span><strong>{cropLocation || '—'}</strong></div>
+            </div>
+          </div>
+
+          <div className="summary-section">
+            <h3>{t.stepBankDetails}</h3>
+            <div className="summary-grid">
+              <div><span>{t.accountHolderName}</span><strong>{accountHolderName || '—'}</strong></div>
+              <div><span>{t.accountNumber}</span><strong>{accountNumber || '—'}</strong></div>
+              <div><span>{t.ifscCode}</span><strong>{ifsc || '—'}</strong></div>
+              <div><span>{t.branch}</span><strong>{branch || '—'}</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="profile-page">
+      <div className="profile-page-inner">
+        <div className="profile-page-topbar">
+          <button className="back-button" onClick={() => (initialData ? setMode('summary') : onBack())}>{t.backToDashboard}</button>
+          <LanguageSwitcher language={language} setLanguage={setLanguage} />
+        </div>
+        <p className="eyebrow">{t.completeProfileEyebrow}</p>
+        <h2>{t.completeYourProfileTitle}</h2>
+        <p className="panel-subtitle">{t.completeYourProfileSubtitle}</p>
+
+        <div className="completion-bar-row">
+          <div className="progress-track completion-track">
+            <div className="progress-fill completion-fill" style={{ width: `${completionPercent}%` }} />
+          </div>
+          <span className="completion-pct">{t.percentComplete.replace('{n}', completionPercent)}</span>
+        </div>
+
+        <form className="profile-form-card" onSubmit={handleSubmit} ref={formRef}>
+          <div className="photo-upload-row">
+            <label className="photo-upload-circle">
+              {photo ? (
+                <img className="photo-preview" src={photo} alt="" />
+              ) : (
+                <div className="photo-preview photo-preview-empty" aria-hidden="true">
+                  <span className="photo-upload-icon">📷</span>
+                  <span className="photo-upload-caption">{t.uploadPhoto}</span>
+                </div>
+              )}
+              <input type="file" accept="image/*" onChange={handlePhotoChange} />
+            </label>
+            {photo && <label className="photo-change-link">{t.changePhoto}<input type="file" accept="image/*" onChange={handlePhotoChange} /></label>}
+          </div>
+
+          <div className="form-grid">
+            <label>{t.name}<input type="text" placeholder={t.namePlaceholder} value={name} onChange={(event) => setName(event.target.value)} required /></label>
+            <label>{t.phone}<input type="tel" placeholder={t.phonePlaceholder} value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
+            <label>{t.areaOfLand}<input type="number" step="0.01" min="0" placeholder={t.areaOfLandPlaceholder} value={areaOfLand} onChange={(event) => setAreaOfLand(event.target.value)} required /></label>
+            <label>{t.surveyNumber}<input type="text" placeholder={t.surveyNumberPlaceholder} value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value.toUpperCase())} required /></label>
+            <label>{t.aadhaarNumber}<input type="text" placeholder={t.aadhaarPlaceholder} value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value.toUpperCase())} required /></label>
+            <label>{t.locationOfCrop}<input type="text" placeholder={t.cropLocationPlaceholder} value={cropLocation} onChange={(event) => setCropLocation(event.target.value.toUpperCase())} required /></label>
+          </div>
+
+          <h3 className="form-section-title">{t.stepBankDetails}</h3>
+
+          <div className="form-grid">
+            <label>{t.accountHolderName}<input type="text" placeholder={t.accountHolderPlaceholder} value={accountHolderName} onChange={(event) => setAccountHolderName(event.target.value.toUpperCase())} required /></label>
+            <label>{t.accountNumber}<input type="text" placeholder={t.accountNumberPlaceholder} value={accountNumber} onChange={(event) => setAccountNumber(event.target.value.toUpperCase())} required /></label>
+            <label>{t.ifscCode}
+              <input type="text" placeholder={t.ifscPlaceholder} value={ifsc} onChange={handleIfscChange} maxLength={11} required />
+              {ifscStatus === 'loading' && <small className="ifsc-hint">{t.ifscLookingUp}</small>}
+              {ifscStatus === 'found' && <small className="ifsc-hint ifsc-hint-ok">{t.ifscFound}</small>}
+              {ifscStatus === 'notfound' && <small className="ifsc-hint ifsc-hint-warn">{t.ifscNotFound}</small>}
+            </label>
+            <label>{t.branch}
+              <input type="text" placeholder={t.branchPlaceholder} value={branch} onChange={(event) => setBranch(event.target.value.toUpperCase())} required />
+            </label>
+          </div>
 
           <div className="profile-actions">
             {saveError && <p className="form-error" role="alert">{saveError}</p>}
-            {step > 0 && <button type="button" className="button button-quiet" onClick={() => setStep(step - 1)}>{t.back}</button>}
-            {step < steps.length - 1
-              ? <button type="button" className="button button-primary" onClick={goNext}>{t.next}</button>
-              : <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? t.savingButton : t.saveFinish}</button>}
+            {namedCrops.length > 0 && <p className="form-note">{t.namedCropsSaved.replace('{n}', namedCrops.length)}</p>}
+            <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? t.savingButton : t.saveFinish}</button>
           </div>
         </form>
       </div>

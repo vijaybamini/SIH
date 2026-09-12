@@ -21,6 +21,7 @@ function mapCrop(row) {
     specificType: row.specific_crop_type || '',
     plantedDate: row.planted_date || '',
     expectedHarvestDate: row.expected_harvest_date || '',
+    landUsed: row.land_used == null ? '' : String(row.land_used),
   }
 }
 
@@ -44,7 +45,7 @@ function mapFarmerData(profile, crops, bank, basicProfile) {
         }
       : null,
   }
-  data.profileComplete = Boolean(profile && mappedCrops.length && bank)
+  data.profileComplete = Boolean(profile && bank)
   return data
 }
 
@@ -107,6 +108,7 @@ export async function saveFarmerData(userId, formData) {
         farmer_id: userId,
         crop_type: crop.name.trim(),
         specific_crop_type: crop.specificType.trim() || null,
+        land_used: asNumberOrNull(crop.landUsed),
         turnover: crop.harvested ? asNumberOrNull(crop.turnover) : null,
         expected_turnover: crop.harvested ? null : asNumberOrNull(crop.turnover),
         harvested: crop.harvested,

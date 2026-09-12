@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './styles.css'
 import { isSupabaseConfigured, supabase } from './supabase'
 import Dashboard from './Dashboard'
+import BulkBuyerDashboard from './BulkBuyerDashboard'
 import CompleteProfileFarmer from './CompleteProfileFarmer'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
@@ -107,6 +108,17 @@ function App() {
           setCompletingProfile(false)
           setQuickAddCrop(false)
         }}
+      />
+    )
+  }
+
+  if (currentUser && currentUser.role === 'buyer') {
+    return (
+      <BulkBuyerDashboard
+        user={currentUser}
+        language={language}
+        setLanguage={setLanguage}
+        onLogout={() => setCurrentUser(null)}
       />
     )
   }
@@ -227,7 +239,7 @@ function AuthPanel({ type, onClose, onSwitch, onAuthenticated, language, setLang
   const [registeredName, setRegisteredName] = useState('')
   const roles = {
     farmer: { title: t.farmer, description: t.farmerRoleDesc, icon: '🌱', requiredKey: 'farm_name' },
-    buyer: { title: t.bulkBuyer, description: t.buyerRoleDesc, icon: '🏪', requiredKey: 'business_name' },
+    buyer: { title: t.bulkBuyer, description: t.buyerRoleDesc, icon: '🏪', requiredKey: 'name' },
     logistics: { title: t.logisticsProvider, description: t.logisticsRoleDesc, icon: '🚚', requiredKey: 'company_name' },
     service: { title: t.serviceProvider, description: t.serviceRoleDesc, icon: '🛠', requiredKey: 'business_name' },
   }

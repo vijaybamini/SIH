@@ -47,6 +47,62 @@ function cropProgress(plantedDate, expectedHarvestDate) {
   return { pct, daysLeft }
 }
 
+function CropHistoryPage({ crops, t }) {
+  const current = crops.filter((crop) => !crop.harvested)
+  const past = crops.filter((crop) => crop.harvested)
+  const sorted = [...current, ...past]
+  return (
+    <section className="crop-history-page">
+      <div className="section-heading-row crop-history-heading">
+        <div>
+          <p className="eyebrow">{t.stepCropDetails}</p>
+          <h3>{t.navCropHistory}</h3>
+        </div>
+      </div>
+      {sorted.length === 0 ? (
+        <div className="empty-card">
+          <p>{t.noCropsYet}</p>
+        </div>
+      ) : (
+        <>
+          <p className="crop-history-subtitle">{t.cropHistorySubtitle}</p>
+          <div className="crop-history-list">
+            {sorted.map((crop) => {
+              const progress = cropProgress(crop.plantedDate, crop.expectedHarvestDate)
+              return (
+                <article className="crop-history-card" key={crop.id}>
+                  <header>
+                    <strong>{crop.name}{crop.specificType ? ` · ${crop.specificType}` : ''}</strong>
+                    <span className={`crop-history-status${crop.harvested ? ' harvested' : ''}`}>
+                      {crop.harvested
+                        ? t.harvested
+                        : (progress && progress.daysLeft > 0 ? t.harvestIn.replace('{n}', progress.daysLeft) : t.readyToHarvest)}
+                    </span>
+                  </header>
+                  <div className="crop-history-grid">
+                    <div><span>{t.landLabel}</span><strong>{crop.landUsed ? `${crop.landUsed} ${t.acres}` : '—'}</strong></div>
+                    <div><span>{t.turnoverLabel}</span><strong>{crop.turnover ? `${crop.turnover} ${t.quintals}` : '—'}</strong></div>
+                    <div><span>{t.datePlanted}</span><strong>{crop.plantedDate || '—'}</strong></div>
+                    <div><span>{crop.harvested ? t.dateHarvested : t.expectedHarvestDate}</span><strong>{crop.expectedHarvestDate || '—'}</strong></div>
+                  </div>
+                  {progress && !crop.harvested && (
+                    <div className="crop-history-progress">
+                      <div className="progress-track crop-progress-track">
+                        <div className="progress-fill" style={{ width: `${progress.pct}%`, background: '#000' }} />
+                      </div>
+                      <span className="crop-history-pct">{progress.pct}%</span>
+                    </div>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
 export default function Dashboard({ user, farmerProfile, language, setLanguage, onOpenCompleteProfile, onQuickAddCrop, onMarkCropHarvested, onLogout }) {
   const t = useTranslation(language)
   const [activeNav, setActiveNav] = useState('Dashboard')
@@ -56,8 +112,12 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
 
   const navItems = [
     ['Dashboard', t.navDashboard], ['Analytics', t.navAnalytics], ['Fields', t.navFields],
-    ['Harvesting', t.navHarvesting], ['Finances', t.navFinances], ['Settings', t.navSettings],
+    ['Harvesting', t.navHarvesting], ['CropHistory', t.navCropHistory], ['Finances', t.navFinances], ['Settings', t.navSettings],
   ]
+
+  function handleNavClick(key) {
+    setActiveNav(key)
+  }
 
   const allCrops = farmerProfile?.crops?.filter((crop) => crop.name) ?? []
   const crops = allCrops.filter((crop) => !crop.harvested)
@@ -70,7 +130,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
 
         <nav className="dash-nav" aria-label={t.dashboardNavLabel}>
           {navItems.map(([key, label]) => (
-            <button key={key} className={activeNav === key ? 'active' : ''} onClick={() => setActiveNav(key)}>{label}</button>
+            <button key={key} className={activeNav === key ? 'active' : ''} onClick={() => handleNavClick(key)}>{label}</button>
           ))}
         </nav>
 
@@ -103,8 +163,11 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
           </div>
         </header>
 
-        <div className="dash-grid">
-          <div className="dash-col-main">
+        {activeNav === 'CropHistory' ? (
+          <CropHistoryPage crops={allCrops} t={t} />
+        ) : (
+          <div className="dash-grid">
+            <div className="dash-col-main">
             <div className="section-heading-row">
               <h3>{t.currentCrops}</h3>
               <button className="icon-add-button" onClick={onQuickAddCrop} aria-label={t.addAnotherCrop} title={t.addAnotherCrop}>+</button>
@@ -213,6 +276,7 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
             </div>
           </div>
         </div>
+        )}
       </main>
     </div>
   )
