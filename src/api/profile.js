@@ -4,6 +4,17 @@ function requireSupabase() {
   if (!supabase) throw new Error('Supabase is not configured. Add the project URL and publishable key.')
 }
 
+export async function loadUserRole(userId) {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data?.role || null
+}
+
 export async function loadBasicProfile(userId) {
   requireSupabase()
   const { data, error } = await supabase
