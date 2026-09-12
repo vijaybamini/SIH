@@ -100,12 +100,70 @@ function QuoteBreakdown({ result }) {
   )
 }
 
+function formatCardNumber(value) {
+  return value.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ').trim()
+}
+
+function formatExpiry(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 4)
+  return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
+}
+
+function PaymentForm({ amount, onPay, paying, error }) {
+  const [cardNumber, setCardNumber] = useState('')
+  const [cardName, setCardName] = useState('')
+  const [expiry, setExpiry] = useState('')
+  const [cvv, setCvv] = useState('')
+
+  const isValid = cardNumber.replace(/\s/g, '').length === 16
+    && cardName.trim().length > 1
+    && /^\d{2}\/\d{2}$/.test(expiry)
+    && cvv.length === 3
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    if (isValid) onPay()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="payment-form">
+      <div className="payment-badge">🔒 Test mode — no real charge will be made</div>
+      <div className="payment-amount">
+        <span>Amount to pay</span>
+        <strong>{money(amount)}</strong>
+      </div>
+      <label>Card number
+        <input
+          type="text" inputMode="numeric" placeholder="4242 4242 4242 4242"
+          value={cardNumber} onChange={(event) => setCardNumber(formatCardNumber(event.target.value))} required
+        />
+      </label>
+      <label>Name on card
+        <input type="text" placeholder="AS ON CARD" value={cardName} onChange={(event) => setCardName(event.target.value.toUpperCase())} required />
+      </label>
+      <div className="form-grid">
+        <label>Expiry
+          <input type="text" inputMode="numeric" placeholder="MM/YY" value={expiry} onChange={(event) => setExpiry(formatExpiry(event.target.value))} required />
+        </label>
+        <label>CVV
+          <input type="password" inputMode="numeric" placeholder="•••" maxLength={3} value={cvv} onChange={(event) => setCvv(event.target.value.replace(/\D/g, '').slice(0, 3))} required />
+        </label>
+      </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <button className="button button-primary submit-button" type="submit" disabled={!isValid || paying}>
+        {paying ? 'Processing payment…' : `Pay ${money(amount)}`} <span>→</span>
+      </button>
+    </form>
+  )
+}
+
 function QuoteModal({ commodity, buyerId, buyerPincode, onClose }) {
   const [quantity, setQuantity] = useState('500')
   const [pincode, setPincode] = useState(buyerPincode || '')
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [quoteError, setQuoteError] = useState('')
   const [quote, setQuote] = useState(null)
+  const [checkoutStage, setCheckoutStage] = useState('quote') // 'quote' | 'payment' | 'done'
   const [orderLoading, setOrderLoading] = useState(false)
   const [orderError, setOrderError] = useState('')
   const [orderId, setOrderId] = useState(null)
@@ -122,6 +180,7 @@ function QuoteModal({ commodity, buyerId, buyerPincode, onClose }) {
     setQuoteError('')
     setQuote(null)
     setOrderId(null)
+    setCheckoutStage('quote')
     if (!(Number(quantity) > 0)) {
       setQuoteError('Enter a quantity greater than 0.')
       return
@@ -137,7 +196,7 @@ function QuoteModal({ commodity, buyerId, buyerPincode, onClose }) {
     }
   }
 
-  async function handleConfirm() {
+  async function handlePay() {
     if (!buyerId) {
       setOrderError('Sign in as a buyer to place an order.')
       return
@@ -145,8 +204,11 @@ function QuoteModal({ commodity, buyerId, buyerPincode, onClose }) {
     setOrderError('')
     setOrderLoading(true)
     try {
+      // Dummy gateway: simulate processing time, no card data is sent anywhere.
+      await new Promise((resolve) => setTimeout(resolve, 1400))
       const result = await placeOrder({ ...buildPayload(), buyer_id: buyerId })
       setOrderId(result.order_id)
+      setCheckoutStage('done')
     } catch (error) {
       setOrderError(error.message || 'Could not place this order.')
     } finally {
@@ -174,22 +236,34 @@ function QuoteModal({ commodity, buyerId, buyerPincode, onClose }) {
           </button>
         </form>
 
-        {quote && (
+        {quote && checkoutStage === 'quote' && (
           <div style={{ marginTop: 22 }}>
             <QuoteBreakdown result={quote} />
+            <button className="button button-primary submit-button" onClick={() => setCheckoutStage('payment')}>
+              Proceed to payment <span>→</span>
+            </button>
+          </div>
+        )}
 
-            {orderId ? (
-              <div className="summary-crop-card" style={{ background: '#eaf2df' }}>
-                <strong>Order confirmed — #{orderId}</strong>
-              </div>
-            ) : (
-              <>
-                {orderError && <p className="form-error" role="alert">{orderError}</p>}
-                <button className="button button-primary submit-button" onClick={handleConfirm} disabled={orderLoading}>
-                  {orderLoading ? 'Placing order…' : 'Confirm order'} <span>→</span>
-                </button>
-              </>
-            )}
+        {quote && checkoutStage === 'payment' && (
+          <div style={{ marginTop: 22 }}>
+            <PaymentForm
+              amount={quote.consumer_breakdown.order_totals.grand_total_to_pay}
+              onPay={handlePay}
+              paying={orderLoading}
+              error={orderError}
+            />
+            <button type="button" className="text-link" style={{ marginTop: 10 }} onClick={() => setCheckoutStage('quote')} disabled={orderLoading}>
+              ← Back
+            </button>
+          </div>
+        )}
+
+        {checkoutStage === 'done' && (
+          <div className="summary-crop-card payment-success" style={{ marginTop: 22 }}>
+            <div className="payment-success-icon" aria-hidden="true">✓</div>
+            <strong>Payment successful</strong>
+            <span>Order confirmed — #{orderId}</span>
           </div>
         )}
       </section>
