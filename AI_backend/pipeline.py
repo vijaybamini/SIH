@@ -162,10 +162,21 @@ def pricing_profile_for(commodity: str) -> str:
 
 
 def _match_commodity(df: pd.DataFrame, commodity: str) -> Optional[str]:
-    """Case-insensitive exact-ish match against CSV commodity names."""
+    """Case-insensitive match against CSV commodity names. Tries an exact
+    match first; if that fails, falls back to substring containment either
+    direction (e.g. farmer-form crop names like "Jowar" or "Bajra" need to
+    resolve to the dataset's "Jowar(Sorghum)" / "Bajra(Pearl Millet/Cumbu)",
+    which an exact match alone would never find)."""
     target = commodity.strip().lower()
-    for c in df["commodity"].dropna().unique():
+    if not target:
+        return None
+    options = list(df["commodity"].dropna().unique())
+    for c in options:
         if str(c).strip().lower() == target:
+            return str(c)
+    for c in options:
+        c_lower = str(c).strip().lower()
+        if target in c_lower or c_lower in target:
             return str(c)
     return None
 
@@ -551,5 +562,86 @@ def get_consumer_quote(payload: Dict[str, Any]) -> Dict[str, Any]:
             "consumer_pays": breakdown["order_totals"]["grand_total_to_pay"],
         },
         "middlemen_in_chain": False,
+        "warnings": warnings,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Farmer-facing price signal (no buyer/order involved)
+# --------------------------------------------------------------------------- #
+
+def get_farmer_price_signal(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """What a farmer would net per kg for a commodity RIGHT NOW, before any
+    logistics cost (which is buyer/route-specific and doesn't exist until an
+    actual order is placed). Reuses the exact same forecast + macro/micro
+    pricing math the buyer-facing quote uses -- historical_base_price_kg from
+    the Holt-Winters forecast, market_demand_trend_pct as the macro
+    multiplier, and pooled_demand_kg (a read-only peek, NOT a new
+    registration) vs. real/heuristic supply as the micro scarcity
+    multiplier -- so a farmer sees the same number a buyer's quote would be
+    built from, not a separately-invented figure.
+    """
+    from consumer_pricing_engine import ConsumerPricingEngine
+    import demand_pool
+
+    df = load_dataset()
+
+    commodity = str(payload.get("commodity", "")).strip()
+    real_commodity = _match_commodity(df, commodity)
+    if real_commodity is None:
+        raise ValueError(f"Unknown commodity '{commodity}'. Options: {list_commodities()}")
+
+    market = str(payload.get("market") or "").strip()
+    if not market:
+        market = pick_default_market(df, real_commodity)
+        uses_default_market = True
+    else:
+        uses_default_market = False
+
+    forecast_days = int(payload.get("forecast_days", 7))
+    forecast, forecast_warning = forecast_with_fallback(df, real_commodity, market, forecast_days)
+
+    from supabase_integration import fetch_real_supply_kg
+    supply_kg = fetch_real_supply_kg(real_commodity)
+    supply_source = "supabase_live_listings"
+    if supply_kg is None:
+        # No order size to seed a heuristic from here (there's no buyer yet) --
+        # a fixed, clearly-labeled placeholder is more honest than pretending
+        # to derive one.
+        supply_kg = demand_pool.get_or_create_heuristic_supply_kg(real_commodity, 1000.0)
+        supply_source = "heuristic_placeholder"
+
+    pooled_demand_kg = demand_pool.current_pooled_demand_kg(real_commodity)
+
+    consumer = ConsumerPricingEngine(platform_fee_pct=float(payload.get("platform_fee_pct", 8.0)))
+    quote = consumer.generate_consumer_price(
+        historical_base_price_kg=forecast["base_price_per_kg"],
+        market_demand_trend_pct=forecast["market_demand_trend_pct"],
+        total_platform_supply_kg=supply_kg,
+        order_demand_kg=1.0,       # no real order exists yet; only the per-kg rate is used below
+        total_logistics_cost=0.0,  # logistics is buyer/route-specific, not known until an order exists
+        pooled_demand_kg=pooled_demand_kg,
+    )
+
+    warnings = []
+    if forecast_warning:
+        warnings.append(forecast_warning)
+    if uses_default_market:
+        warnings.append(f"No market specified; used '{market}' (most recent history for '{real_commodity}').")
+    if supply_source == "heuristic_placeholder":
+        warnings.append(f"No live Supabase listings found for '{real_commodity}'; supply/scarcity is a placeholder.")
+
+    return {
+        "commodity": real_commodity,
+        "market": market,
+        "base_price_per_kg": forecast["base_price_per_kg"],
+        "market_demand_trend_pct": forecast["market_demand_trend_pct"],
+        "demand_pressure_signal": forecast["demand_pressure_signal"],
+        "market_crop_price_per_kg": round(quote.market_crop_price_per_kg, 2),
+        "farmer_net_price_per_kg": round(quote.farmer_net_price_per_kg, 2),
+        "platform_commission_pct": round(quote.commission_pct * 100, 2),
+        "total_platform_supply_kg": supply_kg,
+        "supply_source": supply_source,
+        "pooled_demand_kg": pooled_demand_kg,
         "warnings": warnings,
     }

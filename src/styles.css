@@ -334,3 +334,19 @@ form { display: grid; gap: 16px; } label { color: #4b5e50; display: grid; font-s
 @media (max-width: 900px) { .buyer-topbar { flex-wrap: wrap; } .buyer-search { max-width: none; order: 3; width: 100%; } }
 @media (max-width: 680px) { .buyer-product-grid { grid-template-columns: repeat(2, 1fr); } .buyer-category-modal { padding: 26px 20px 30px; } .buyer-profile-info { display: none; } }
 @media (max-width: 420px) { .buyer-product-grid { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------------------
+ * Farmer dashboard: today's-price widget
+ * -------------------------------------------------------------------------*/
+.price-widget { margin-bottom: 28px; }
+.price-widget-card { background: #fbfcfa; border: 1px solid #e2e9df; border-radius: 12px; overflow: hidden; }
+.price-widget-row { align-items: center; border-bottom: 1px solid #eef2ea; display: flex; justify-content: space-between; padding: 12px 16px; }
+.price-widget-row:last-child { border-bottom: 0; }
+.price-widget-crop { color: #304336; font-size: 14px; font-weight: 700; }
+.price-widget-value { align-items: center; color: #223318; display: flex; font-size: 15px; font-weight: 700; gap: 8px; }
+.price-widget-loading, .price-widget-unavailable { color: #9aa693; font-size: 13px; font-style: italic; }
+.price-trend { border-radius: 999px; font-size: 11.5px; font-style: normal; font-weight: 700; padding: 2px 8px; }
+.price-trend-up { background: #eaf2df; color: #2f6b45; }
+.price-trend-down { background: #fdeceb; color: #b3402f; }
+.price-trend-flat { background: #f0f0ec; color: #7a877d; }
+.price-widget-note { color: #9aa693; font-size: 12px; line-height: 1.5; margin: 10px 2px 0; }

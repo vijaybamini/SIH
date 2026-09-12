@@ -33,6 +33,10 @@ export function fetchSupply(commodity) {
   return request(`/api/supply?commodity=${encodeURIComponent(commodity)}`)
 }
 
+export function fetchFarmerPrice(commodity) {
+  return request(`/api/farmer-price?commodity=${encodeURIComponent(commodity)}`)
+}
+
 export function fetchQuote(payload) {
   return request('/api/quote', { method: 'POST', body: JSON.stringify(payload) })
 }

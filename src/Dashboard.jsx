@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
+import PriceWidget from './PriceWidget'
 import { useTranslation } from './i18n'
 
 const TOOLTIP_HOLD_MS = 2000
@@ -247,6 +248,8 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
           </div>
 
           <div className="dash-col-side">
+            <PriceWidget crops={allCrops} />
+
             <h3>{t.farmerDetails}</h3>
             <div className="farmer-details-card">
               <div className="farmer-photo-wrap">

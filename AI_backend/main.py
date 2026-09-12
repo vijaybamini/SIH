@@ -88,6 +88,25 @@ def supply(commodity: str):
         raise HTTPException(status_code=503, detail=f"Pipeline unavailable: {exc}")
 
 
+@app.get("/api/farmer-price")
+def farmer_price(commodity: str, market: str = None):
+    """What a farmer would net per kg for a commodity right now (forecast +
+    demand trend + scarcity, before any buyer-specific logistics cost) —
+    the same pricing math /api/quote uses, without needing a buyer order."""
+    try:
+        from pipeline import get_farmer_price_signal
+        payload = {"commodity": commodity}
+        if market:
+            payload["market"] = market
+        return get_farmer_price_signal(payload)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Pipeline unavailable: {exc}")
+
+
 @app.post("/api/quote")
 def quote(data: dict):
     """End-to-end farmer -> consumer quote.
