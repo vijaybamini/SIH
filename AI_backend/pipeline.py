@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import math
 import os
-from functools import lru_cache
+import queue
+import threading
 from typing import Dict, Any, List, Optional, Tuple
 
 import pandas as pd
@@ -104,10 +105,52 @@ def resolve_agmarknet_csv() -> Optional[str]:
 
 from demand_forecast_engine import load_kaggle_data
 
+# Deliberately NOT functools.lru_cache: its internal lock serializes every
+# caller on a cache miss, including callers running in their own timeout-
+# guarded background thread elsewhere in this codebase -- if the underlying
+# load_kaggle_data() call ever hangs (observed in production: a resource-
+# constrained host made a 1.1M-row CSV parse intermittently take far longer
+# than expected), EVERY other thread that touches this cache queues forever
+# on that same lock with no way to time out, and each new request adds one
+# more permanently-stuck thread. A plain dict has no such lock: at worst two
+# threads redundantly parse the CSV once on a cold cache (wasted work, never
+# a deadlock), and _load_dataset_with_timeout below still bounds each
+# individual caller's own wait regardless of what other threads are doing.
+_dataset_cache: Dict[str, pd.DataFrame] = {}
 
-@lru_cache(maxsize=1)
-def _dataset_cached(csv_path: str) -> pd.DataFrame:
-    return load_kaggle_data(csv_path)
+DATASET_LOAD_TIMEOUT_SECONDS = 25.0
+
+
+def _load_dataset_with_timeout(path: str) -> pd.DataFrame:
+    cached = _dataset_cache.get(path)
+    if cached is not None:
+        return cached
+
+    result_queue: "queue.Queue" = queue.Queue(maxsize=1)
+
+    def _worker():
+        try:
+            df = load_kaggle_data(path)
+            _dataset_cache[path] = df  # populate cache even though this
+            # thread's own caller may already have given up waiting -- a
+            # later caller still benefits from not having to re-parse.
+            result_queue.put(("ok", df))
+        except Exception as exc:  # noqa: BLE001 -- reported back, not raised cross-thread
+            result_queue.put(("error", exc))
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+    try:
+        status, payload = result_queue.get(timeout=DATASET_LOAD_TIMEOUT_SECONDS)
+    except queue.Empty:
+        raise TimeoutError(
+            f"Loading the Agmarknet dataset took longer than "
+            f"{DATASET_LOAD_TIMEOUT_SECONDS:.0f}s. The host may be under memory/CPU "
+            f"pressure; try again shortly."
+        )
+    if status == "error":
+        raise payload
+    return payload
 
 
 def load_dataset() -> pd.DataFrame:
@@ -117,7 +160,7 @@ def load_dataset() -> pd.DataFrame:
             "Agmarknet CSV not found. Set AGMARKNET_CSV or place the dataset "
             "under agmarknet_data/agmarknet-india-commodity-prices-2024-2025/."
         )
-    return _dataset_cached(path)
+    return _load_dataset_with_timeout(path)
 
 
 # --------------------------------------------------------------------------- #
@@ -320,26 +363,86 @@ def forecast_for(df: pd.DataFrame, commodity: str, market: str,
     }
 
 
+def _recent_average_fallback(df: pd.DataFrame, commodity: str, market: str,
+                              forecast_days: int, reason: str) -> Tuple[Dict[str, Any], str]:
+    rows = df.loc[(df["commodity"] == commodity) & (df["market_name"] == market)]
+    recent = float(rows["modal_price"].mean()) if len(rows) else 0.0
+    return {
+        "market": market,
+        "commodity": commodity,
+        "forecast_days": forecast_days,
+        "forecasted_prices_per_quintal": [],
+        "base_price_per_kg": round(recent / _QUINTAL_KG, 2),
+        "last_observed_price_per_kg": round(recent / _QUINTAL_KG, 2),
+        "market_demand_trend_pct": 0.0,
+        "demand_pressure_signal": "STABLE",
+        "backtest": {"mae_per_quintal": None, "mape_pct": None},
+    }, reason
+
+
+# Holt-Winters' .fit() runs a CPU-bound scipy optimization (~0.2-0.7s on a
+# normal machine) that was observed taking 25s+ on Render's free-tier CPU,
+# which is throttled far more aggressively for CPU-bound work than for I/O.
+# Two defenses, mirroring the dataset cache above: (1) a short-TTL result
+# cache so repeat requests for the same commodity/market during a demo are
+# instant instead of re-fitting every time, and (2) a hard wall-clock
+# ceiling via a background thread so a slow fit degrades to the fast
+# recent-average fallback instead of hanging the whole /api/quote request.
+_forecast_cache: Dict[Tuple[str, str, int], Tuple[float, Dict[str, Any], Optional[str]]] = {}
+FORECAST_CACHE_TTL_SECONDS = 600.0
+FORECAST_TIMEOUT_SECONDS = 12.0
+
+
 def forecast_with_fallback(df: pd.DataFrame, commodity: str, market: str,
                            forecast_days: int = 7) -> Tuple[Dict[str, Any], Optional[str]]:
-    """Try the Holt-Winters forecast; if the market lacks enough history,
-    fall back to the recent observed mean (drawdown) with a warning."""
-    rows = df.loc[(df["commodity"] == commodity) & (df["market_name"] == market)]
+    """Try the Holt-Winters forecast (cached, time-boxed); if the market
+    lacks enough history OR the fit doesn't finish within
+    FORECAST_TIMEOUT_SECONDS, fall back to the recent observed mean
+    (drawdown) with a warning instead of hanging the request."""
+    import time
+
+    cache_key = (commodity, market, forecast_days)
+    cached = _forecast_cache.get(cache_key)
+    if cached is not None and (time.monotonic() - cached[0]) < FORECAST_CACHE_TTL_SECONDS:
+        return cached[1], cached[2]
+
+    result_queue: "queue.Queue" = queue.Queue(maxsize=1)
+
+    def _worker():
+        try:
+            result_queue.put(("ok", forecast_for(df, commodity, market, forecast_days)))
+        except ValueError as e:
+            result_queue.put(("value_error", e))
+        except Exception as exc:  # noqa: BLE001 -- reported back, not raised cross-thread
+            result_queue.put(("error", exc))
+
+    threading.Thread(target=_worker, daemon=True).start()
+
     try:
-        return forecast_for(df, commodity, market, forecast_days), None
-    except ValueError as e:
-        recent = float(rows["modal_price"].mean())
-        return {
-            "market": market,
-            "commodity": commodity,
-            "forecast_days": forecast_days,
-            "forecasted_prices_per_quintal": [],
-            "base_price_per_kg": round(recent / _QUINTAL_KG, 2),
-            "last_observed_price_per_kg": round(recent / _QUINTAL_KG, 2),
-            "market_demand_trend_pct": 0.0,
-            "demand_pressure_signal": "STABLE",
-            "backtest": {"mae_per_quintal": None, "mape_pct": None},
-        }, f"forecast fell back to recent average: {e}"
+        status, payload = result_queue.get(timeout=FORECAST_TIMEOUT_SECONDS)
+    except queue.Empty:
+        outcome = _recent_average_fallback(
+            df, commodity, market, forecast_days,
+            f"forecast fell back to recent average: took longer than "
+            f"{FORECAST_TIMEOUT_SECONDS:.0f}s (host under CPU pressure)",
+        )
+        # Deliberately not cached: a slow fit may finish moments later on its
+        # own thread and is worth trying again on the next request rather
+        # than pinning every buyer to the fallback for the full TTL.
+        return outcome
+
+    if status == "ok":
+        outcome = (payload, None)
+    elif status == "value_error":
+        outcome = _recent_average_fallback(
+            df, commodity, market, forecast_days,
+            f"forecast fell back to recent average: {payload}",
+        )
+    else:
+        raise payload
+
+    _forecast_cache[cache_key] = (time.monotonic(), outcome[0], outcome[1])
+    return outcome
 
 
 # --------------------------------------------------------------------------- #

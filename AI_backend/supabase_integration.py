@@ -11,6 +11,8 @@ pattern as AGMARKNET_CSV / pincode resolution elsewhere in this pipeline.
 from __future__ import annotations
 
 import os
+import queue
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -59,26 +61,55 @@ def _call_rpc(fn_name: str, params: Dict[str, Any], timeout: float = 5.0) -> Opt
     """POSTs to a Supabase RPC (PostgREST) function. Returns None on any
     failure -- missing config, network error, function not deployed yet, bad
     response -- so every caller degrades the same way instead of crashing a
-    quote request over Supabase being unavailable."""
+    quote request over Supabase being unavailable.
+
+    Runs the actual HTTP call on a background daemon thread and enforces a
+    HARD wall-clock ceiling via a queue, rather than trusting `requests`'
+    own `timeout=` alone: on at least one production host, a request here
+    was observed to hang well past its stated timeout (60s+, no response at
+    all) while the exact same call completed in under a second locally --
+    consistent with a DNS/connect-phase stall that `requests`' timeout
+    doesn't reliably bound on every platform. If that happens again, this
+    wrapper still returns None on schedule; the stuck worker thread is a
+    daemon and leaks harmlessly rather than blocking the whole quote."""
     cfg = _supabase_config()
     if cfg is None:
         return None
     url, key = cfg
+
+    result_queue: "queue.Queue" = queue.Queue(maxsize=1)
+
+    def _worker():
+        try:
+            resp = requests.post(
+                f"{url}/rest/v1/rpc/{fn_name}",
+                json=params,
+                headers={
+                    "apikey": key,
+                    "Authorization": f"Bearer {key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=timeout,
+            )
+            result_queue.put(("ok", resp))
+        except Exception as exc:  # noqa: BLE001 -- reported back, never raised across threads
+            result_queue.put(("error", exc))
+
+    threading.Thread(target=_worker, daemon=True).start()
+
     try:
-        resp = requests.post(
-            f"{url}/rest/v1/rpc/{fn_name}",
-            json=params,
-            headers={
-                "apikey": key,
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            },
-            timeout=timeout,
-        )
-        if resp.status_code != 200:
-            return None
+        status, payload = result_queue.get(timeout=timeout + 2.0)
+    except queue.Empty:
+        return None  # hard ceiling hit; the request never returned in time
+
+    if status == "error":
+        return None
+    resp = payload
+    if resp.status_code != 200:
+        return None
+    try:
         return resp.json()
-    except (requests.RequestException, ValueError, TypeError):
+    except ValueError:
         return None
 
 

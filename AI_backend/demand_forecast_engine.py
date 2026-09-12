@@ -49,14 +49,27 @@ COLUMN_MAP = {
 }
 
 
+# Only these 4 of the CSV's 11 columns are ever read by the live pipeline
+# (list_commodities/list_markets/forecast_price_trend/pick_default_market) --
+# district/variety/grade/state/min_price/max_price/Sl-no. are dead weight for
+# this dataframe. Skipping them via `usecols` cuts both parse time and (more
+# importantly on a memory-constrained host) peak RAM, since the dropped
+# columns are the highest-cardinality string ones. This mattered in practice:
+# on Render's free tier, loading the full 1.1M-row/97MB CSV was intermittently
+# taking 20s+ (sometimes much more) and made /api/quote look hung.
+_NEEDED_RAW_COLUMNS = ["Market Name", "Commodity", "Modal Price (Rs./Quintal)", "Price Date"]
+
+
 def load_kaggle_data(csv_path):
     """
     Loads the real Kaggle Agmarknet CSV and standardizes column names.
     Expected raw columns: Sl no., District Name, Market Name, Commodity,
     Variety, Grade, Min Price (Rs./Quintal), Max Price (Rs./Quintal),
-    Modal Price (Rs./Quintal), Price Date, State
+    Modal Price (Rs./Quintal), Price Date, State -- only Market Name,
+    Commodity, Modal Price, and Price Date are actually loaded (see
+    _NEEDED_RAW_COLUMNS).
     """
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, usecols=lambda c: c in _NEEDED_RAW_COLUMNS)
     df = df.rename(columns=COLUMN_MAP)
 
     # Price Date appears in the wild in several formats:
@@ -145,9 +158,14 @@ def forecast_price_trend(df, commodity, market, forecast_days=7):
     train = series[:-forecast_days]
     test = series[-forecast_days:]
 
+    # use_brute=False skips statsmodels' brute-force grid search over initial
+    # optimizer starting points (a handful of extra SSE evaluations that cost
+    # little on a normal CPU but add up on a throttled one) in favor of a
+    # single heuristic starting guess -- roughly 2x faster locally, same
+    # final optimizer, negligible difference in fit quality for a demo.
     model = ExponentialSmoothing(
         train, trend="add", seasonal="add", seasonal_periods=7,
-    ).fit()
+    ).fit(use_brute=False)
     backtest_pred = model.forecast(forecast_days)
     mae = np.mean(np.abs(backtest_pred.values - test.values))
     mape = np.mean(np.abs((backtest_pred.values - test.values) / test.values)) * 100
@@ -155,7 +173,7 @@ def forecast_price_trend(df, commodity, market, forecast_days=7):
     # --- Real forecast: refit on FULL history ---
     full_model = ExponentialSmoothing(
         series, trend="add", seasonal="add", seasonal_periods=7,
-    ).fit()
+    ).fit(use_brute=False)
 
     future_dates = pd.date_range(
         series.index[-1] + pd.Timedelta(days=1), periods=forecast_days, freq="D"
