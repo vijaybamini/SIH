@@ -13,6 +13,10 @@ function trendArrow(pct) {
   return '→'
 }
 
+function isFeaturedCrop(cropName) {
+  return /rice|paddy|paddh|dhan/i.test(cropName || '')
+}
+
 function CropPriceRow({ cropName, t }) {
   const [state, setState] = useState({ status: 'loading' })
 
@@ -27,7 +31,7 @@ function CropPriceRow({ cropName, t }) {
 
   if (state.status === 'loading') {
     return (
-      <div className="price-widget-row">
+      <div className={`price-widget-row${isFeaturedCrop(cropName) ? ' featured' : ''}`}>
         <span className="price-widget-crop">{cropName}</span>
         <span className="price-widget-loading">{t.checkingPrice}</span>
       </div>
@@ -36,7 +40,7 @@ function CropPriceRow({ cropName, t }) {
 
   if (state.status === 'error') {
     return (
-      <div className="price-widget-row">
+      <div className={`price-widget-row${isFeaturedCrop(cropName) ? ' featured' : ''}`}>
         <span className="price-widget-crop">{cropName}</span>
         <span className="price-widget-unavailable">{t.priceUnavailable}</span>
       </div>
@@ -45,7 +49,7 @@ function CropPriceRow({ cropName, t }) {
 
   const { farmer_net_price_per_kg, market_demand_trend_pct } = state.data
   return (
-    <div className="price-widget-row">
+    <div className={`price-widget-row${isFeaturedCrop(cropName) ? ' featured' : ''}`}>
       <span className="price-widget-crop">{cropName}</span>
       <span className="price-widget-value">
         ₹{farmer_net_price_per_kg}/kg

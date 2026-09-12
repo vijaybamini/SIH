@@ -86,6 +86,8 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
 
   const navItems = [
     ['Dashboard', t.navDashboard],
+    ['Transport', t.stepTransportation],
+    ['Storage', t.stepInventory],
   ]
 
   const profile = logisticsProfile?.profile
@@ -120,7 +122,15 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
 
         <nav className="dash-nav" aria-label={t.dashboardNavLabel}>
           {navItems.map(([key, label]) => (
-            <button key={key} className={activeNav === key ? 'active' : ''} onClick={() => setActiveNav(key)}>{label}</button>
+            <button
+              key={key}
+              className={activeNav === key ? 'active' : ''}
+              onClick={() => {
+                setActiveNav(key)
+                if (key === 'Transport') onSelectSection('transport')
+                if (key === 'Storage') onSelectSection('inventory')
+              }}
+            >{label}</button>
           ))}
         </nav>
 

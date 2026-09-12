@@ -130,7 +130,7 @@ form { display: grid; gap: 16px; } label { color: #4b5e50; display: grid; font-s
   --sidebar-bg: #dcebc4; --sidebar-text: #4a5c40; --sidebar-active-bg: #ffffff; --sidebar-active-text: #223318;
   --accent: #3f8f5f; --accent-soft: #71953b; --accent-light: #a9c76f;
   --page-bg: #f6f1e2; --card-cream: #f6efd9; --card-green: #eaf2df;
-  background: var(--page-bg); display: flex; font-family: 'Inter', 'DM Sans', sans-serif; font-size: 18px; line-height: 1.55; min-height: 100vh;
+  background: var(--page-bg); display: flex; font-family: 'Inter', 'DM Sans', sans-serif; font-size: 18px; line-height: 1.55; min-height: 100vh; zoom: 0.85;
 }
 .dashboard-shell button, .profile-page button { min-height: 48px; }
 .dash-sidebar { background: var(--sidebar-bg); display: flex; flex-direction: column; flex-shrink: 0; padding: 30px 20px; width: 260px; }
@@ -420,6 +420,9 @@ form { display: grid; gap: 16px; } label { color: #4b5e50; display: grid; font-s
 .price-widget-row:last-child { border-bottom: 0; }
 .price-widget-crop { color: #304336; font-size: 14px; font-weight: 700; }
 .price-widget-value { align-items: center; color: #223318; display: flex; font-size: 15px; font-weight: 700; gap: 8px; }
+.price-widget-row.featured { background: #eef6e3; }
+.price-widget-row.featured .price-widget-crop { color: #224d22; font-size: 17px; }
+.price-widget-row.featured .price-widget-value { color: #1c471f; font-size: 22px; }
 .price-widget-loading, .price-widget-unavailable { color: #9aa693; font-size: 13px; font-style: italic; }
 .price-trend { border-radius: 999px; font-size: 11.5px; font-style: normal; font-weight: 700; padding: 2px 8px; }
 .price-trend-up { background: #eaf2df; color: #3f8f5f; }
