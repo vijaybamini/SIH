@@ -75,6 +75,7 @@ function App() {
   const [logisticsProfile, setLogisticsProfile] = useState(null)
 const authRequestRef = useRef(0)
   const lastSessionUserRef = useRef(null)
+  const heroVideoRef = useRef(null)
   const [buyerProfile, setBuyerProfile] = useState(null)
 
   async function resolveUserRole(user) {
@@ -185,6 +186,14 @@ authRequestRef.current += 1
     storeLanguage(code)
     setLanguage(code)
   }
+
+  useEffect(() => {
+    // Some browsers ignore the `autoplay` attribute on a video that wasn't
+    // already in the initial document (React inserts it after mount), even
+    // when muted -- calling play() explicitly once the element exists covers
+    // that gap without affecting browsers where autoplay already worked.
+    heroVideoRef.current?.play().catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!supabase) return undefined
@@ -624,13 +633,16 @@ authRequestRef.current += 1
             </div>
           </div>
           <div className="hero-art" aria-label={t.heroIllustrationLabel}>
-            <div className="sun" />
-            <div className="mountains" />
-            <div className="field field-back" />
-            <div className="field field-front" />
-            <div className="plant plant-one"><i /><i /><i /></div>
-            <div className="plant plant-two"><i /><i /><i /></div>
-            <div className="plant plant-three"><i /><i /><i /></div>
+            <video
+              ref={heroVideoRef}
+              className="hero-video"
+              src="/intro.mp4"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+            />
           </div>
         </section>
 
