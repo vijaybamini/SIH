@@ -41,7 +41,7 @@ def _pipeline():
 
 @app.get("/")
 def home():
-    return {"message": "FarmDirect AI backend is running"}
+    return {"message": "FarmDirect AI backend is running", "build": "debug-quote-hang-2026-09-13a"}
 
 
 @app.get("/api/commodities")
@@ -105,6 +105,78 @@ def farmer_price(commodity: str, market: str = None):
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Pipeline unavailable: {exc}")
+
+
+@app.get("/api/debug-quote")
+def debug_quote(commodity: str = "Wheat"):
+    """TEMPORARY diagnostic: times each stage of the /api/quote pipeline
+    independently, with its own hard timeout per stage, so this endpoint
+    itself can never hang even if one stage does -- used to find exactly
+    where /api/quote is stalling in production without needing direct
+    server log access. Safe to remove once the hang is diagnosed."""
+    import queue
+    import threading
+    import time
+
+    def run_staged(name, fn, timeout_s):
+        t0 = time.time()
+        q: "queue.Queue" = queue.Queue(maxsize=1)
+
+        def _worker():
+            try:
+                q.put(("ok", fn()))
+            except Exception as exc:  # noqa: BLE001
+                q.put(("error", repr(exc)))
+
+        threading.Thread(target=_worker, daemon=True).start()
+        try:
+            status, payload = q.get(timeout=timeout_s)
+        except queue.Empty:
+            return {"stage": name, "status": "TIMED_OUT", "seconds": round(time.time() - t0, 2)}
+        return {"stage": name, "status": status, "seconds": round(time.time() - t0, 2),
+                "result": payload if status == "ok" else None,
+                "error": payload if status == "error" else None}
+
+    stages = []
+
+    import pipeline
+    r1 = run_staged("load_dataset", lambda: len(pipeline.load_dataset()), 20)
+    stages.append(r1)
+    if r1["status"] != "ok":
+        return {"stages": stages}
+
+    df = pipeline.load_dataset()
+    r2 = run_staged("match_commodity", lambda: pipeline._match_commodity(df, commodity), 5)
+    stages.append(r2)
+    real_commodity = r2.get("result") or commodity
+
+    r3 = run_staged("pick_default_market", lambda: pipeline.pick_default_market(df, real_commodity), 10)
+    stages.append(r3)
+    market = r3.get("result")
+
+    from supabase_integration import fetch_supply_listings, fetch_real_supply_kg
+    r4 = run_staged("fetch_supply_listings", lambda: fetch_supply_listings(real_commodity), 10)
+    stages.append(r4)
+
+    r5 = run_staged("fetch_real_supply_kg", lambda: fetch_real_supply_kg(real_commodity), 10)
+    stages.append(r5)
+
+    if market:
+        r6 = run_staged("forecast_with_fallback", lambda: pipeline.forecast_with_fallback(df, real_commodity, market, 7)[1] or "ok", 25)
+        stages.append(r6)
+
+    import demand_pool
+    r7 = run_staged("demand_pool", lambda: demand_pool.register_and_get_pooled_demand_kg(real_commodity, 500), 5)
+    stages.append(r7)
+
+    from pricing_engine import PricingEngine
+    eng = PricingEngine(str(CONFIG_PATH))
+    r8 = run_staged("pricing_engine", lambda: eng.price_trip(
+        commodity="fruits", shipment_weight_kg=500, distance_km=120, pickup="A", destination="B",
+    ).customer_pays, 10)
+    stages.append(r8)
+
+    return {"commodity_resolved": real_commodity, "market": market, "stages": stages}
 
 
 @app.post("/api/quote")
