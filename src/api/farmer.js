@@ -72,7 +72,11 @@ export async function saveFarmerData(userId, formData) {
 
   let photoUrl = formData.photo || null
   if (formData.photoFile) {
-    photoUrl = await uploadAvatar(userId, formData.photoFile)
+    try {
+      photoUrl = await uploadAvatar(userId, formData.photoFile)
+    } catch {
+      photoUrl = formData.photo || null
+    }
   }
   await updateBasicProfile(userId, { name: formData.name, phone: formData.phone, photoUrl })
 
