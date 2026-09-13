@@ -52,6 +52,7 @@ function logisticsSectionDone(logisticsProfile, section) {
 
 function App() {
   const [panel, setPanel] = useState(null)
+  const [registerRole, setRegisterRole] = useState(null)
   const [language, setLanguage] = useState(() => getStoredLanguage() || 'en')
   const [showLanguageSelection, setShowLanguageSelection] = useState(() => !getStoredLanguage())
   const t = useTranslation(language)
@@ -413,6 +414,18 @@ authRequestRef.current += 1
 
   const NAV_SUBMENUS = { about: footerLinks, services: servicesLinks }
 
+  function openRegister(role) {
+    setRegisterRole(role)
+    setPanel('register')
+  }
+
+  const serviceOfferings = [
+    { id: 'farmers', icon: '🌱', title: copy.svcFarmers, desc: t.farmerRoleDesc, role: 'farmer' },
+    { id: 'marketplace', icon: '🏪', title: copy.svcMarketplace, desc: t.buyerRoleDesc, role: 'buyer' },
+    { id: 'processing-unit', icon: '🛠', title: copy.svcProcessing, desc: t.serviceRoleDesc, role: 'service' },
+    { id: 'logistics', icon: '🚚', title: copy.svcLogistics, desc: t.logisticsRoleDesc, role: 'logistics' },
+  ]
+
   const toggleAccessibility = (key) => setAccessibility((current) => ({ ...current, [key]: !current[key] }))
   const setFontSizeLevel = (level) => setAccessibility((current) => ({ ...current, fontSizeLevel: Math.max(0, Math.min(FONT_SIZE_LEVELS.length - 1, level)) }))
   const setSaturationLevel = (level) => setAccessibility((current) => ({ ...current, saturationLevel: Math.max(0, Math.min(SATURATION_LEVELS.length - 1, level)) }))
@@ -719,7 +732,23 @@ authRequestRef.current += 1
           </div>
         </section>
 
-        <section className="mission-card" id="how-it-works">
+        <section className="services-section" id="how-it-works">
+          <p className="eyebrow">{copy.navServices}</p>
+          <div className="services-grid">
+            {serviceOfferings.map((service) => (
+              <div className="service-card" key={service.id} id={service.id}>
+                <span className="service-card-icon" aria-hidden="true">{service.icon}</span>
+                <h3>{service.title}</h3>
+                <p>{service.desc}</p>
+                <button className="button button-primary service-card-button" onClick={() => openRegister(service.role)}>
+                  {t.createAccount.replace('{role}', service.title)} <span>→</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mission-card" id="mission">
           <div>
             <p className="eyebrow">{copy.challenge}</p>
             <h2>{copy.mission}</h2>
@@ -752,7 +781,8 @@ authRequestRef.current += 1
           type={panel}
           language={language}
           setLanguage={handleSetLanguage}
-          onClose={() => setPanel(null)}
+          initialRole={registerRole}
+          onClose={() => { setPanel(null); setRegisterRole(null) }}
           onSwitch={() => setPanel(panel === 'login' ? 'register' : 'login')}
         />
       )}
@@ -802,10 +832,10 @@ function AuthLoadingScreen({ language }) {
   )
 }
 
-function AuthPanel({ type, onClose, onSwitch, language, setLanguage }) {
+function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole }) {
   const t = useTranslation(language)
   const isRegister = type === 'register'
-  const [role, setRole] = useState(null)
+  const [role, setRole] = useState(initialRole || null)
   const [submitted, setSubmitted] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
