@@ -1,4 +1,5 @@
 import { SELECTABLE_LANGUAGES, languageNames, languageSelectionCopy } from './i18n'
+import Logo from './Logo'
 
 export default function LanguageSelection({ onSelect }) {
   const copy = languageSelectionCopy.en
@@ -6,10 +7,7 @@ export default function LanguageSelection({ onSelect }) {
   return (
     <div className="language-screen">
       <div className="language-panel">
-        <a className="brand" href="#home" aria-label="FarmDirect home">
-          <span className="brand-mark">✦</span>
-          <span>Farm<span>Direct</span></span>
-        </a>
+        <Logo href="#home" label="FarmDirect home" />
 
         <h1 className="language-heading">{copy.title}</h1>
         <p className="language-subtitle">{copy.subtitle}</p>

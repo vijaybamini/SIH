@@ -56,6 +56,8 @@ function normalizeVehicle(vehicle, index) {
     location: vehicle?.location || '',
     status: vehicle?.status || 'active',
     history: Array.isArray(vehicle?.history) ? vehicle.history.map((entry) => ({ ...entry })) : [],
+    archived: Boolean(vehicle?.archived),
+    archivedDate: vehicle?.archivedDate || '',
   }
 }
 
@@ -66,6 +68,7 @@ function normalizeInventory(inventory) {
     capacity: inventory.capacity == null ? '' : String(inventory.capacity),
     location: inventory.location || '',
     fill: inventory.fill == null ? '' : String(inventory.fill),
+    records: Array.isArray(inventory.records) ? inventory.records.map((record) => ({ ...record })) : [],
   }
 }
 
@@ -161,9 +164,22 @@ export async function saveLogisticsData(userId, formData) {
             note: String(entry.note || '').trim(),
           }))
         : [],
+      archived: Boolean(vehicle.archived),
+      archivedDate: String(vehicle.archivedDate || '').trim(),
     }))
 
   const inventory = formData.inventory || {}
+  const inventoryRecords = Array.isArray(inventory.records)
+    ? inventory.records.map((record) => ({
+        id: String(record.id || `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+        crop: String(record.crop || '').trim(),
+        quantity: asNumberOrNull(record.quantity),
+        unit: String(record.unit || '').trim(),
+        harvestDate: String(record.harvestDate || '').trim(),
+        location: String(record.location || '').trim(),
+        status: record.status === 'sold' ? 'sold' : 'available',
+      }))
+    : []
   const fleetPayload = JSON.stringify({
     profile,
     vehicles,
@@ -172,6 +188,7 @@ export async function saveLogisticsData(userId, formData) {
       capacity: asNumberOrNull(inventory.capacity),
       location: String(inventory.location || '').trim(),
       fill: asNumberOrNull(inventory.fill),
+      records: inventoryRecords,
     },
   })
 

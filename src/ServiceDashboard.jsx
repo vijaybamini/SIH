@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
+import Logo from './Logo'
 import { useTranslation } from './i18n'
 
 const MENU_PROXIMITY_MARGIN = 28
@@ -87,7 +88,7 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
   return (
     <div className="dashboard-shell">
       <aside className="dash-sidebar">
-        <div className="dash-brand"><span className="brand-mark">✦</span>Farm<span>Direct</span></div>
+        <div className="dash-brand"><Logo /></div>
 
         <nav className="dash-nav" aria-label={t.dashboardNavLabel}>
           <button className="active">{t.navDashboard}</button>

@@ -10,20 +10,16 @@ import ServiceDashboard from './ServiceDashboard'
 import LogisticsDashboard from './LogisticsDashboard'
 import TransportationDashboard from './TransportationDashboard'
 import InventoryDashboard from './InventoryDashboard'
+import CompleteProfileLogistics from './CompleteProfileLogistics'
 import LanguageSwitcher from './LanguageSwitcher'
 import LanguageSelection from './LanguageSelection'
+import Logo from './Logo'
 import { getStoredLanguage, storeLanguage, useTranslation } from './i18n'
 import { loadFarmerData } from './api/farmer'
 import { loadLogisticsData } from './api/logistics'
 import { loadBuyerData } from './api/buyer'
 import { loadServiceData } from './api/service'
 import { loadUserRole } from './api/profile'
-
-const stats = [
-  { value: '0%', label: 'Unnecessary middlemen', icon: '↘' },
-  { value: '1:1', label: 'Farmer to buyer connection', icon: '↔' },
-  { value: '100%', label: 'Price transparency', icon: '₹' },
-]
 
 const FONT_SIZE_LEVELS = [87.5, 93.75, 100, 106.25, 112.5]
 const DEFAULT_FONT_SIZE_LEVEL = 2
@@ -297,11 +293,6 @@ authRequestRef.current += 1
     setCurrentUser((user) => user ? { ...user, name: data.name || user.name, profileComplete } : user)
   }
 
-  function logisticsFirstIncomplete(logisticsProfile) {
-    if (!chosenSection) return null
-    return logisticsSectionDone(logisticsProfile, chosenSection) ? null : chosenSection
-  }
-
   const copy = language === 'hi' ? {
     about: 'परियोजना के बारे में', how: 'यह कैसे काम करता है', login: 'लॉग इन', register: 'रजिस्टर',
     navServices: 'हमारी सेवाएं', navHow: 'यह कैसे काम करता है', navAbout: 'परियोजना के बारे में',
@@ -408,9 +399,7 @@ authRequestRef.current += 1
 
   const footerLinks = [
     { key: 'faq', label: copy.faq, href: '#faq' },
-    { key: 'shipping', label: copy.shippingPolicy, href: '#shipping-policy', accent: true },
     { key: 'policy', label: copy.policy, href: '#policy' },
-    { key: 'cancel', label: copy.cancelPolicy, href: '#cancel-policy' },
     { key: 'terms', label: copy.termsConditions, href: '#terms' },
     { key: 'contact', label: copy.contactUs, href: '#contact' },
   ]
@@ -512,6 +501,18 @@ authRequestRef.current += 1
           />
         )
       }
+      if (logisticsPage === 'profile') {
+        return (
+          <CompleteProfileLogistics
+            userId={currentUser.id}
+            initialData={logisticsProfile}
+            language={language}
+            setLanguage={handleSetLanguage}
+            onBack={() => setLogisticsPage(null)}
+            onComplete={handleLogisticsSave}
+          />
+        )
+      }
       return (
         <LogisticsDashboard
           user={currentUser}
@@ -521,7 +522,7 @@ authRequestRef.current += 1
           chosenSection={chosenSection}
           onChooseSection={handleChooseSection}
           onSelectSection={setLogisticsPage}
-          onOpenCompleteProfile={() => chosenSection && setLogisticsPage(logisticsFirstIncomplete(logisticsProfile) || chosenSection)}
+          onOpenCompleteProfile={() => setLogisticsPage('profile')}
           onLogout={handleLogout}
         />
       )
@@ -567,10 +568,7 @@ authRequestRef.current += 1
   return (
     <div className={`app-shell ${accessibilityClass}`} style={accessibilityStyle}>
       <header className="topbar">
-        <a className="brand" href="#home" aria-label={t.homeLabel}>
-          <span className="brand-mark">✦</span>
-          <span>Farm<span>Direct</span></span>
-        </a>
+        <Logo href="#home" label={t.homeLabel} />
         <nav className="nav-links" aria-label={t.mainNavLabel}>
           <ul>
             {navItems.map((item) => {
@@ -721,16 +719,7 @@ authRequestRef.current += 1
           </div>
         </section>
 
-        <section className="stats-row" id="how-it-works">
-          {stats.map((stat, index) => (
-            <article className="stat-card" key={stat.label}>
-              <div className="stat-icon">{stat.icon}</div>
-              <div><strong>{stat.value}</strong><span>{[copy.middlemen, copy.connection, copy.transparency][index]}</span></div>
-            </article>
-          ))}
-        </section>
-
-        <section className="mission-card">
+        <section className="mission-card" id="how-it-works">
           <div>
             <p className="eyebrow">{copy.challenge}</p>
             <h2>{copy.mission}</h2>
@@ -777,7 +766,7 @@ function RolePlaceholder({ user, language, setLanguage, onLogout }) {
   return (
     <div className="dashboard-shell">
       <aside className="dash-sidebar">
-        <div className="dash-brand"><span className="brand-mark">✦</span>Farm<span>Direct</span></div>
+        <div className="dash-brand"><Logo /></div>
         <button className="dash-logout" onClick={onLogout}><span aria-hidden="true">⤶</span> {t.logout}</button>
       </aside>
       <main className="dash-main">

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
 import { saveLogisticsData } from './api/logistics'
@@ -7,7 +7,7 @@ let vehicleIdCounter = 1
 
 function emptyVehicle() {
   vehicleIdCounter += 1
-  return { id: `new-${Date.now()}-${vehicleIdCounter}`, type: '', capacity: '', registrationNumber: '', location: '', status: 'active', history: [] }
+  return { id: `new-${Date.now()}-${vehicleIdCounter}`, type: '', capacity: '', registrationNumber: '', location: '', status: 'active', history: [], archived: false, archivedDate: '' }
 }
 
 function todayISO() {
@@ -60,90 +60,30 @@ function VehicleUpdateBox({ vehicle, t, onSave }) {
 
 export default function TransportationDashboard({ userId, initialData, language, setLanguage, onBack, onComplete }) {
   const t = useTranslation(language)
-  const [step, setStep] = useState(0)
-  const [unlockedStep, setUnlockedStep] = useState(0)
-  const formRef = useRef(null)
-  const [mode, setMode] = useState(() => {
-    const hasVehicle = (initialData?.vehicles || []).some((vehicle) => vehicle.type && vehicle.registrationNumber)
-    return hasVehicle ? 'overview' : 'edit'
-  })
-  const [profile, setProfile] = useState({
-    name: initialData?.profile?.name || '',
-    aadhaarNumber: initialData?.profile?.aadhaarNumber || '',
-    phone: initialData?.profile?.phone || '',
-    address: initialData?.profile?.address || '',
-    crops: initialData?.profile?.crops?.length ? initialData.profile.crops : [''],
-  })
-  const [photo, setPhoto] = useState(initialData?.photo || null)
-  const [photoFile, setPhotoFile] = useState(null)
-  const [vehicles, setVehicles] = useState(() => {
-    if (initialData?.vehicles?.length) return initialData.vehicles.map((vehicle) => ({ ...vehicle }))
-    return [emptyVehicle()]
-  })
+  const [tab, setTab] = useState('current')
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [form, setForm] = useState(() => emptyVehicle())
+  const [vehicles, setVehicles] = useState(() =>
+    (initialData?.vehicles || []).map((vehicle) => ({ ...vehicle }))
+  )
   const [saveError, setSaveError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const steps = [t.basicDetails, t.vehiclesSection]
 
-  function updateProfile(field, value) {
-    if (field === 'aadhaarNumber') value = value.replace(/\D/g, '').slice(0, 12)
-    if (field === 'phone') value = value.replace(/\D/g, '').slice(0, 10)
-    setProfile((current) => ({ ...current, [field]: value }))
-  }
+  const currentVehicles = vehicles.filter((vehicle) => !vehicle.archived)
+  const pastVehicles = vehicles.filter((vehicle) => vehicle.archived)
 
-  function updateCrop(index, value) {
-    setProfile((current) => ({ ...current, crops: current.crops.map((crop, i) => (i === index ? value : crop)) }))
-  }
-  function addCrop() {
-    setProfile((current) => ({ ...current, crops: [...current.crops, ''] }))
-  }
-  function removeCrop(index) {
-    setProfile((current) => ({ ...current, crops: current.crops.filter((_, i) => i !== index) }))
-  }
-
-  function handlePhotoChange(event) {
-    const file = event.target.files?.[0]
-    if (!file) return
-    setPhotoFile(file)
-    setPhoto(URL.createObjectURL(file))
-  }
-
-  function updateVehicle(id, field, value) {
-    const nextValue = field === 'registrationNumber' || field === 'location' ? value.toUpperCase() : value
-    setVehicles((current) => current.map((vehicle) => (vehicle.id === id ? { ...vehicle, [field]: nextValue } : vehicle)))
-  }
-
-  function addVehicle() {
-    setVehicles((current) => [...current, emptyVehicle()])
-  }
-
-  function removeVehicle(id) {
-    setVehicles((current) => current.filter((vehicle) => vehicle.id !== id))
-  }
-
-  function goNext() {
-    if (formRef.current && !formRef.current.reportValidity()) return
-    setUnlockedStep((current) => Math.max(current, step + 1))
-    setStep((current) => Math.min(current + 1, steps.length - 1))
-  }
-
-  function goToStep(index) {
-    if (index <= unlockedStep) setStep(index)
-  }
-
-  async function doSave(nextVehicles, nextProfile) {
+  async function doSave(nextVehicles) {
     setIsSaving(true)
     setSaveError('')
     try {
       const savedData = await saveLogisticsData(userId, {
-        profile: nextProfile || profile,
+        profile: initialData?.profile || null,
         vehicles: nextVehicles,
         inventory: initialData?.inventory || null,
-        photo,
-        photoFile,
+        photo: initialData?.photo || null,
       })
       onComplete(savedData)
-      setPhoto(savedData.photo)
-      setPhotoFile(null)
+      setVehicles(savedData.vehicles || nextVehicles)
       return savedData
     } catch (error) {
       setSaveError(error.message || t.couldNotSaveProfile)
@@ -153,229 +93,169 @@ export default function TransportationDashboard({ userId, initialData, language,
     }
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault()
-    if (formRef.current && !formRef.current.reportValidity()) return
-    const savedData = await doSave(vehicles, profile)
-    if (savedData) setMode('overview')
+  function updateForm(field, value) {
+    const nextValue = field === 'registrationNumber' || field === 'location' ? value.toUpperCase() : value
+    setForm((current) => ({ ...current, [field]: nextValue }))
   }
 
-  function addVehicleUpdate(vehicleId, update) {
+  async function handleAddSubmit(event) {
+    event.preventDefault()
+    const vehicle = {
+      ...form,
+      type: String(form.type || '').trim(),
+      registrationNumber: String(form.registrationNumber || '').trim(),
+      location: String(form.location || '').trim(),
+    }
+    if (!vehicle.type || !vehicle.registrationNumber) return
+    const saved = await doSave([...vehicles, vehicle])
+    if (saved) {
+      setShowAddForm(false)
+      setForm(emptyVehicle())
+    }
+  }
+
+  async function addVehicleUpdate(vehicleId, update) {
     const next = vehicles.map((vehicle) => (vehicle.id === vehicleId
       ? { ...vehicle, status: update.status, history: [{ date: update.date, note: update.note }, ...(vehicle.history || [])] }
       : vehicle))
-    doSave(next)
+    await doSave(next)
   }
 
-  const profileComplete = Boolean(profile.name && profile.aadhaarNumber && profile.phone && profile.address)
-  const namedVehicles = vehicles.filter((vehicle) => vehicle.type)
-
-  if (mode === 'edit') {
-    return (
-      <div className="profile-page">
-        <div className="profile-page-inner">
-          <div className="profile-page-topbar">
-            <button className="back-button" onClick={onBack}>{t.backToLogistics}</button>
-            <LanguageSwitcher language={language} setLanguage={setLanguage} />
-          </div>
-
-          <p className="eyebrow">{t.stepTransportation}</p>
-          <h2>{t.transportDetailsTitle}</h2>
-          <p className="panel-subtitle">{t.transportDetailsSub}</p>
-
-          <div className="profile-steps">
-            {steps.map((label, index) => (
-              <button
-                key={label}
-                type="button"
-                className={`${index === step ? 'active' : index < step ? 'done' : ''} ${index > unlockedStep ? 'locked' : ''}`}
-                aria-disabled={index > unlockedStep}
-                onClick={() => goToStep(index)}
-              >
-                <span>{index + 1}</span>{label}
-              </button>
-            ))}
-          </div>
-
-          <form className="profile-form-card" onSubmit={handleSubmit} ref={formRef}>
-            {step === 0 && (
-              <>
-                <div className="photo-upload-row">
-                  <label className="photo-upload-circle">
-                    {photo ? (
-                      <img className="photo-preview" src={photo} alt="" />
-                    ) : (
-                      <div className="photo-preview photo-preview-empty" aria-hidden="true">
-                        <span className="photo-upload-icon">📷</span>
-                        <span className="photo-upload-caption">{t.uploadPhoto}</span>
-                      </div>
-                    )}
-                    <input type="file" accept="image/*" onChange={handlePhotoChange} />
-                  </label>
-                  {photo && <label className="photo-change-link">{t.changePhoto}<input type="file" accept="image/*" onChange={handlePhotoChange} /></label>}
-                </div>
-
-                <div className="form-grid">
-                  <label>{t.name}<input value={profile.name} onChange={(event) => updateProfile('name', event.target.value)} placeholder={t.namePlaceholder} required /></label>
-                  <label>{t.aadhaarNumber}<input inputMode="numeric" pattern="[0-9]{12}" value={profile.aadhaarNumber} onChange={(event) => updateProfile('aadhaarNumber', event.target.value)} placeholder={t.aadhaarPlaceholder} required /></label>
-                  <label>{t.phone}<input type="tel" inputMode="numeric" pattern="[0-9]{10}" value={profile.phone} onChange={(event) => updateProfile('phone', event.target.value)} placeholder={t.phonePlaceholder} required /></label>
-                  <label>{t.address}<textarea value={profile.address} onChange={(event) => updateProfile('address', event.target.value)} placeholder={t.addressPlaceholder} required /></label>
-                </div>
-
-                <h3 className="form-section-title">{t.cropsYouHandle}</h3>
-                {profile.crops.map((crop, index) => (
-                  <div className="crop-card-header" key={index}>
-                    <label>{index === 0 ? t.cropWord : t.additionalCrop}
-                      <select value={crop} onChange={(event) => updateCrop(index, event.target.value)}>
-                        <option value="">{t.selectCrop}</option>
-                        {t.cropSuggestions.map((item) => <option key={item} value={item}>{item}</option>)}
-                      </select>
-                    </label>
-                    {profile.crops.length > 1 && (
-                      <button type="button" className="remove-crop-button" onClick={() => removeCrop(index)} aria-label={t.removeThisCropLabel}>×</button>
-                    )}
-                  </div>
-                ))}
-                <button type="button" className="add-crop-button" onClick={addCrop}>
-                  <span aria-hidden="true">+</span> {t.addAnotherCrop}
-                </button>
-              </>
-            )}
-
-            {step === 1 && (
-              <div className="crop-section">
-                {vehicles.map((vehicle, index) => (
-                  <div className="crop-card" key={vehicle.id}>
-                    <div className="crop-card-header">
-                      <label>{`${t.vehicleWord} ${index + 1} — ${t.vehicleType}`}
-                        <select value={vehicle.type} onChange={(event) => updateVehicle(vehicle.id, 'type', event.target.value)} required>
-                          <option value="">{t.vehicleTypePlaceholder}</option>
-                          {t.vehicleTypeSuggestions.map((item) => (
-                            <option key={item} value={item}>{item}</option>
-                          ))}
-                        </select>
-                      </label>
-                      {vehicles.length > 1 && (
-                        <button type="button" className="remove-crop-button" onClick={() => removeVehicle(vehicle.id)} aria-label={t.removeVehicleLabel}>×</button>
-                      )}
-                    </div>
-
-                    <div className="form-grid">
-                      <label>{t.vehicleCapacity}
-                        <input type="number" step="0.01" min="0" placeholder={t.vehicleCapacityPlaceholder} value={vehicle.capacity} onChange={(event) => updateVehicle(vehicle.id, 'capacity', event.target.value)} required />
-                      </label>
-                      <label>{t.vehicleRegistration}
-                        <input type="text" placeholder={t.vehicleRegPlaceholder} value={vehicle.registrationNumber} onChange={(event) => updateVehicle(vehicle.id, 'registrationNumber', event.target.value)} required />
-                      </label>
-                      <label>{t.vehicleLocation}
-                        <input type="text" placeholder={t.vehicleLocationPlaceholder} value={vehicle.location} onChange={(event) => updateVehicle(vehicle.id, 'location', event.target.value)} required />
-                      </label>
-                      <label>{t.statusLabel}
-                        <select value={vehicle.status} onChange={(event) => updateVehicle(vehicle.id, 'status', event.target.value)}>
-                          {STATUS_KEYS.map((key) => (
-                            <option key={key} value={key}>{key === 'repair' ? t.statusRepair : key === 'transit' ? t.statusInTransit : key === 'idle' ? t.statusIdle : t.statusActive}</option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                  </div>
-                ))}
-
-                <button type="button" className="add-crop-button" onClick={addVehicle}>
-                  <span aria-hidden="true">+</span> {t.addAnotherVehicle}
-                </button>
-                <p className="vehicles-count">{t.vehiclesAdded.replace('{n}', namedVehicles.length)}</p>
-              </div>
-            )}
-
-            <div className="profile-actions">
-              {saveError && <p className="form-error" role="alert">{saveError}</p>}
-              {step > 0 && <button type="button" className="button button-quiet" onClick={() => setStep(step - 1)}>{t.back}</button>}
-              {step < steps.length - 1
-                ? <button type="button" className="button button-primary" onClick={goNext}>{t.next}</button>
-                : <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? t.savingButton : t.saveFinish}</button>}
-            </div>
-          </form>
-        </div>
-      </div>
-    )
+  async function moveToPast(vehicleId) {
+    await doSave(vehicles.map((vehicle) => (vehicle.id === vehicleId ? { ...vehicle, archived: true, archivedDate: todayISO() } : vehicle)))
   }
+
+  async function restoreVehicle(vehicleId) {
+    await doSave(vehicles.map((vehicle) => (vehicle.id === vehicleId ? { ...vehicle, archived: false, archivedDate: '' } : vehicle)))
+  }
+
+  const list = tab === 'past' ? pastVehicles : currentVehicles
+  const emptyText = tab === 'past' ? t.noPastTransportation : t.noVehiclesYet
 
   return (
     <div className="profile-page">
-      <div className="profile-page-inner">
+      <div className="profile-page-inner" style={{ maxWidth: 900 }}>
         <div className="profile-page-topbar">
           <button className="back-button" onClick={onBack}>{t.backToLogistics}</button>
           <LanguageSwitcher language={language} setLanguage={setLanguage} />
         </div>
 
-        <div className="profile-summary-header">
-          {photo ? (
-            <img className="profile-summary-photo" src={photo} alt="" />
-          ) : (
-            <div className="profile-summary-photo profile-summary-photo-empty" aria-hidden="true">{profile.name ? profile.name[0] : 'T'}</div>
-          )}
-          <div className="profile-summary-header-text">
-            <p className="eyebrow">{t.stepTransportation}</p>
-            <h2>{t.transportDetailsTitle}</h2>
+        <div className="manage-head">
+          <div>
+            <p className="eyebrow" style={{ marginBottom: 6 }}>{t.stepTransportation}</p>
+            <h2>{t.transportCard}</h2>
           </div>
-          <button className="button button-primary" onClick={() => setMode('edit')}>{t.editProfile}</button>
-        </div>
-        {saveError && <p className="form-error" role="alert">{saveError}</p>}
-
-        <div className="summary-section">
-          <h3>{t.basicDetails}</h3>
-          {!profileComplete ? (
-            <p className="panel-subtitle">{t.completeProfile}</p>
-          ) : (
-            <div className="summary-grid">
-              <div><span>{t.name}</span><strong>{profile.name || '—'}</strong></div>
-              <div><span>{t.aadhaarNumber}</span><strong>{profile.aadhaarNumber || '—'}</strong></div>
-              <div><span>{t.phone}</span><strong>{profile.phone || '—'}</strong></div>
-              <div><span>{t.address}</span><strong>{profile.address || '—'}</strong></div>
-              <div><span>{t.cropsLabel}</span><strong>{profile.crops.filter(Boolean).join(', ') || '—'}</strong></div>
-            </div>
-          )}
         </div>
 
-        <h3 className="dash-section-title">{t.vehicleStatusTitle}</h3>
-        {namedVehicles.length === 0 ? (
-          <p className="panel-subtitle">{t.transportEmptyPrompt}</p>
+        <div className="manage-tabs-row">
+          <div className="manage-tabs" role="tablist">
+            <button type="button" className={`manage-tab ${tab === 'current' ? 'active' : ''}`} onClick={() => setTab('current')}>{t.currentTransportLabel}</button>
+            <button type="button" className={`manage-tab ${tab === 'past' ? 'active' : ''}`} onClick={() => setTab('past')}>{t.pastTransportLabel}</button>
+          </div>
+        </div>
+
+        {list.length === 0 ? (
+          <p className="manage-empty">{emptyText}</p>
         ) : (
-          namedVehicles.map((vehicle, index) => (
-            <section className="summary-section" key={vehicle.id}>
-              <div className="summary-crop-card">
-                <div className="summary-crop-card-head">
-                  <strong>{vehicle.type || `${t.vehicleWord} ${index + 1}`}</strong>
-                  <StatusBadge status={vehicle.status} t={t} />
-                </div>
-                <div className="summary-grid">
-                  <div><span>{t.capacityLabel}</span><strong>{vehicle.capacity ? `${vehicle.capacity} kg` : '—'}</strong></div>
-                  <div><span>{t.regNumber}</span><strong>{vehicle.registrationNumber || '—'}</strong></div>
-                  <div><span>{t.vehicleLocation}</span><strong>{vehicle.location || '—'}</strong></div>
-                </div>
-              </div>
-
-              <div className="vehicle-history">
-                <p className="vehicle-history-title">{t.historyLabel}</p>
-                {(vehicle.history || []).length === 0 ? (
-                  <p className="panel-subtitle">{t.noHistoryYet}</p>
-                ) : (
-                  (vehicle.history || []).map((entry, entryIndex) => (
-                    <div className="history-entry" key={`${vehicle.id}-${entryIndex}`}>
-                      <span className="history-date">{entry.date || '—'}</span>
-                      <span className="history-note">{entry.note || ''}</span>
+          <div className="manage-grid">
+            {list.map((vehicle) => {
+              const isPast = tab === 'past'
+              return (
+                <div className="manage-card" key={vehicle.id}>
+                  <div className="manage-card-head">
+                    <strong>{vehicle.type || t.vehicleWord}</strong>
+                    {isPast ? (
+                      <span className="status-badge status-archived">{t.statusSold}</span>
+                    ) : (
+                      <StatusBadge status={vehicle.status} t={t} />
+                    )}
+                  </div>
+                  <div className="manage-fields">
+                    <div className="manage-field"><span>{t.regNumber}</span><strong>{vehicle.registrationNumber || '—'}</strong></div>
+                    <div className="manage-field"><span>{t.capacityLabel}</span>
+                      <strong>{vehicle.capacity != null && vehicle.capacity !== '' ? `${vehicle.capacity} kg` : '—'}</strong>
                     </div>
-                  ))
-                )}
-              </div>
+                    <div className="manage-field"><span>{t.vehicleLocation}</span><strong>{vehicle.location || '—'}</strong></div>
+                  </div>
 
-              <VehicleUpdateBox vehicle={vehicle} t={t} onSave={(update) => addVehicleUpdate(vehicle.id, update)} />
-            </section>
-          ))
+                  {isPast ? (
+                    vehicle.archivedDate && (
+                      <p className="manage-empty" style={{ padding: '10px 0 0' }}>{t.archivedOn.replace('{date}', vehicle.archivedDate)}</p>
+                    )
+                  ) : (
+                    <>
+                      <div className="vehicle-history">
+                        <p className="vehicle-history-title">{t.historyLabel}</p>
+                        {(vehicle.history || []).length === 0 ? (
+                          <p className="panel-subtitle">{t.noHistoryYet}</p>
+                        ) : (
+                          (vehicle.history || []).map((entry, entryIndex) => (
+                            <div className="history-entry" key={`${vehicle.id}-${entryIndex}`}>
+                              <span className="history-date">{entry.date || '—'}</span>
+                              <span className="history-note">{entry.note || ''}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <VehicleUpdateBox vehicle={vehicle} t={t} onSave={(update) => addVehicleUpdate(vehicle.id, update)} />
+                    </>
+                  )}
+
+                  <div className="manage-card-actions">
+                    {isPast ? (
+                      <button type="button" className="button button-quiet" onClick={() => restoreVehicle(vehicle.id)} disabled={isSaving}>{t.restoreVehicle}</button>
+                    ) : (
+                      <button type="button" className="button button-quiet" onClick={() => moveToPast(vehicle.id)} disabled={isSaving}>{t.moveVehicleToPast}</button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
 
-        <button type="button" className="button button-primary add-vehicle-button" onClick={() => setMode('edit')}>+ {t.transportCard}</button>
+        {showAddForm && (
+          <form className="profile-form-card manage-add-panel" onSubmit={handleAddSubmit}>
+            <h3 className="manage-add-title">{t.addVehicleTitle}</h3>
+            <div className="form-grid">
+              <label>{t.vehicleType}
+                <select value={form.type} onChange={(event) => updateForm('type', event.target.value)} required>
+                  <option value="">{t.vehicleTypePlaceholder}</option>
+                  {t.vehicleTypeSuggestions.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </label>
+              <label>{t.vehicleRegistration}
+                <input type="text" placeholder={t.vehicleRegPlaceholder} value={form.registrationNumber} onChange={(event) => updateForm('registrationNumber', event.target.value)} required />
+              </label>
+              <label>{t.vehicleCapacity}
+                <input type="number" step="0.01" min="0" placeholder={t.vehicleCapacityPlaceholder} value={form.capacity} onChange={(event) => updateForm('capacity', event.target.value)} />
+              </label>
+              <label>{t.vehicleLocation}
+                <input type="text" placeholder={t.vehicleLocationPlaceholder} value={form.location} onChange={(event) => updateForm('location', event.target.value)} />
+              </label>
+              <label>{t.statusLabel}
+                <select value={form.status} onChange={(event) => updateForm('status', event.target.value)}>
+                  {STATUS_KEYS.map((key) => (
+                    <option key={key} value={key}>{key === 'repair' ? t.statusRepair : key === 'transit' ? t.statusInTransit : key === 'idle' ? t.statusIdle : t.statusActive}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {saveError && <p className="form-error" role="alert">{saveError}</p>}
+            <div className="manage-add-actions">
+              <button type="button" className="button button-quiet" onClick={() => { setShowAddForm(false); setSaveError('') }}>{t.back}</button>
+              <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? t.savingButton : t.addVehicleButton}</button>
+            </div>
+          </form>
+        )}
+
+        {!showAddForm && (
+          <div className="manage-foot">
+            <button type="button" className="button button-primary" onClick={() => setShowAddForm(true)}>{t.addVehicleButton}</button>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
+import Logo from './Logo'
 import { useTranslation } from './i18n'
 import { fetchCommodities, fetchQuote, placeOrder } from './api/aiBackend'
 
@@ -302,10 +303,7 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
   return (
     <div className="buyer-shell">
       <header className="buyer-topbar">
-        <div className="brand buyer-brand">
-          <span className="brand-mark">✦</span>
-          <span>Farm<span>Direct</span></span>
-        </div>
+        <Logo className="brand buyer-brand" />
 
         <div className="buyer-search">
           <span className="buyer-search-icon" aria-hidden="true">⌕</span>
