@@ -56,6 +56,34 @@ a { color: inherit; text-decoration: none; }
 .notification-item-title { color: #274a32; font-size: 13px; font-weight: 700; }
 .notification-item-body { color: #4c5c50; font-size: 12.5px; line-height: 1.5; }
 .notification-item-time { color: #93a493; font-size: 11px; }
+.notification-detail { background: #fbfdf9; border: 1px solid #e2e9df; border-radius: 9px; margin: -4px 0 6px; padding: 12px 14px; }
+.notification-detail-row { display: flex; font-size: 12.5px; gap: 10px; justify-content: space-between; padding: 4px 0; }
+.notification-detail-row span { color: #8a988e; flex-shrink: 0; }
+.notification-detail-row strong { color: #2c4234; font-weight: 600; text-align: right; }
+.notification-detail-subhead { color: #71953b; font-size: 11px; font-weight: 700; letter-spacing: .03em; margin: 10px 0 4px; text-transform: uppercase; }
+.notification-cost-table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+.notification-cost-table td { color: #4c5c50; padding: 3px 0; }
+.notification-cost-table td:last-child { font-variant-numeric: tabular-nums; text-align: right; }
+.notification-cost-total td { border-top: 1px solid #e2e9df; color: #2c4234; font-weight: 600; padding-top: 6px; }
+.notification-cost-payout td { color: #3f8f5f; font-size: 14px; font-weight: 700; padding-top: 4px; }
+.notification-accept-row { align-items: center; display: flex; justify-content: flex-end; margin-top: 10px; }
+.notification-accept-button { font-size: 13px; padding: 8px 16px; }
+.notification-status { font-size: 12.5px; font-weight: 600; }
+.notification-status-accepted { color: #3f8f5f; }
+.notification-status-taken { color: #b0632b; }
+.myjobs-list { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 18px; }
+.myjobs-card { background: #fff; border: 1px solid #e2e9df; border-radius: 12px; padding: 18px 20px; }
+.myjobs-card-head { align-items: center; display: flex; justify-content: space-between; margin-bottom: 10px; }
+.myjobs-order { color: #2c4234; font-weight: 700; }
+.myjobs-status { border-radius: 100px; font-size: 11.5px; font-weight: 700; padding: 3px 10px; }
+.myjobs-status-accepted { background: #fdf1e2; color: #b0632b; }
+.myjobs-status-delivered { background: #e8f4e0; color: #3f8f5f; }
+.myjobs-card-row { display: flex; font-size: 13.5px; justify-content: space-between; padding: 4px 0; }
+.myjobs-card-row span { color: #8a988e; }
+.myjobs-card-row strong { color: #2c4234; text-align: right; }
+.myjobs-payout-row strong { color: #3f8f5f; font-size: 16px; }
+.myjobs-deliver-button { margin-top: 12px; width: 100%; }
+.myjobs-empty { margin-top: 18px; }
 .utility-divider { background: #dce8d5; flex-shrink: 0; height: 20px; width: 1px; }
 .a11y-section { margin-bottom: 16px; }
 .a11y-section-head { align-items: center; display: flex; justify-content: space-between; margin-bottom: 10px; }

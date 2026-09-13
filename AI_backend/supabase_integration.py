@@ -204,6 +204,19 @@ def create_trip_notification(
         return None
 
 
+def fetch_order_trips(order_id: int, timeout: float = 6.0) -> Optional[List[Dict[str, Any]]]:
+    """The real order_trips rows (with their database ids) for an order,
+    in insertion order -- via list_order_trips(), since order_trips is
+    RLS-locked to the buyer/farmers on that order and this backend has no
+    session for either. Needed so a payout notification can reference a
+    specific trip row (for accept_trip_offer) instead of a positional
+    index into the request that created it."""
+    rows = _call_rpc("list_order_trips", {"p_order_id": order_id}, timeout=timeout)
+    if rows is None or not isinstance(rows, list):
+        return None
+    return rows
+
+
 def create_order(
     buyer_id: str,
     commodity: str,
