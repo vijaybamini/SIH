@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
 import NotificationBell from './NotificationBell'
+import Logo from './Logo'
 import MyJobsPanel from './MyJobsPanel'
 import { useTranslation } from './i18n'
 
@@ -91,6 +92,7 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
     ['Jobs', 'My Jobs'],
     ['Transport', t.stepTransportation],
     ['Storage', t.stepInventory],
+    ['Profile', t.stepProfile],
   ]
 
   const profile = logisticsProfile?.profile
@@ -121,7 +123,7 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
   return (
     <div className="dashboard-shell">
       <aside className="dash-sidebar">
-        <div className="dash-brand"><span className="brand-mark">✦</span>Farm<span>Direct</span></div>
+        <div className="dash-brand"><Logo /></div>
 
         <nav className="dash-nav" aria-label={t.dashboardNavLabel}>
           {navItems.map(([key, label]) => (
@@ -132,6 +134,7 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
                 setActiveNav(key)
                 if (key === 'Transport') onSelectSection('transport')
                 if (key === 'Storage') onSelectSection('inventory')
+                if (key === 'Profile') onSelectSection('profile')
               }}
             >{label}</button>
           ))}
