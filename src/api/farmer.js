@@ -109,23 +109,39 @@ export async function saveFarmerData(userId, formData) {
   }
 
   if (crops.length) {
-    const cropRows = crops.map((crop) => {
-      const row = {
-        farmer_id: userId,
-        crop_type: crop.name.trim(),
-        specific_crop_type: crop.specificType.trim() || null,
-        land_used: asNumberOrNull(crop.landUsed),
-        turnover: crop.harvested ? asNumberOrNull(crop.turnover) : null,
-        expected_turnover: crop.harvested ? null : asNumberOrNull(crop.turnover),
-        harvested: crop.harvested,
-        planted_date: crop.plantedDate || null,
-        expected_harvest_date: crop.expectedHarvestDate || null,
-      }
-      if (retainedIds.includes(Number(crop.id))) row.id = Number(crop.id)
-      return row
+    const cropRow = (crop) => ({
+      farmer_id: userId,
+      crop_type: crop.name.trim(),
+      specific_crop_type: crop.specificType.trim() || null,
+      land_used: asNumberOrNull(crop.landUsed),
+      turnover: crop.harvested ? asNumberOrNull(crop.turnover) : null,
+      expected_turnover: crop.harvested ? null : asNumberOrNull(crop.turnover),
+      harvested: crop.harvested,
+      planted_date: crop.plantedDate || null,
+      expected_harvest_date: crop.expectedHarvestDate || null,
     })
-    const { error } = await supabase.from('crop_details').upsert(cropRows)
-    if (error) throw error
+
+    // Existing crops (carrying a real id) and brand-new ones (no id yet)
+    // must be written separately: PostgREST's bulk upsert requires every
+    // row in the same call to have identical keys (PGRST102 "All object
+    // keys must match" otherwise), and a new crop simply has no id to give
+    // it yet. New rows go through insert() so the id column's identity
+    // default assigns one.
+    const existingCropRows = crops
+      .filter((crop) => retainedIds.includes(Number(crop.id)))
+      .map((crop) => ({ id: Number(crop.id), ...cropRow(crop) }))
+    const newCropRows = crops
+      .filter((crop) => !retainedIds.includes(Number(crop.id)))
+      .map(cropRow)
+
+    if (existingCropRows.length) {
+      const { error } = await supabase.from('crop_details').upsert(existingCropRows)
+      if (error) throw error
+    }
+    if (newCropRows.length) {
+      const { error } = await supabase.from('crop_details').insert(newCropRows)
+      if (error) throw error
+    }
   }
 
   const { error: bankError } = await supabase.from('farmer_bank_details').upsert({
