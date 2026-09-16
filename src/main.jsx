@@ -14,18 +14,23 @@ import CompleteProfileLogistics from './CompleteProfileLogistics'
 import LanguageSwitcher from './LanguageSwitcher'
 import LanguageSelection from './LanguageSelection'
 import Logo from './Logo'
+import PincodeHint, { PINCODE_PATTERN } from './PincodeHint'
 import { getStoredLanguage, storeLanguage, useTranslation } from './i18n'
-import { loadFarmerData } from './api/farmer'
+import { loadFarmerData, markCropHarvested } from './api/farmer'
 import { loadLogisticsData } from './api/logistics'
 import { loadBuyerData } from './api/buyer'
 import { loadServiceData } from './api/service'
 import { loadUserRole } from './api/profile'
+import { requestEmailOtp, verifyEmailOtpCode } from './api/aiBackend'
 
 const FONT_SIZE_LEVELS = [87.5, 93.75, 100, 106.25, 112.5]
 const DEFAULT_FONT_SIZE_LEVEL = 2
 const SATURATION_LEVELS = [0.55, 0.8, 1, 1.35]
 const DEFAULT_SATURATION_LEVEL = 2
 const SPEECH_LANG_CODES = { en: 'en-US', hi: 'hi-IN', te: 'te-IN', ta: 'ta-IN', ml: 'ml-IN', kn: 'kn-IN', mr: 'mr-IN', bn: 'bn-IN' }
+const PHONE_EMAIL_DOMAIN = 'phone.farmdirect.internal'
+const phoneToSyntheticEmail = (phone) => `${String(phone).replace(/\D/g, '')}@${PHONE_EMAIL_DOMAIN}`
+const isSyntheticEmail = (email) => !email || email.endsWith(`@${PHONE_EMAIL_DOMAIN}`)
 
 const LOGISTICS_CHOICE_KEY = (userId) => `farmdirect:logistics_choice:${userId}`
 
@@ -123,6 +128,7 @@ const authRequestRef = useRef(0)
       name: metadata.first_name || user.email?.split('@')[0].replace(/[._]/g, ' '),
       role: metadata.role || null,
       profileComplete: false,
+      email: isSyntheticEmail(user.email) ? '' : (user.email || ''),
     }
 
     setAuthStatus('loading')
@@ -463,6 +469,8 @@ authRequestRef.current += 1
         language={language}
         setLanguage={handleSetLanguage}
         initialData={farmerProfile}
+        currentEmail={currentUser.email}
+        onEmailUpdateRequested={(newEmail) => setCurrentUser((user) => ({ ...user, pendingEmail: newEmail }))}
         initialStep={quickAddCrop ? 1 : 0}
         addCropOnOpen={quickAddCrop}
         onBack={() => { setCompletingProfile(false); setQuickAddCrop(false) }}
@@ -561,9 +569,13 @@ authRequestRef.current += 1
           setLanguage={handleSetLanguage}
           onOpenCompleteProfile={() => setCompletingProfile(true)}
           onQuickAddCrop={() => { setQuickAddCrop(true); setCompletingProfile(true) }}
-          onMarkCropHarvested={(cropId) => setFarmerProfile((profile) => (profile
-            ? { ...profile, crops: profile.crops.map((crop) => (crop.id === cropId ? { ...crop, harvested: true } : crop)) }
-            : profile))}
+          onMarkCropHarvested={(cropId) => {
+            const today = new Date().toISOString().slice(0, 10)
+            setFarmerProfile((profile) => (profile
+              ? { ...profile, crops: profile.crops.map((crop) => (crop.id === cropId ? { ...crop, harvested: true, actualHarvestDate: today } : crop)) }
+              : profile))
+            markCropHarvested(cropId).catch((error) => console.error('Could not save harvest confirmation:', error))
+          }}
           onLogout={handleLogout}
         />
       )
@@ -578,126 +590,161 @@ authRequestRef.current += 1
     )
   }
 
+  const navLinkBase = 'group relative py-2 text-[15px] font-semibold tracking-tight text-brand-800 transition-colors hover:text-brand-600'
+  const primaryButton = 'inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-brand-900/20 transition-all hover:-translate-y-0.5 hover:bg-brand-700'
+  const quietButton = 'inline-flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-brand-800 transition-colors hover:text-brand-600'
+
   return (
-    <div className={`app-shell ${accessibilityClass}`} style={accessibilityStyle}>
-      <header className="topbar">
-        <Logo href="#home" label={t.homeLabel} />
-        <nav className="nav-links" aria-label={t.mainNavLabel}>
-          <ul>
-            {navItems.map((item) => {
-              const submenuLinks = NAV_SUBMENUS[item.key]
-              return (
-                <li key={item.key} className={submenuLinks ? 'nav-item-with-submenu' : ''}>
-                  <a
-                    href={item.href}
-                    className={activeNav === item.key ? 'active' : ''}
-                    aria-current={activeNav === item.key ? 'page' : undefined}
-                    onClick={() => setActiveNav(item.key)}
-                  >
-                    {item.label}
-                  </a>
-                  {submenuLinks && (
-                    <div className="nav-submenu">
-                      <ul>
-                        {submenuLinks.map((link) => (
-                          <li key={link.key}>
-                            <a href={link.href} className={link.accent ? 'accent' : ''}>{link.label}</a>
-                          </li>
+    <div className={`min-h-screen bg-[var(--surface)] font-sans text-[var(--text-primary)] ${accessibilityClass}`} style={accessibilityStyle}>
+      <header className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--surface)]/90 backdrop-blur">
+        <div className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-4 px-6 py-5 lg:flex-nowrap">
+          <Logo href="#home" label={t.homeLabel} />
+          <nav className="order-3 hidden w-full justify-center lg:order-none lg:flex lg:w-auto lg:flex-1" aria-label={t.mainNavLabel}>
+            <ul className="flex flex-wrap items-center justify-center gap-8">
+              {navItems.map((item) => {
+                const submenuLinks = NAV_SUBMENUS[item.key]
+                return (
+                  <li key={item.key} className={submenuLinks ? 'group/sub relative' : ''}>
+                    <a
+                      href={item.href}
+                      className={`${navLinkBase} ${activeNav === item.key ? 'text-brand-600' : ''}`}
+                      aria-current={activeNav === item.key ? 'page' : undefined}
+                      onClick={() => setActiveNav(item.key)}
+                    >
+                      {item.label}
+                      <span
+                        aria-hidden="true"
+                        className={`absolute -bottom-1.5 left-0 h-0.5 w-full origin-left rounded-full bg-brand-600 transition-transform duration-200 ${
+                          activeNav === item.key ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'
+                        }`}
+                      />
+                    </a>
+                    {submenuLinks && (
+                      <div className="pointer-events-none absolute left-1/2 top-full z-10 -translate-x-1/2 pt-3.5 opacity-0 transition-all duration-200 group-hover/sub:pointer-events-auto group-hover/sub:opacity-100 group-focus-within/sub:pointer-events-auto group-focus-within/sub:opacity-100">
+                        <ul className="min-w-[190px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-2 shadow-lg shadow-brand-900/10">
+                          {submenuLinks.map((link) => (
+                            <li key={link.key}>
+                              <a
+                                href={link.href}
+                                className={`block whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-brand-50 hover:text-brand-600 ${
+                                  link.accent ? 'font-semibold text-brand-400' : 'text-brand-800'
+                                }`}
+                              >
+                                {link.label}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </nav>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="relative">
+              <button
+                className="flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-2 text-sm font-semibold text-brand-800 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                aria-expanded={showAccessibilityMenu}
+                aria-controls="accessibility-menu"
+                onClick={() => setShowAccessibilityMenu(!showAccessibilityMenu)}
+              >
+                <span aria-hidden="true">♿</span>
+                <span className="hidden sm:inline">{copy.accessibility}</span>
+                <span className="text-xs">{showAccessibilityMenu ? '⌃' : '⌄'}</span>
+              </button>
+              {showAccessibilityMenu && (
+                <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[250px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-4 shadow-lg shadow-brand-900/10" id="accessibility-menu">
+                  <div className="mb-4">
+                    <div className="mb-2.5 flex items-center justify-between">
+                      <span className="text-xs font-bold text-brand-600">{copy.fontSize}</span>
+                      <button type="button" className="rounded p-0.5 text-[var(--text-muted)] transition-transform hover:-rotate-[70deg] hover:text-brand-600" aria-label={`${copy.resetLabel} ${copy.fontSize}`} onClick={() => setFontSizeLevel(DEFAULT_FONT_SIZE_LEVEL)}>↻</button>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <button type="button" className="h-7 w-[30px] shrink-0 rounded-lg bg-brand-50 text-xs font-bold text-brand-800 hover:bg-brand-100 hover:text-brand-600" aria-label={`${copy.fontSize} -`} onClick={() => setFontSizeLevel(accessibility.fontSizeLevel - 1)}>A-</button>
+                      <div className="flex flex-1 justify-center gap-1.5" role="group" aria-label={copy.fontSize}>
+                        {FONT_SIZE_LEVELS.map((_, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            className={`h-2.5 w-2.5 rounded-full transition-transform ${accessibility.fontSizeLevel === index ? 'scale-[1.3] bg-brand-600' : 'bg-brand-200 hover:bg-brand-300'}`}
+                            aria-label={`${copy.fontSize} ${index + 1}`}
+                            aria-pressed={accessibility.fontSizeLevel === index}
+                            onClick={() => setFontSizeLevel(index)}
+                          />
                         ))}
-                      </ul>
+                      </div>
+                      <button type="button" className="h-7 w-[30px] shrink-0 rounded-lg bg-brand-50 text-xs font-bold text-brand-800 hover:bg-brand-100 hover:text-brand-600" aria-label={`${copy.fontSize} +`} onClick={() => setFontSizeLevel(accessibility.fontSizeLevel + 1)}>A+</button>
                     </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </nav>
-        <div className="utility-actions">
-          <div className="utility-menu">
-            <button className="utility-button" aria-expanded={showAccessibilityMenu} aria-controls="accessibility-menu" onClick={() => setShowAccessibilityMenu(!showAccessibilityMenu)}>
-              <span aria-hidden="true">♿</span> {copy.accessibility} <span className="chevron">{showAccessibilityMenu ? '⌃' : '⌄'}</span>
-            </button>
-            {showAccessibilityMenu && (
-              <div className="utility-popover accessibility-popover" id="accessibility-menu">
-                <div className="a11y-section">
-                  <div className="a11y-section-head">
-                    <span className="a11y-section-label">{copy.fontSize}</span>
-                    <button type="button" className="a11y-reset" aria-label={`${copy.resetLabel} ${copy.fontSize}`} onClick={() => setFontSizeLevel(DEFAULT_FONT_SIZE_LEVEL)}>↻</button>
                   </div>
-                  <div className="a11y-stepper">
-                    <button type="button" className="a11y-step-btn" aria-label={`${copy.fontSize} -`} onClick={() => setFontSizeLevel(accessibility.fontSizeLevel - 1)}>A-</button>
-                    <div className="a11y-dots" role="group" aria-label={copy.fontSize}>
-                      {FONT_SIZE_LEVELS.map((_, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          className={`a11y-dot ${accessibility.fontSizeLevel === index ? 'active' : ''}`}
-                          aria-label={`${copy.fontSize} ${index + 1}`}
-                          aria-pressed={accessibility.fontSizeLevel === index}
-                          onClick={() => setFontSizeLevel(index)}
-                        />
-                      ))}
+
+                  <div className="mb-4">
+                    <div className="mb-2.5 flex items-center justify-between">
+                      <span className="text-xs font-bold text-brand-600">{copy.saturation}</span>
+                      <button type="button" className="rounded p-0.5 text-[var(--text-muted)] transition-transform hover:-rotate-[70deg] hover:text-brand-600" aria-label={`${copy.resetLabel} ${copy.saturation}`} onClick={() => setSaturationLevel(DEFAULT_SATURATION_LEVEL)}>↻</button>
                     </div>
-                    <button type="button" className="a11y-step-btn" aria-label={`${copy.fontSize} +`} onClick={() => setFontSizeLevel(accessibility.fontSizeLevel + 1)}>A+</button>
+                    <div className="flex items-center gap-2.5">
+                      <button type="button" className="h-7 w-[30px] shrink-0 rounded-lg bg-brand-50 text-xs font-bold text-brand-800 hover:bg-brand-100 hover:text-brand-600" aria-label={`${copy.saturation} -`} onClick={() => setSaturationLevel(accessibility.saturationLevel - 1)}>−</button>
+                      <div className="flex flex-1 justify-center gap-1.5" role="group" aria-label={copy.saturation}>
+                        {SATURATION_LEVELS.map((_, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            className={`h-2.5 w-2.5 rounded-full transition-transform ${accessibility.saturationLevel === index ? 'scale-[1.3] bg-brand-600' : 'bg-brand-200 hover:bg-brand-300'}`}
+                            aria-label={`${copy.saturation} ${index + 1}`}
+                            aria-pressed={accessibility.saturationLevel === index}
+                            onClick={() => setSaturationLevel(index)}
+                          />
+                        ))}
+                      </div>
+                      <button type="button" className="h-7 w-[30px] shrink-0 rounded-lg bg-brand-50 text-xs font-bold text-brand-800 hover:bg-brand-100 hover:text-brand-600" aria-label={`${copy.saturation} +`} onClick={() => setSaturationLevel(accessibility.saturationLevel + 1)}>+</button>
+                    </div>
+                  </div>
+
+                  <div className="mb-2.5 h-px bg-[var(--border-subtle)]" />
+
+                  <div className="grid gap-0.5">
+                    <button type="button" className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2.5 text-left text-[13px] font-semibold text-brand-800 transition-colors hover:bg-brand-50 hover:text-brand-600 aria-pressed:bg-brand-100 aria-pressed:text-brand-700" aria-pressed={accessibility.screenReader} onClick={() => toggleAccessibility('screenReader')}>
+                      <span aria-hidden="true">🔊</span>{copy.screenReader}
+                    </button>
+                    <button type="button" className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2.5 text-left text-[13px] font-semibold text-brand-800 transition-colors hover:bg-brand-50 hover:text-brand-600 aria-pressed:bg-brand-100 aria-pressed:text-brand-700" aria-pressed={accessibility.highContrast} onClick={() => toggleAccessibility('highContrast')}>
+                      <span aria-hidden="true">◐</span>{copy.highContrastTheme}
+                    </button>
                   </div>
                 </div>
-
-                <div className="a11y-section">
-                  <div className="a11y-section-head">
-                    <span className="a11y-section-label">{copy.saturation}</span>
-                    <button type="button" className="a11y-reset" aria-label={`${copy.resetLabel} ${copy.saturation}`} onClick={() => setSaturationLevel(DEFAULT_SATURATION_LEVEL)}>↻</button>
-                  </div>
-                  <div className="a11y-stepper">
-                    <button type="button" className="a11y-step-btn" aria-label={`${copy.saturation} -`} onClick={() => setSaturationLevel(accessibility.saturationLevel - 1)}>−</button>
-                    <div className="a11y-dots" role="group" aria-label={copy.saturation}>
-                      {SATURATION_LEVELS.map((_, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          className={`a11y-dot ${accessibility.saturationLevel === index ? 'active' : ''}`}
-                          aria-label={`${copy.saturation} ${index + 1}`}
-                          aria-pressed={accessibility.saturationLevel === index}
-                          onClick={() => setSaturationLevel(index)}
-                        />
-                      ))}
-                    </div>
-                    <button type="button" className="a11y-step-btn" aria-label={`${copy.saturation} +`} onClick={() => setSaturationLevel(accessibility.saturationLevel + 1)}>+</button>
-                  </div>
-                </div>
-
-                <div className="a11y-divider" />
-
-                <div className="a11y-features">
-                  <button type="button" className="a11y-feature-row" aria-pressed={accessibility.screenReader} onClick={() => toggleAccessibility('screenReader')}>
-                    <span className="a11y-feature-icon" aria-hidden="true">🔊</span>{copy.screenReader}
-                  </button>
-                  <button type="button" className="a11y-feature-row" aria-pressed={accessibility.highContrast} onClick={() => toggleAccessibility('highContrast')}>
-                    <span className="a11y-feature-icon" aria-hidden="true">◐</span>{copy.highContrastTheme}
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
+            <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-[var(--border-subtle)]" />
+            <LanguageSwitcher language={language} setLanguage={handleSetLanguage} />
           </div>
-          <span className="utility-divider" aria-hidden="true" />
-          <LanguageSwitcher language={language} setLanguage={handleSetLanguage} />
+          <div className="hidden shrink-0 items-center gap-2 sm:flex">
+            <button className={quietButton} onClick={() => setPanel('login')}>{copy.login}</button>
+            <button className={primaryButton} onClick={() => setPanel('register')}>{copy.register}</button>
+          </div>
+          <button
+            className="flex h-10 w-11 shrink-0 flex-col items-center justify-center gap-1.5 rounded-lg lg:hidden"
+            type="button"
+            aria-label={t.menuToggleLabel}
+            aria-expanded={menuOpen}
+            aria-controls="site-nav-menu"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <span className={`block h-[2.5px] w-[22px] rounded bg-brand-800 transition-transform ${menuOpen ? 'translate-y-[7.5px] rotate-45' : ''}`} />
+            <span className={`block h-[2.5px] w-[22px] rounded bg-brand-800 transition-opacity ${menuOpen ? 'opacity-0' : ''}`} />
+            <span className={`block h-[2.5px] w-[22px] rounded bg-brand-800 transition-transform ${menuOpen ? '-translate-y-[7.5px] -rotate-45' : ''}`} />
+          </button>
         </div>
-        <div className="auth-actions">
-          <button className="button button-quiet" onClick={() => setPanel('login')}>{copy.login}</button>
-          <button className="button button-primary" onClick={() => setPanel('register')}>{copy.register}</button>
-        </div>
-        <button className="menu-toggle" type="button" aria-label={t.menuToggleLabel} aria-expanded={menuOpen} aria-controls="site-nav-menu" onClick={() => setMenuOpen((open) => !open)}>
-          <span /><span /><span />
-        </button>
       </header>
 
       {menuOpen && (
-        <nav className="mobile-nav" id="site-nav-menu" aria-label={t.mainNavLabel}>
-          <ul>
+        <nav className="flex flex-col border-t border-[var(--border-subtle)] bg-[var(--surface-raised)] px-5 pb-4.5 pt-2.5 shadow-lg lg:hidden" id="site-nav-menu" aria-label={t.mainNavLabel}>
+          <ul className="flex flex-col">
             {navItems.map((item) => (
               <li key={item.key}>
                 <a
                   href={item.href}
-                  className={activeNav === item.key ? 'active' : ''}
+                  className={`block rounded-lg px-3 py-3.5 text-base font-semibold transition-colors hover:bg-brand-50 hover:text-brand-600 ${activeNav === item.key ? 'text-brand-600' : 'text-brand-800'}`}
                   aria-current={activeNav === item.key ? 'page' : undefined}
                   onClick={() => { setActiveNav(item.key); setMenuOpen(false) }}
                 >
@@ -705,23 +752,34 @@ authRequestRef.current += 1
                 </a>
               </li>
             ))}
+            <li className="mt-2 flex gap-2 pt-2">
+              <button className={`${quietButton} flex-1 justify-center border border-[var(--border-subtle)]`} onClick={() => { setPanel('login'); setMenuOpen(false) }}>{copy.login}</button>
+              <button className={`${primaryButton} flex-1 justify-center`} onClick={() => { setPanel('register'); setMenuOpen(false) }}>{copy.register}</button>
+            </li>
           </ul>
         </nav>
       )}
 
       <main id="home">
-        <section className="hero" id="about">
-          <div className="hero-copy">
-            <h1>{copy.title}</h1>
-            <p className="hero-text">{copy.hero}</p>
-            <div className="hero-actions">
-              <button className="button button-primary button-large button-pill" onClick={() => setPanel('register')}>{copy.join} <span>→</span></button>
+        <section className="mx-auto grid max-w-[1240px] items-center gap-16 px-6 py-14 md:grid-cols-2 md:py-20" id="about">
+          <div>
+            <h1 className="max-w-[600px] font-display text-[clamp(40px,5vw,64px)] font-semibold leading-[1.05] tracking-tight text-brand-900 text-wrap-balance">
+              {copy.title}
+            </h1>
+            <p className="mt-6 max-w-[500px] text-base leading-relaxed text-[var(--text-secondary)]">{copy.hero}</p>
+            <div className="mt-8 flex flex-wrap items-center gap-6">
+              <button
+                className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 px-8 py-4 text-base font-bold text-white shadow-[0_14px_30px_rgba(63,143,95,0.4)] transition-all hover:-translate-y-0.5 hover:shadow-[0_20px_38px_rgba(63,143,95,0.5)]"
+                onClick={() => setPanel('register')}
+              >
+                {copy.join} <span>→</span>
+              </button>
             </div>
           </div>
-          <div className="hero-art" aria-label={t.heroIllustrationLabel}>
+          <div className="relative aspect-video max-h-[340px] overflow-hidden rounded-[23%_8%_25%_8%] bg-brand-100 shadow-inner" aria-label={t.heroIllustrationLabel}>
             <video
               ref={heroVideoRef}
-              className="hero-video"
+              className="block h-full w-full object-cover"
               src="/intro.mp4"
               autoPlay
               loop
@@ -732,15 +790,19 @@ authRequestRef.current += 1
           </div>
         </section>
 
-        <section className="services-section" id="how-it-works">
-          <p className="eyebrow">{copy.navServices}</p>
-          <div className="services-grid">
+        <section className="mx-auto max-w-[1172px] px-6 pb-16" id="how-it-works">
+          <p className="mb-4 text-[11px] font-bold uppercase tracking-[1.6px] text-brand-400">{copy.navServices}</p>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {serviceOfferings.map((service) => (
-              <div className="service-card" key={service.id} id={service.id}>
-                <span className="service-card-icon" aria-hidden="true">{service.icon}</span>
-                <h3>{service.title}</h3>
-                <p>{service.desc}</p>
-                <button className="button button-primary service-card-button" onClick={() => openRegister(service.role)}>
+              <div
+                className="flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-6 transition-all hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-lg hover:shadow-brand-900/[0.08]"
+                key={service.id}
+                id={service.id}
+              >
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-2xl" aria-hidden="true">{service.icon}</span>
+                <h3 className="mt-4 mb-2 font-display text-lg font-semibold tracking-tight text-brand-900">{service.title}</h3>
+                <p className="mb-5 flex-1 text-[13.5px] leading-relaxed text-[var(--text-muted)]">{service.desc}</p>
+                <button className={`${primaryButton} w-full justify-center`} onClick={() => openRegister(service.role)}>
                   {t.createAccount.replace('{role}', service.title)} <span>→</span>
                 </button>
               </div>
@@ -748,23 +810,25 @@ authRequestRef.current += 1
           </div>
         </section>
 
-        <section className="mission-card" id="mission">
+        <section className="mx-auto grid max-w-[1172px] items-center gap-12 rounded-3xl bg-brand-50 p-10 md:grid-cols-2 md:p-14" id="mission">
           <div>
-            <p className="eyebrow">{copy.challenge}</p>
-            <h2>{copy.mission}</h2>
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-[1.6px] text-brand-400">{copy.challenge}</p>
+            <h2 className="max-w-[440px] font-display text-3xl font-semibold leading-tight tracking-tight text-brand-900 text-wrap-balance">{copy.mission}</h2>
           </div>
-          <p>{copy.missionText}</p>
+          <p className="text-[15px] leading-relaxed text-[var(--text-muted)]">{copy.missionText}</p>
         </section>
       </main>
 
-      <footer className="site-footer">
-        <nav className="footer-links" aria-label="Policies">
-          <ul>
+      <footer className="mx-auto mt-14 mb-10 max-w-[1172px] px-6">
+        <nav aria-label="Policies">
+          <ul className="flex flex-wrap justify-between gap-x-8 gap-y-2">
             {footerLinks.map((link) => (
               <li key={link.key}>
                 <a
                   href={link.href}
-                  className={activeNav === link.key ? 'active' : link.accent ? 'accent' : ''}
+                  className={`inline-block py-2 text-[15px] font-medium transition-colors hover:text-brand-600 ${
+                    activeNav === link.key ? 'font-bold text-brand-600' : link.accent ? 'font-semibold text-brand-400' : 'text-brand-900'
+                  }`}
                   aria-current={activeNav === link.key ? 'page' : undefined}
                 >
                   {link.label}
@@ -832,6 +896,130 @@ function AuthLoadingScreen({ language }) {
   )
 }
 
+
+const NAME_PATTERN = /^(?=(?:[^A-Za-z]*[A-Za-z]){3,})[A-Za-z\s'.\-]+$/
+const PHONE_PATTERN = /^[6-9][0-9]{9}$/
+const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
+const WEAK_PASSWORDS = new Set([
+  '12345678', '123456789', '1234567890', 'password', 'password1', 'password123',
+  'qwerty123', 'letmein1', 'welcome1', 'abc12345', 'iloveyou1',
+])
+
+function validateRegistration(t, { name, phone, pincode, password, confirmPassword }) {
+  if (!NAME_PATTERN.test(name.trim())) return t.validationNameInvalid
+  if (!PHONE_PATTERN.test(phone.trim())) return t.validationPhoneInvalid
+  if (!PINCODE_PATTERN.test(pincode.trim())) return t.validationPincodeInvalid
+  if (!PASSWORD_PATTERN.test(password)) return t.validationPasswordWeak
+  if (WEAK_PASSWORDS.has(password.toLowerCase())) return t.validationPasswordCommon
+  if (password.toLowerCase().includes(phone.trim())) return t.validationPasswordPhone
+  if (password !== confirmPassword) return t.passwordsDontMatch
+  return null
+}
+
+const inputClass = 'w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3.5 py-3 text-[15px] text-[var(--text-primary)] outline-none transition-shadow focus:border-brand-400 focus:shadow-[0_0_0_3px_var(--color-brand-50)]'
+const labelClass = 'grid gap-1.5 text-xs font-semibold text-[var(--text-secondary)]'
+
+function SlidingToggle({ options, value, onChange, ariaLabel }) {
+  const n = options.length
+  const compact = n > 2
+  const activeIndex = Math.max(0, options.findIndex((opt) => opt.key === value))
+  return (
+    <div className="relative rounded-xl bg-brand-50 p-1" role="tablist" aria-label={ariaLabel}>
+      <div className="relative grid" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-0 rounded-lg bg-white shadow-sm transition-transform duration-300 ease-out"
+          style={{ width: `${100 / n}%`, transform: `translateX(${activeIndex * 100}%)` }}
+        />
+        {options.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            role="tab"
+            aria-selected={value === opt.key}
+            onClick={() => onChange(opt.key)}
+            className={`relative z-10 flex min-w-0 items-center justify-center gap-1 rounded-lg font-semibold transition-colors duration-300 ${compact ? 'flex-col px-1 py-2 text-[11px] leading-tight' : 'px-3.5 py-2.5 text-sm'} ${
+              value === opt.key ? 'text-brand-700' : 'text-[var(--text-muted)] hover:text-brand-600'
+            }`}
+          >
+            {opt.icon && <span aria-hidden="true" className={compact ? 'text-base' : ''}>{opt.icon}</span>}
+            <span className="truncate">{opt.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function EmailOtpLogin({ t, onClose }) {
+  const [stage, setStage] = useState('request')
+  const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function requestCode(event) {
+    event.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      // Sent by our own AI backend (via Resend), not Supabase's built-in
+      // mailer -- see email_otp.py for why.
+      await requestEmailOtp(email.trim())
+      setStage('sent')
+    } catch (err) {
+      setError(err.message || t.genericError)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function verifyCode(event) {
+    event.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const { token_hash: tokenHash } = await verifyEmailOtpCode(email.trim(), code.trim())
+      const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' })
+      if (verifyError) throw verifyError
+      onClose()
+    } catch (err) {
+      setError(err.message || t.genericError)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (stage === 'sent') {
+    return (
+      <form onSubmit={verifyCode} className="grid gap-4">
+        <p className="text-sm text-[var(--text-muted)]">{t.otpSentTo.replace('{email}', email)}</p>
+        <label className={labelClass}>{t.otpCodeLabel}
+          <input className={inputClass} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="123456" required />
+        </label>
+        {error && <p className="rounded-lg border-l-4 border-[var(--color-error)] bg-[var(--color-error-bg)] px-3 py-2.5 text-xs text-[var(--color-error-ink)]" role="alert">{error}</p>}
+        <button className="mt-1 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70" type="submit" disabled={loading}>
+          {loading ? t.pleaseWait : t.verifyCode}
+        </button>
+        <button type="button" className="text-xs font-semibold text-brand-600" onClick={() => setStage('request')}>{t.useDifferentEmail}</button>
+      </form>
+    )
+  }
+
+  return (
+    <form onSubmit={requestCode} className="grid gap-4">
+      <label className={labelClass}>{t.email}
+        <input className={inputClass} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder} required />
+      </label>
+      {error && <p className="rounded-lg border-l-4 border-[var(--color-error)] bg-[var(--color-error-bg)] px-3 py-2.5 text-xs text-[var(--color-error-ink)]" role="alert">{error}</p>}
+      <button className="mt-1 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70" type="submit" disabled={loading}>
+        {loading ? t.pleaseWait : t.sendCode}
+      </button>
+      <p className="text-[11px] text-[var(--text-muted)]">{t.otpRequiresEmailOnFile}</p>
+    </form>
+  )
+}
+
 function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole }) {
   const t = useTranslation(language)
   const isRegister = type === 'register'
@@ -839,7 +1027,9 @@ function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole
   const [submitted, setSubmitted] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [registeredName, setRegisteredName] = useState('')
+  const [loginMode, setLoginMode] = useState('password')
+  const [loginRole, setLoginRole] = useState('farmer')
+  const [pincodeValue, setPincodeValue] = useState('')
   const roles = {
     farmer: { title: t.farmer, description: t.farmerRoleDesc, icon: '🌱', requiredKey: 'farm_name' },
     buyer: { title: t.bulkBuyer, description: t.buyerRoleDesc, icon: '🏪', requiredKey: 'name' },
@@ -858,44 +1048,57 @@ function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole
     }
 
     const formData = new FormData(event.currentTarget)
-    const email = formData.get('email')
     const password = formData.get('password')
     setIsSubmitting(true)
 
     try {
       if (isRegister) {
-        if (password !== formData.get('confirmPassword')) throw new Error(t.passwordsDontMatch)
         const name = formData.get('name')
-        const { data, error } = await supabase.auth.signUp({
-          email,
+        const phone = formData.get('phone')
+        const pincode = formData.get('pincode')
+        const validationError = validateRegistration(t, { name, phone, pincode, password, confirmPassword: formData.get('confirmPassword') })
+        if (validationError) throw new Error(validationError)
+
+        const syntheticEmail = phoneToSyntheticEmail(phone)
+        const { error } = await supabase.auth.signUp({
+          email: syntheticEmail,
           password,
           options: {
-            emailRedirectTo: window.location.origin,
             data: {
               first_name: name,
               last_name: '',
-              phone: formData.get('phone'),
+              phone,
               role,
               registration_details: {
-                pincode: formData.get('pincode'),
+                pincode,
                 [selectedRole.requiredKey]: name,
               },
             },
           },
         })
         if (error) throw error
-        setRegisteredName(name)
-        if (data.session) {
-          onClose()
-        } else {
+
+        // Registration uses a phone-derived placeholder identity (no email
+        // collected here -- that's added later in profile completion), which
+        // a database trigger auto-confirms server-side. signUp()'s own
+        // response doesn't reliably reflect that, so sign in explicitly
+        // right after to establish the session.
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email: syntheticEmail, password })
+        if (signInError) {
           setSubmitted(true)
+        } else {
+          onClose()
         }
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        const phone = formData.get('phone').trim()
+        if (!PHONE_PATTERN.test(phone)) throw new Error(t.validationPhoneInvalid)
+
+        const { data: resolvedEmail, error: resolveError } = await supabase.rpc('resolve_login_email', { p_phone: phone })
+        if (resolveError || !resolvedEmail) throw new Error(t.accountNotFound)
+
+        const { error } = await supabase.auth.signInWithPassword({ email: resolvedEmail, password })
         if (error) {
-          error.message = error.code === 'email_not_confirmed'
-            ? t.emailNotConfirmed
-            : error.message
+          error.message = error.code === 'email_not_confirmed' ? t.emailNotConfirmed : error.message
           throw error
         }
         onClose()
@@ -907,21 +1110,32 @@ function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole
     }
   }
 
+  const panelShell = 'w-full max-w-[455px] rounded-2xl bg-[var(--surface-raised)] p-9 shadow-2xl shadow-brand-900/25'
+
   if (isRegister && !role) {
     return (
-      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-        <section className="auth-panel register-panel role-panel" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-          <button className="close-button" aria-label={t.closeLabel} onClick={onClose}>×</button>
-          <LanguageSwitcher language={language} setLanguage={setLanguage} className="auth-language-switcher" />
-          <p className="eyebrow">FARMDIRECT</p>
-          <h2 id="auth-title">{t.howRegister}</h2>
-          <p className="panel-subtitle">{t.chooseAccount}</p>
-          <div className="role-grid">
-            {Object.entries(roles).map(([key, item]) => <button className="role-card" key={key} onClick={() => setRole(key)}>
-              <span className="role-icon" aria-hidden="true">{item.icon}</span><strong>{item.title}</strong><small>{item.description}</small><span className="role-arrow">→</span>
-            </button>)}
+      <div className="fixed inset-0 z-50 grid items-start justify-items-center overflow-y-auto bg-brand-900/45 px-4 py-8" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+        <section className={`${panelShell} relative max-w-[610px]`} role="dialog" aria-modal="true" aria-labelledby="auth-title">
+          <button className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-xl text-[var(--text-muted)] hover:text-brand-700" aria-label={t.closeLabel} onClick={onClose}>×</button>
+          <LanguageSwitcher language={language} setLanguage={setLanguage} className="mb-3.5 mr-11 inline-flex" />
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-brand-400">FARMDIRECT</p>
+          <h2 id="auth-title" className="font-display text-[28px] font-semibold text-brand-900">{t.howRegister}</h2>
+          <p className="mb-6 mt-1.5 text-sm text-[var(--text-muted)]">{t.chooseAccount}</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {Object.entries(roles).map(([key, item]) => (
+              <button
+                className="group relative min-h-[145px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-5 text-left transition-all hover:-translate-y-0.5 hover:border-brand-400 hover:shadow-md hover:shadow-brand-900/10"
+                key={key}
+                onClick={() => setRole(key)}
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-100 text-lg" aria-hidden="true">{item.icon}</span>
+                <strong className="mt-2.5 mb-1 block text-base text-brand-900">{item.title}</strong>
+                <small className="block max-w-[190px] text-xs leading-relaxed text-[var(--text-muted)]">{item.description}</small>
+                <span className="absolute bottom-4 right-4 text-brand-500 opacity-0 transition-opacity group-hover:opacity-100">→</span>
+              </button>
+            ))}
           </div>
-          <p className="switch-auth">{t.alreadyHaveAccount} <button onClick={onSwitch}>{t.login}</button></p>
+          <p className="mt-6 text-center text-xs text-[var(--text-muted)]">{t.alreadyHaveAccount} <button className="font-bold text-brand-600" onClick={onSwitch}>{t.login}</button></p>
         </section>
       </div>
     )
@@ -929,46 +1143,91 @@ function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole
 
   if (submitted) {
     return (
-      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-        <section className="auth-panel success-panel" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-          <button className="close-button" aria-label={t.closeLabel} onClick={onClose}>×</button>
-          <div className="success-icon" aria-hidden="true">✓</div>
-          <p className="eyebrow">{t.registrationReceived}</p>
-          <h2 id="auth-title">{t.registeredAs.replace('{role}', selectedRole.title)}</h2>
-          <p className="panel-subtitle">{t.accountSubmittedText}</p>
-          <button
-            className="button button-primary submit-button"
-            onClick={() => {
-              onClose()
-            }}
-          >
-            {t.doneButton}
-          </button>
+      <div className="fixed inset-0 z-50 grid items-start justify-items-center overflow-y-auto bg-brand-900/45 px-4 py-8" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+        <section className={`${panelShell} relative max-w-[480px] text-center`} role="dialog" aria-modal="true" aria-labelledby="auth-title">
+          <button className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-xl text-[var(--text-muted)] hover:text-brand-700" aria-label={t.closeLabel} onClick={onClose}>×</button>
+          <div className="mx-auto mb-5 flex h-[62px] w-[62px] items-center justify-center rounded-full bg-brand-100 text-3xl text-brand-600" aria-hidden="true">✓</div>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-brand-400">{t.registrationReceived}</p>
+          <h2 id="auth-title" className="mt-1.5 font-display text-2xl font-semibold text-brand-900">{t.registeredAs.replace('{role}', selectedRole.title)}</h2>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">{t.accountSubmittedText}</p>
+          <button className="mt-6 w-full rounded-lg bg-brand-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-brand-700" onClick={() => onClose()}>{t.doneButton}</button>
         </section>
       </div>
     )
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className={`auth-panel ${isRegister ? 'register-panel' : ''}`} role="dialog" aria-modal="true" aria-labelledby="auth-title">
-        <button className="close-button" aria-label={t.closeLabel} onClick={onClose}>×</button>
-        <LanguageSwitcher language={language} setLanguage={setLanguage} className="auth-language-switcher" />
-        <p className="eyebrow">FARMDIRECT</p>
-        {isRegister && <button className="back-button" onClick={() => setRole(null)}>{t.changeRole}</button>}
-        <h2 id="auth-title">{isRegister ? t.createAccount.replace('{role}', selectedRole.title) : t.welcomeBack}</h2>
-        <p className="panel-subtitle">{isRegister ? selectedRole.description : t.logInToContinue}</p>
-        <form onSubmit={handleSubmit}>
-          {isRegister && <label>{t.name}<input name="name" type="text" placeholder={t.namePlaceholder} onInput={(event) => { event.target.value = event.target.value.toUpperCase() }} required /></label>}
-          <label>{t.email}<input name="email" type="email" placeholder={t.emailPlaceholder} required /></label>
-          {isRegister && <label>{t.phone}<input name="phone" type="tel" placeholder={t.phonePlaceholder} required /></label>}
-          {isRegister && <label>{t.pincode}<input name="pincode" type="text" inputMode="numeric" pattern="[0-9]{6}" placeholder={t.pincodePlaceholder} required /></label>}
-          <label>{t.password}<input name="password" type="password" placeholder={t.passwordPlaceholder} minLength="6" required /></label>
-          {isRegister && <label>{t.confirmPassword}<input name="confirmPassword" type="password" placeholder={t.confirmPasswordPlaceholder} minLength="6" required /></label>}
-          {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
-          <button className="button button-primary submit-button" type="submit" disabled={isSubmitting}>{isSubmitting ? t.pleaseWait : isRegister ? t.createAccount.replace('{role}', selectedRole.title) : t.login} <span>→</span></button>
-        </form>
-        <p className="switch-auth">{isRegister ? t.alreadyHaveAccount : t.newToFarmDirect} <button onClick={onSwitch}>{isRegister ? t.login : t.register}</button></p>
+    <div className="fixed inset-0 z-50 grid items-start justify-items-center overflow-y-auto bg-brand-900/45 px-4 py-8" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className={panelShell} role="dialog" aria-modal="true" aria-labelledby="auth-title">
+        <button className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-xl text-[var(--text-muted)] hover:text-brand-700" aria-label={t.closeLabel} onClick={onClose}>×</button>
+        <LanguageSwitcher language={language} setLanguage={setLanguage} className="mb-3.5 mr-11 inline-flex" />
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-brand-400">FARMDIRECT</p>
+        {isRegister && <button className="mb-4 -mt-1 block text-xs font-bold text-brand-800 hover:text-brand-600" onClick={() => setRole(null)}>{t.changeRole}</button>}
+        <h2 id="auth-title" className="font-display text-[28px] font-semibold text-brand-900">
+          {isRegister ? t.createAccount.replace('{role}', selectedRole.title) : `${t.welcomeBack} · ${roles[loginRole].title}`}
+        </h2>
+        <p className="mb-6 mt-1.5 text-sm text-[var(--text-muted)]">{isRegister ? selectedRole.description : t.logInToContinue}</p>
+
+        {!isRegister && (
+          <div className="mb-4">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-400">{t.loginAsLabel}</p>
+            <SlidingToggle
+              ariaLabel={t.loginAsLabel}
+              value={loginRole}
+              onChange={setLoginRole}
+              options={Object.entries(roles).map(([key, item]) => ({ key, label: t.loginRoleShortLabels[key] || item.title, icon: item.icon }))}
+            />
+          </div>
+        )}
+
+        {!isRegister && (
+          <div className="mb-5">
+            <SlidingToggle
+              ariaLabel={t.loginMethodLabel}
+              value={loginMode}
+              onChange={setLoginMode}
+              options={[
+                { key: 'password', label: t.loginWithPassword },
+                { key: 'otp', label: t.loginWithEmailCode },
+              ]}
+            />
+          </div>
+        )}
+
+        {!isRegister && loginMode === 'otp' ? (
+          <EmailOtpLogin t={t} onClose={onClose} />
+        ) : (
+          <form onSubmit={handleSubmit} className="grid gap-4">
+            {isRegister && (
+              <label className={labelClass}>{t.name}
+                <input className={inputClass} name="name" type="text" placeholder={t.namePlaceholder} onInput={(event) => { event.target.value = event.target.value.toUpperCase() }} pattern={NAME_PATTERN.source} title={t.validationNameInvalid} required />
+              </label>
+            )}
+            <label className={labelClass}>{t.phone}
+              <input className={inputClass} name="phone" type="tel" inputMode="numeric" maxLength={10} pattern={PHONE_PATTERN.source} placeholder={t.phonePlaceholder} title={t.validationPhoneInvalid} required />
+            </label>
+            {isRegister && (
+              <label className={labelClass}>{t.pincode}
+                <input className={inputClass} name="pincode" type="text" inputMode="numeric" maxLength={6} pattern={PINCODE_PATTERN.source} placeholder={t.pincodePlaceholder} title={t.validationPincodeInvalid} value={pincodeValue} onChange={(e) => setPincodeValue(e.target.value.replace(/\D/g, ''))} required />
+                <PincodeHint pincode={pincodeValue} t={t} />
+              </label>
+            )}
+            <label className={labelClass}>{t.password}
+              <input className={inputClass} name="password" type="password" placeholder={t.passwordPlaceholder} minLength={8} required />
+              {isRegister && <small className="text-[11px] font-normal text-[var(--text-muted)]">{t.passwordHint}</small>}
+            </label>
+            {isRegister && (
+              <label className={labelClass}>{t.confirmPassword}
+                <input className={inputClass} name="confirmPassword" type="password" placeholder={t.confirmPasswordPlaceholder} minLength={8} required />
+              </label>
+            )}
+            {errorMessage && <p className="rounded-lg border-l-4 border-[var(--color-error)] bg-[var(--color-error-bg)] px-3 py-2.5 text-xs text-[var(--color-error-ink)]" role="alert">{errorMessage}</p>}
+            <button className="mt-1 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? t.pleaseWait : isRegister ? t.createAccount.replace('{role}', selectedRole.title) : t.login} <span>→</span>
+            </button>
+          </form>
+        )}
+        <p className="mt-5 text-center text-xs text-[var(--text-muted)]">{isRegister ? t.alreadyHaveAccount : t.newToFarmDirect} <button className="font-bold text-brand-600" onClick={onSwitch}>{isRegister ? t.login : t.register}</button></p>
       </section>
     </div>
   )

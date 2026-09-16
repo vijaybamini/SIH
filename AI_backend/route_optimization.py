@@ -726,6 +726,8 @@ def plan_multi_farmer_delivery(buyer_pincode, buyer_demand_kg, farmer_candidates
             "lat": lat,
             "lon": lon,
             "weight_kg": float(cand["available_kg"]),
+            "harvested": cand.get("harvested"),
+            "harvest_date": cand.get("harvest_date"),
         })
 
     if not resolved_farmers:
@@ -749,10 +751,16 @@ def plan_multi_farmer_delivery(buyer_pincode, buyer_demand_kg, farmer_candidates
     if plan["total_allocated_kg"] <= 0:
         raise ValueError("Could not allocate any farmer supply to this order.")
 
-    allocations_out = [
-        {"farmer_id": e["farmer_id"], "crop_id": e["crop_id"], "allocated_kg": e["allocated_kg"]}
-        for e in plan["allocations"]
-    ]
+    freshness_by_key = {
+        (f["id"], f["crop_id"]): (f.get("harvested"), f.get("harvest_date")) for f in resolved_farmers
+    }
+    allocations_out = []
+    for e in plan["allocations"]:
+        harvested, harvest_date = freshness_by_key.get((e["farmer_id"], e["crop_id"]), (None, None))
+        allocations_out.append({
+            "farmer_id": e["farmer_id"], "crop_id": e["crop_id"], "allocated_kg": e["allocated_kg"],
+            "harvested": harvested, "harvest_date": harvest_date,
+        })
 
     return {
         "allocations": allocations_out,

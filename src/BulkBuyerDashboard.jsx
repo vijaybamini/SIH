@@ -85,10 +85,23 @@ function CommodityCard({ commodity, onSelect }) {
   )
 }
 
+function freshnessSummary(allocations) {
+  const dated = (allocations || []).filter((a) => a.harvest_date)
+  if (dated.length === 0) return null
+  const freshest = dated.reduce((best, a) => (a.harvest_date > best.harvest_date ? a : best))
+  const anyUnharvested = dated.some((a) => !a.harvested)
+  return {
+    date: freshest.harvest_date,
+    label: freshest.harvested ? 'Harvested on' : 'Expected harvest',
+    mixed: anyUnharvested && dated.some((a) => a.harvested),
+  }
+}
+
 function QuoteBreakdown({ result }) {
   const perKg = result.consumer_breakdown.per_kg_breakdown
   const totals = result.consumer_breakdown.order_totals
   const market = result.consumer_breakdown.market_intelligence_metrics
+  const freshness = freshnessSummary(result.allocations)
   return (
     <div className="summary-crop-card">
       <strong>Your price ({result.order_demand_kg}kg{result.requested_kg !== result.order_demand_kg ? `, of ${result.requested_kg}kg requested` : ''})</strong>
@@ -96,6 +109,12 @@ function QuoteBreakdown({ result }) {
         <div><span>Price per kg</span><strong>{money(perKg.final_checkout_price_per_kg)}</strong></div>
         <div><span>Order total</span><strong>{money(totals.grand_total_to_pay)}</strong></div>
         <div><span>Demand trend</span><strong>{market.macro_market_trend}</strong></div>
+        {freshness && (
+          <div>
+            <span>Freshness</span>
+            <strong>{freshness.label} {freshness.date}{freshness.mixed ? ' (some pre-booked)' : ''}</strong>
+          </div>
+        )}
       </div>
     </div>
   )

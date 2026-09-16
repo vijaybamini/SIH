@@ -211,6 +211,30 @@ def forecast_price_trend(df, commodity, market, forecast_days=7):
 
 
 # ---------------------------------------------------------------------------
+# 1b. HISTORY + FORECAST (for charting -- the farmer analytics tab)
+# ---------------------------------------------------------------------------
+
+def get_price_history_and_forecast(df, commodity, market, history_days=90, forecast_days=14):
+    """Like forecast_price_trend, but also returns the actual observed daily
+    series (for plotting history alongside the forecast). Calls
+    forecast_price_trend() for the fit/forecast (only fit once) and
+    separately rebuilds the same daily-mean series cheaply (no second fit)
+    to slice out the trailing `history_days` window.
+
+    Returns (history_df, forecast_df, accuracy_dict).
+    """
+    forecast_result, accuracy = forecast_price_trend(df, commodity, market, forecast_days=forecast_days)
+
+    subset = df[(df["commodity"] == commodity) & (df["market_name"] == market)].copy()
+    subset = subset.sort_values("arrival_date")
+    subset.set_index("arrival_date", inplace=True)
+    series = subset["modal_price"].resample("D").mean().interpolate().tail(history_days)
+
+    history_df = pd.DataFrame({"date": series.index, "modal_price": series.values})
+    return history_df, forecast_result, accuracy
+
+
+# ---------------------------------------------------------------------------
 # MAIN — demo run
 # ---------------------------------------------------------------------------
 

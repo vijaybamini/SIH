@@ -44,3 +44,21 @@ export function fetchQuote(payload) {
 export function placeOrder(payload) {
   return request('/api/orders', { method: 'POST', body: JSON.stringify(payload) })
 }
+
+export function fetchPriceTrend(commodity, { market, historyDays = 90, forecastDays = 14 } = {}) {
+  const params = new URLSearchParams({ commodity, history_days: historyDays, forecast_days: forecastDays })
+  if (market) params.set('market', market)
+  return request(`/api/price-trend?${params.toString()}`)
+}
+
+export function validatePincode(pincode) {
+  return request(`/api/validate-pincode?pincode=${encodeURIComponent(pincode)}`)
+}
+
+export function requestEmailOtp(email) {
+  return request('/api/auth/request-email-otp', { method: 'POST', body: JSON.stringify({ email }) })
+}
+
+export function verifyEmailOtpCode(email, code) {
+  return request('/api/auth/verify-email-otp', { method: 'POST', body: JSON.stringify({ email, code }) })
+}

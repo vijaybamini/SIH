@@ -1,7 +1,13 @@
 import { useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
+import PincodeHint, { PINCODE_PATTERN } from './PincodeHint'
 import { useTranslation } from './i18n'
 import { saveFarmerData } from './api/farmer'
+import { toEnglishCropName, maxCropCycleDays } from './cropNames'
+import { supabase } from './supabase'
+
+const PHONE_PATTERN = /^[6-9][0-9]{9}$/
+const AADHAAR_PATTERN = /^[0-9]{12}$/
 
 let cropIdCounter = 1
 
@@ -45,7 +51,7 @@ function CropAutocomplete({ value, onChange, suggestions, placeholder, required 
   )
 }
 
-export default function CompleteProfileFarmer({ userId, onBack, onComplete, initialData, language, setLanguage, initialStep = 0, addCropOnOpen = false }) {
+export default function CompleteProfileFarmer({ userId, onBack, onComplete, initialData, currentEmail, onEmailUpdateRequested, language, setLanguage, initialStep = 0, addCropOnOpen = false }) {
   const t = useTranslation(language)
   const [mode, setMode] = useState(initialData ? 'summary' : 'edit')
   const [editingCrops, setEditingCrops] = useState(addCropOnOpen)
@@ -55,6 +61,8 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   const [photoFile, setPhotoFile] = useState(null)
   const [name, setName] = useState(initialData?.name || '')
   const [phone, setPhone] = useState(initialData?.phone || '')
+  const [email, setEmail] = useState(currentEmail || '')
+  const [emailUpdateStatus, setEmailUpdateStatus] = useState('idle')
   const [areaOfLand, setAreaOfLand] = useState(initialData?.areaOfLand || '')
   const [surveyNumber, setSurveyNumber] = useState(initialData?.surveyNumber || '')
   const [aadhaarNumber, setAadhaarNumber] = useState(initialData?.aadhaarNumber || '')
@@ -62,8 +70,13 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   const [pincode, setPincode] = useState(initialData?.pincode || '')
 
   const [crops, setCrops] = useState(() => {
-    const base = initialData?.crops?.length ? initialData.crops : [emptyCrop()]
-    return addCropOnOpen ? [...base, emptyCrop()] : base
+    const existing = initialData?.crops?.length ? initialData.crops : []
+    // Only append a fresh blank crop on top of ones that already exist --
+    // when there are none yet, a lone blank crop (below) is already "the
+    // one to add," so appending another here would show two empty fields
+    // for a farmer's very first crop.
+    if (addCropOnOpen && existing.length) return [...existing, emptyCrop()]
+    return existing.length ? existing : [emptyCrop()]
   })
 
   const [accountHolderName, setAccountHolderName] = useState(initialData?.bank?.accountHolderName || '')
@@ -82,7 +95,10 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   }
 
   function updateCrop(id, field, value) {
-    const nextValue = field === 'name' || field === 'specificType' ? value.toUpperCase() : value
+    // Crop name is canonicalized to English regardless of what language it
+    // was typed/selected in -- it's stored and matched against the AI
+    // backend's (English-only) commodity list, not just displayed.
+    const nextValue = field === 'name' ? toEnglishCropName(value).toUpperCase() : value
     setCrops((current) => current.map((crop) => (crop.id === id ? { ...crop, [field]: nextValue } : crop)))
   }
   function addCrop() {
@@ -111,11 +127,56 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
     }
   }
 
+  async function handleEmailUpdate() {
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed || trimmed === (currentEmail || '').toLowerCase()) return
+    setEmailUpdateStatus('saving')
+    try {
+      const { error } = await supabase.auth.updateUser({ email: trimmed })
+      if (error) throw error
+      setEmailUpdateStatus('confirm-sent')
+      onEmailUpdateRequested?.(trimmed)
+    } catch (error) {
+      setEmailUpdateStatus('error')
+      setSaveError(error.message || t.couldNotSaveProfile)
+    }
+  }
+
+  function validateCrops() {
+    const namedCrops = crops.filter((crop) => crop.name)
+
+    const totalLandUsed = namedCrops.reduce((sum, crop) => sum + (Number(crop.landUsed) || 0), 0)
+    const totalFarmArea = Number(areaOfLand)
+    if (totalFarmArea > 0 && totalLandUsed > totalFarmArea + 0.001) {
+      return t.validationCropLandExceeds
+        .replace('{used}', totalLandUsed.toFixed(2))
+        .replace('{total}', totalFarmArea)
+    }
+
+    for (const crop of namedCrops) {
+      if (!crop.plantedDate || !crop.expectedHarvestDate) continue
+      const days = (new Date(crop.expectedHarvestDate) - new Date(crop.plantedDate)) / 86400000
+      const limit = maxCropCycleDays(crop.name)
+      if (days > limit) {
+        return t.validationCropCycleTooLong
+          .replace('{crop}', crop.name)
+          .replace('{months}', Math.round(limit / 30))
+      }
+    }
+    return null
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
     setSaveError('')
+    const cropsError = validateCrops()
+    if (cropsError) {
+      setSaveError(cropsError)
+      return
+    }
     setIsSaving(true)
     try {
+      await handleEmailUpdate()
       const savedData = await saveFarmerData(userId, {
         name,
         phone,
@@ -218,16 +279,6 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
                           </label>
                         </div>
                       )}
-
-                      <label>{t.specificTypeOfCrop}
-                        <CropAutocomplete
-                          value={crop.specificType}
-                          onChange={(value) => updateCrop(crop.id, 'specificType', value)}
-                          suggestions={t.cropSuggestions}
-                          placeholder={t.specificTypePlaceholder}
-                          required
-                        />
-                      </label>
                     </>
                   )}
                 </div>
@@ -333,12 +384,26 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
 
           <div className="form-grid">
             <label>{t.name}<input type="text" placeholder={t.namePlaceholder} value={name} onChange={(event) => setName(event.target.value)} required /></label>
-            <label>{t.phone}<input type="tel" placeholder={t.phonePlaceholder} value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
+            <label>{t.phone}<input type="tel" inputMode="numeric" maxLength={10} pattern={PHONE_PATTERN.source} title={t.validationPhoneInvalid} placeholder={t.phonePlaceholder} value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))} required /></label>
+            <label>{t.emailOptional}
+              <input type="email" placeholder={t.emailPlaceholder} value={email} onChange={(event) => { setEmail(event.target.value); setEmailUpdateStatus('idle') }} />
+              <small className="ifsc-hint">
+                {emailUpdateStatus === 'saving' && t.emailUpdateSaving}
+                {emailUpdateStatus === 'confirm-sent' && <span className="ifsc-hint-ok">{t.emailUpdateConfirmSent}</span>}
+                {emailUpdateStatus === 'error' && <span className="ifsc-hint-warn">{t.emailUpdateError}</span>}
+                {emailUpdateStatus === 'idle' && !currentEmail && t.emailOptionalHint}
+              </small>
+            </label>
             <label>{t.areaOfLand}<input type="number" step="0.01" min="0" placeholder={t.areaOfLandPlaceholder} value={areaOfLand} onChange={(event) => setAreaOfLand(event.target.value)} required /></label>
             <label>{t.surveyNumber}<input type="text" placeholder={t.surveyNumberPlaceholder} value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value.toUpperCase())} required /></label>
-            <label>{t.aadhaarNumber}<input type="text" placeholder={t.aadhaarPlaceholder} value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value.toUpperCase())} required /></label>
+            <label>{t.aadhaarNumber}
+              <input type="text" inputMode="numeric" maxLength={12} pattern={AADHAAR_PATTERN.source} title={t.validationAadhaarInvalid} placeholder={t.aadhaarPlaceholder} value={aadhaarNumber} onChange={(event) => setAadhaarNumber(event.target.value.replace(/\D/g, '').slice(0, 12))} required />
+            </label>
             <label>{t.locationOfCrop}<input type="text" placeholder={t.cropLocationPlaceholder} value={cropLocation} onChange={(event) => setCropLocation(event.target.value.toUpperCase())} required /></label>
-            <label>{t.pincode}<input type="text" inputMode="numeric" pattern="[0-9]{6}" placeholder={t.pincodePlaceholder} value={pincode} onChange={(event) => setPincode(event.target.value)} required /></label>
+            <label>{t.pincode}
+              <input type="text" inputMode="numeric" maxLength={6} pattern={PINCODE_PATTERN.source} title={t.validationPincodeInvalid} placeholder={t.pincodePlaceholder} value={pincode} onChange={(event) => setPincode(event.target.value.replace(/\D/g, '').slice(0, 6))} required />
+              <PincodeHint pincode={pincode} t={t} />
+            </label>
           </div>
 
           <h3 className="form-section-title">{t.stepBankDetails}</h3>

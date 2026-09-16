@@ -21,6 +21,7 @@ function mapCrop(row) {
     specificType: row.specific_crop_type || '',
     plantedDate: row.planted_date || '',
     expectedHarvestDate: row.expected_harvest_date || '',
+    actualHarvestDate: row.actual_harvest_date || '',
     landUsed: row.land_used == null ? '' : String(row.land_used),
   }
 }
@@ -154,4 +155,75 @@ export async function saveFarmerData(userId, formData) {
   if (bankError) throw bankError
 
   return loadFarmerData(userId)
+}
+
+// Persists the "mark harvested" action (previously local-state-only, which
+// meant it reverted on refresh -- unacceptable once a buyer-facing harvest
+// date depends on it being real). Captures TODAY as the actual harvest
+// date, distinct from the pre-harvest estimate in expected_harvest_date.
+export async function markCropHarvested(cropId) {
+  requireSupabase()
+  const today = new Date().toISOString().slice(0, 10)
+  const { error } = await supabase
+    .from('crop_details')
+    .update({ harvested: true, actual_harvest_date: today })
+    .eq('id', cropId)
+  if (error) throw error
+  return today
+}
+
+// A farmer's own past sales, for the analytics tab -- order_allocations is
+// readable directly under RLS ("Farmers can view their own allocations"),
+// joined to the parent order for commodity/date/market price.
+export async function fetchFarmerSalesHistory(farmerId) {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('order_allocations')
+    .select('id, allocated_kg, farmer_payout, created_at, orders(commodity, market_crop_price_per_kg, created_at)')
+    .eq('farmer_id', farmerId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data || []).map((row) => ({
+    id: row.id,
+    commodity: row.orders?.commodity || '',
+    date: row.created_at,
+    allocatedKg: Number(row.allocated_kg) || 0,
+    payout: Number(row.farmer_payout) || 0,
+    pricePerKg: Number(row.allocated_kg) > 0 ? Number(row.farmer_payout) / Number(row.allocated_kg) : null,
+  }))
+}
+
+export async function fetchPriceAlerts(farmerId) {
+  requireSupabase()
+  const { data, error } = await supabase
+    .from('price_alerts')
+    .select('*')
+    .eq('farmer_id', farmerId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data || []).map((row) => ({
+    id: row.id,
+    commodity: row.commodity,
+    thresholdPrice: Number(row.threshold_price),
+    direction: row.direction,
+    active: row.active,
+    createdAt: row.created_at,
+  }))
+}
+
+export async function createPriceAlert(farmerId, { commodity, thresholdPrice, direction }) {
+  requireSupabase()
+  const { error } = await supabase.from('price_alerts').insert({
+    farmer_id: farmerId,
+    commodity,
+    threshold_price: thresholdPrice,
+    direction,
+  })
+  if (error) throw error
+}
+
+export async function deletePriceAlert(alertId) {
+  requireSupabase()
+  const { error } = await supabase.from('price_alerts').delete().eq('id', alertId)
+  if (error) throw error
 }

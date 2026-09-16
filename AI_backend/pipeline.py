@@ -284,6 +284,46 @@ def _get_pincode_map():
     return pincode_map
 
 
+pincode_details_map = None
+
+def _get_pincode_details_map():
+    """Pincode -> (district, state), for validation/lookup (not routing --
+    see _get_pincode_map for the lat/lon map the distance calc uses)."""
+    global pincode_details_map
+    if pincode_details_map is not None:
+        return pincode_details_map
+    pincode_details_map = {}
+    for c in PINCODE_RELATIVE_CANDIDATES:
+        p = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), c))
+        if not os.path.exists(p):
+            continue
+        try:
+            df = pd.read_csv(p, low_memory=False, usecols=lambda col: col.strip().lower() in ("pincode", "district", "statename"))
+            df.columns = [str(col).strip().lower() for col in df.columns]
+            if not {"pincode", "district", "statename"}.issubset(df.columns):
+                continue
+            df["pincode"] = df["pincode"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+            details = {}
+            for pin, district, state in zip(df["pincode"], df["district"], df["statename"]):
+                if pin not in details:
+                    details[pin] = (str(district).strip() if pd.notna(district) else None,
+                                     str(state).strip() if pd.notna(state) else None)
+            pincode_details_map = details
+        except Exception:
+            pincode_details_map = {}
+        break
+    return pincode_details_map
+
+
+def validate_pincode(pincode: str):
+    """Returns {"valid": bool, "district": str|None, "state": str|None}."""
+    details = _get_pincode_details_map()
+    match = details.get(str(pincode).strip())
+    if not match:
+        return {"valid": False, "district": None, "state": None}
+    return {"valid": True, "district": match[0], "state": match[1]}
+
+
 def _haversine_km(lat1, lon1, lat2, lon2) -> float:
     r = 6371.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -388,6 +428,68 @@ def _recent_average_fallback(df: pd.DataFrame, commodity: str, market: str,
 # instant instead of re-fitting every time, and (2) a hard wall-clock
 # ceiling via a background thread so a slow fit degrades to the fast
 # recent-average fallback instead of hanging the whole /api/quote request.
+def price_trend_for(df: pd.DataFrame, commodity: str, market: str,
+                     history_days: int = 90, forecast_days: int = 14) -> Dict[str, Any]:
+    from demand_forecast_engine import get_price_history_and_forecast
+
+    history_df, forecast_result, accuracy = get_price_history_and_forecast(
+        df, commodity, market, history_days=history_days, forecast_days=forecast_days,
+    )
+    quintal = _QUINTAL_KG
+
+    return {
+        "commodity": commodity,
+        "market": market,
+        "history": [
+            {"date": d.strftime("%Y-%m-%d"), "price_per_kg": round(p / quintal, 2)}
+            for d, p in zip(history_df["date"], history_df["modal_price"])
+        ],
+        "forecast": [
+            {"date": row["date"].strftime("%Y-%m-%d"), "price_per_kg": round(row["forecasted_modal_price"] / quintal, 2)}
+            for _, row in forecast_result.iterrows()
+        ],
+        "demand_pressure_signal": accuracy["demand_pressure_signal"],
+        "pct_change_vs_recent_avg": accuracy["pct_change_vs_recent_avg"],
+    }
+
+
+_price_trend_cache: Dict[Tuple[str, str, int, int], Tuple[float, Dict[str, Any]]] = {}
+PRICE_TREND_CACHE_TTL_SECONDS = 600.0
+
+
+def price_trend_with_fallback(df: pd.DataFrame, commodity: str, market: str,
+                               history_days: int = 90, forecast_days: int = 14) -> Dict[str, Any]:
+    """Cached wrapper around price_trend_for; degrades to a history-only
+    result (no forecast) if there isn't enough data for Holt-Winters.
+    Simpler than forecast_with_fallback (no hard wall-clock timeout thread)
+    since this feeds the analytics tab, not the live-quote critical path."""
+    import time
+
+    cache_key = (commodity, market, history_days, forecast_days)
+    cached = _price_trend_cache.get(cache_key)
+    if cached is not None and (time.monotonic() - cached[0]) < PRICE_TREND_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    quintal = _QUINTAL_KG
+    try:
+        result = price_trend_for(df, commodity, market, history_days, forecast_days)
+    except ValueError:
+        subset = df[(df["commodity"] == commodity) & (df["market_name"] == market)].copy()
+        subset = subset.sort_values("arrival_date").set_index("arrival_date")
+        series = subset["modal_price"].resample("D").mean().interpolate().tail(history_days)
+        result = {
+            "commodity": commodity,
+            "market": market,
+            "history": [{"date": d.strftime("%Y-%m-%d"), "price_per_kg": round(p / quintal, 2)} for d, p in series.items()],
+            "forecast": [],
+            "demand_pressure_signal": "STABLE",
+            "pct_change_vs_recent_avg": 0.0,
+        }
+
+    _price_trend_cache[cache_key] = (time.monotonic(), result)
+    return result
+
+
 _forecast_cache: Dict[Tuple[str, str, int], Tuple[float, Dict[str, Any], Optional[str]]] = {}
 FORECAST_CACHE_TTL_SECONDS = 600.0
 FORECAST_TIMEOUT_SECONDS = 12.0

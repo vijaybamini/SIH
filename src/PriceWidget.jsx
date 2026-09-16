@@ -1,11 +1,4 @@
-import { useEffect, useState } from 'react'
-import { fetchFarmerPrice } from './api/aiBackend'
-
-function trendClass(pct) {
-  if (pct > 1) return 'up'
-  if (pct < -1) return 'down'
-  return 'flat'
-}
+import { displayCropName } from './cropNames'
 
 function trendArrow(pct) {
   if (pct > 1) return '↑'
@@ -13,91 +6,28 @@ function trendArrow(pct) {
   return '→'
 }
 
-function isFeaturedCrop(cropName) {
-  return /rice|paddy|paddh|dhan/i.test(cropName || '')
-}
-
-function CropPriceRow({ cropName, t }) {
-  const [state, setState] = useState({ status: 'loading' })
-
-  useEffect(() => {
-    let cancelled = false
-    setState({ status: 'loading' })
-    fetchFarmerPrice(cropName)
-      .then((data) => { if (!cancelled) setState({ status: 'ok', data }) })
-      .catch((error) => { if (!cancelled) setState({ status: 'error', message: error.message }) })
-    return () => { cancelled = true }
-  }, [cropName])
-
-  if (state.status === 'loading') {
-    return (
-      <div className="price-widget-row">
-        <span className="price-widget-crop">{cropName}</span>
-        <span className="price-widget-loading">{t.checkingPrice}</span>
-      </div>
-    )
-  }
-
-  if (state.status === 'error') {
-    return (
-      <div className="price-widget-row">
-        <span className="price-widget-crop">{cropName}</span>
-        <span className="price-widget-unavailable">{t.priceUnavailable}</span>
-      </div>
-    )
-  }
-
-  const { farmer_net_price_per_kg, market_demand_trend_pct } = state.data
+function CropPriceCard({ cropName, displayName, entry, t }) {
+  const status = entry?.status || 'loading'
   return (
-    <div className="price-widget-row">
-      <span className="price-widget-crop">{cropName}</span>
-      <span className="price-widget-value">
-        ₹{farmer_net_price_per_kg}/kg
-        <em className={`price-trend price-trend-${trendClass(market_demand_trend_pct)}`}>
-          {trendArrow(market_demand_trend_pct)} {Math.abs(market_demand_trend_pct)}%
-        </em>
-      </span>
-    </div>
-  )
-}
+    <article className="flex flex-col justify-center rounded-2xl bg-brand-700 p-5 text-white">
+      <span className="text-xs font-semibold uppercase tracking-wide text-brand-100">{displayName}</span>
 
-function CropPriceHero({ cropName, t }) {
-  const [state, setState] = useState({ status: 'loading' })
+      {status === 'loading' && <span className="mt-3 text-sm text-brand-100">{t.checkingPrice}</span>}
+      {status === 'error' && <span className="mt-3 text-sm text-brand-100">{t.priceUnavailable}</span>}
 
-  useEffect(() => {
-    let cancelled = false
-    setState({ status: 'loading' })
-    fetchFarmerPrice(cropName)
-      .then((data) => { if (!cancelled) setState({ status: 'ok', data }) })
-      .catch((error) => { if (!cancelled) setState({ status: 'error', message: error.message }) })
-    return () => { cancelled = true }
-  }, [cropName])
-
-  return (
-    <article className="price-hero">
-      <span className="price-hero-crop">{cropName}</span>
-
-      {state.status === 'loading' && (
-        <span className="price-hero-loading">{t.checkingPrice}</span>
-      )}
-
-      {state.status === 'error' && (
-        <span className="price-hero-unavailable">{t.priceUnavailable}</span>
-      )}
-
-      {state.status === 'ok' && (
+      {status === 'ok' && (
         <>
-          <span className="price-hero-value">
-            ₹{state.data.farmer_net_price_per_kg}
-            <em className="price-hero-unit">/kg</em>
+          <span className="mt-1.5 font-display text-3xl font-semibold tabular-nums">
+            ₹{entry.data.farmer_net_price_per_kg}
+            <em className="ml-1 text-sm font-normal not-italic text-brand-100">/kg</em>
           </span>
-          <div className="price-hero-meta">
-            <span className="price-live">
-              <span className="price-live-dot" aria-hidden="true" />
+          <div className="mt-2.5 flex items-center gap-2.5">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-brand-100">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#8fe3b0]" aria-hidden="true" />
               {t.livePrice}
             </span>
-            <em className={`price-trend price-trend-${trendClass(state.data.market_demand_trend_pct)}`}>
-              {trendArrow(state.data.market_demand_trend_pct)} {Math.abs(state.data.market_demand_trend_pct)}%
+            <em className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-bold not-italic">
+              {trendArrow(entry.data.market_demand_trend_pct)} {Math.abs(entry.data.market_demand_trend_pct)}%
             </em>
           </div>
         </>
@@ -106,25 +36,19 @@ function CropPriceHero({ cropName, t }) {
   )
 }
 
-export default function PriceWidget({ crops, t }) {
+export default function PriceWidget({ crops, prices, language, t }) {
   const cropNames = [...new Set((crops || []).map((crop) => crop.name).filter(Boolean))]
   if (cropNames.length === 0) return null
 
-  const featured = cropNames.find(isFeaturedCrop) || cropNames[0]
-  const others = cropNames.filter((name) => name !== featured)
-
   return (
-    <div className="price-widget">
-      <h3 className="price-widget-title">{t.todaysPrices}</h3>
-      <div className="price-hero-card">
-        <CropPriceHero key={featured} cropName={featured} t={t} />
-        {others.length > 0 && (
-          <div className="price-widget-minor">
-            {others.map((name) => <CropPriceRow key={name} cropName={name} t={t} />)}
-          </div>
-        )}
+    <div>
+      <h3 className="mb-3.5 font-display text-2xl font-bold text-brand-900">{t.todaysPrices}</h3>
+      <div className="grid grid-cols-1 gap-3.5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5 sm:grid-cols-2 lg:grid-cols-3">
+        {cropNames.map((name) => (
+          <CropPriceCard key={name} cropName={name} displayName={displayCropName(name, language)} entry={prices?.[name]} t={t} />
+        ))}
       </div>
-      <p className="price-widget-note">{t.priceWidgetNote}</p>
+      <p className="mt-2.5 text-xs text-[var(--text-muted)]">{t.priceWidgetNote}</p>
     </div>
   )
 }

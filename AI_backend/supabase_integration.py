@@ -217,6 +217,23 @@ def fetch_order_trips(order_id: int, timeout: float = 6.0) -> Optional[List[Dict
     return rows
 
 
+def check_and_notify_price_alerts(commodity: str, current_price_per_kg: float, timeout: float = 5.0) -> int:
+    """Best-effort: checks any active price_alerts for `commodity` against
+    `current_price_per_kg` and notifies (+ deactivates) any that have been
+    crossed, via the check_price_alerts() security-definer RPC. Called as a
+    side effect of /api/price-trend -- see that migration's note on why
+    this is opportunistic rather than a real background job. Never raises;
+    returns 0 (not an error) if Supabase is unavailable."""
+    result = _call_rpc("check_price_alerts", {
+        "p_commodity": commodity,
+        "p_current_price": current_price_per_kg,
+    }, timeout=timeout)
+    try:
+        return int(result) if result is not None else 0
+    except (TypeError, ValueError):
+        return 0
+
+
 def create_order(
     buyer_id: str,
     commodity: str,

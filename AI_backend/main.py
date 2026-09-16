@@ -117,6 +117,53 @@ def supply(commodity: str):
         raise HTTPException(status_code=503, detail=f"Pipeline unavailable: {exc}")
 
 
+@app.post("/api/auth/request-email-otp")
+def request_email_otp_endpoint(data: dict):
+    """Sends a 6-digit login code to an email already on an existing
+    account, via Resend rather than Supabase's own mailer (see
+    email_otp.py for why)."""
+    email = (data.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required.")
+    try:
+        from email_otp import request_email_otp
+        request_email_otp(email)
+        return {"sent": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.post("/api/auth/verify-email-otp")
+def verify_email_otp_endpoint(data: dict):
+    """Verifies the code and returns a token_hash for the frontend to
+    complete sign-in with supabase.auth.verifyOtp({token_hash, type: 'email'})."""
+    email = (data.get("email") or "").strip()
+    code = (data.get("code") or "").strip()
+    if not email or not code:
+        raise HTTPException(status_code=400, detail="email and code are required.")
+    try:
+        from email_otp import verify_email_otp
+        token_hash = verify_email_otp(email, code)
+        return {"token_hash": token_hash}
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.get("/api/validate-pincode")
+def validate_pincode_endpoint(pincode: str):
+    """Real existence check against the India pincode directory (not just
+    digit-pattern validation) -- used by registration/profile forms."""
+    try:
+        from pipeline import validate_pincode
+        return validate_pincode(pincode)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Pipeline unavailable: {exc}")
+
+
 @app.get("/api/farmer-price")
 def farmer_price(commodity: str, market: str = None):
     """What a farmer would net per kg for a commodity right now (forecast +
@@ -128,6 +175,38 @@ def farmer_price(commodity: str, market: str = None):
         if market:
             payload["market"] = market
         return get_farmer_price_signal(payload)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Pipeline unavailable: {exc}")
+
+
+@app.get("/api/price-trend")
+def price_trend(commodity: str, market: str = None, history_days: int = 90, forecast_days: int = 14):
+    """Market price history + Holt-Winters forecast for the farmer analytics
+    tab (history for charting, forecast + demand_pressure_signal for the
+    best-time-to-sell advisory). Also opportunistically checks this
+    commodity's price_alerts as a side effect (see check_and_notify_price_alerts)."""
+    try:
+        from pipeline import load_dataset, _match_commodity, pick_default_market, price_trend_with_fallback
+        df = load_dataset()
+        real_commodity = _match_commodity(df, commodity)
+        if real_commodity is None:
+            raise HTTPException(status_code=400, detail=f"Unknown commodity '{commodity}'.")
+        resolved_market = market or pick_default_market(df, real_commodity)
+        result = price_trend_with_fallback(df, real_commodity, resolved_market, history_days, forecast_days)
+
+        try:
+            from supabase_integration import check_and_notify_price_alerts
+            current_price = result["history"][-1]["price_per_kg"] if result["history"] else None
+            if current_price is not None:
+                check_and_notify_price_alerts(real_commodity, current_price)
+        except Exception:  # noqa: BLE001 -- alerts are best-effort, never fail the trend response
+            pass
+
+        return result
     except HTTPException:
         raise
     except ValueError as exc:
