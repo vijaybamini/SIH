@@ -9,6 +9,9 @@ import { supabase } from './supabase'
 const PHONE_PATTERN = /^[6-9][0-9]{9}$/
 const AADHAAR_PATTERN = /^[0-9]{12}$/
 
+const cropInputClass = 'w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] px-4 py-3 text-[15px] text-brand-900 outline-none transition-shadow focus:border-brand-400 focus:shadow-[0_0_0_3px_var(--color-brand-50)]'
+const cropLabelClass = 'grid gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-400'
+
 let cropIdCounter = 1
 
 function emptyCrop() {
@@ -30,9 +33,10 @@ function CropAutocomplete({ value, onChange, suggestions, placeholder, required 
   }
 
   return (
-    <div className="autocomplete-wrap">
+    <div className="relative">
       <input
         type="text"
+        className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] px-4 py-3.5 text-base font-semibold text-brand-900 outline-none transition-shadow focus:border-brand-400 focus:shadow-[0_0_0_3px_var(--color-brand-50)]"
         value={value}
         placeholder={placeholder}
         required={required}
@@ -41,9 +45,15 @@ function CropAutocomplete({ value, onChange, suggestions, placeholder, required 
         onBlur={() => { blurTimer.current = setTimeout(() => setOpen(false), 150) }}
       />
       {open && filtered.length > 0 && (
-        <ul className="autocomplete-list">
+        <ul className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-64 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-1.5 shadow-lg shadow-brand-900/10">
           {filtered.slice(0, 8).map((item) => (
-            <li key={item} onMouseDown={(event) => { event.preventDefault(); selectSuggestion(item) }}>{item}</li>
+            <li
+              key={item}
+              className="cursor-pointer rounded-lg px-3.5 py-2.5 text-sm font-medium text-brand-900 transition-colors hover:bg-brand-50 hover:text-brand-700"
+              onMouseDown={(event) => { event.preventDefault(); selectSuggestion(item) }}
+            >
+              {item}
+            </li>
           ))}
         </ul>
       )}
@@ -217,23 +227,45 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
   const completionPercent = computeCompletionPercent()
 
   if (editingCrops) {
+    const totalLandUsed = namedCrops.reduce((sum, crop) => sum + (Number(crop.landUsed) || 0), 0)
+    const totalFarmArea = Number(areaOfLand) || 0
+    const landPct = totalFarmArea > 0 ? Math.min(100, (totalLandUsed / totalFarmArea) * 100) : 0
+    const landOver = totalFarmArea > 0 && totalLandUsed > totalFarmArea + 0.001
+
     return (
-      <div className="profile-page">
-        <div className="profile-page-inner">
-          <div className="profile-page-topbar">
-            <button className="back-button" onClick={onBack}>{t.backToDashboard}</button>
+      <div className="min-h-screen bg-cream-100 px-6 py-11">
+        <div className="mx-auto max-w-[720px]">
+          <div className="mb-6 flex items-center justify-between">
+            <button type="button" className="text-sm font-bold text-brand-800 hover:text-brand-600" onClick={onBack}>{t.backToDashboard}</button>
             <LanguageSwitcher language={language} setLanguage={setLanguage} />
           </div>
-          <p className="eyebrow">{t.stepCropDetails}</p>
-          <h2>{t.manageCropsTitle}</h2>
-          <p className="panel-subtitle">{t.completeYourProfileSubtitle}</p>
 
-          <form className="profile-form-card" onSubmit={handleSubmit} ref={formRef}>
-            <div className="crop-section">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-400">{t.stepCropDetails}</p>
+          <h2 className="font-display text-[32px] font-semibold text-brand-900">{t.manageCropsTitle}</h2>
+          <p className="mt-2 text-[15px] leading-relaxed text-[var(--text-muted)]">{t.completeYourProfileSubtitle}</p>
+
+          {totalFarmArea > 0 && (
+            <div className="mt-6 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] px-5 py-4">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="font-semibold text-brand-900">{t.landBudgetLabel}</span>
+                <span className={`font-bold tabular-nums ${landOver ? 'text-[var(--color-error)]' : 'text-brand-700'}`}>
+                  {totalLandUsed.toFixed(2)} / {totalFarmArea} {t.acres}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-brand-100">
+                <div className={`h-full rounded-full transition-all ${landOver ? 'bg-[var(--color-error)]' : 'bg-brand-600'}`} style={{ width: `${landPct}%` }} />
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} ref={formRef} className="mt-7">
+            <div className="flex flex-col gap-5">
               {crops.map((crop, index) => (
-                <div className="crop-card" key={crop.id}>
-                  <div className="crop-card-header">
-                    <label>{`${t.cropWord} ${index + 1} ${t.cropNameLabel}`}
+                <div key={crop.id} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-6 shadow-sm shadow-brand-900/[0.03]">
+                  <div className="mb-5 flex items-start gap-3.5">
+                    <span className="mt-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700">{index + 1}</span>
+                    <label className="flex-1">
+                      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-brand-400">{`${t.cropWord} ${index + 1} ${t.cropNameLabel}`}</span>
                       <CropAutocomplete
                         value={crop.name}
                         onChange={(value) => updateCrop(crop.id, 'name', value)}
@@ -243,31 +275,56 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
                       />
                     </label>
                     {crops.length > 1 && (
-                      <button type="button" className="remove-crop-button" onClick={() => removeCrop(crop.id)} aria-label={t.removeThisCropLabel}>×</button>
+                      <button
+                        type="button"
+                        className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-error-bg)] text-lg text-[var(--color-error)] transition-colors hover:brightness-95"
+                        onClick={() => removeCrop(crop.id)}
+                        aria-label={t.removeThisCropLabel}
+                      >
+                        ×
+                      </button>
                     )}
                   </div>
 
                   {crop.name && (
-                    <>
-                      <label>{t.landUsed}<input type="number" step="0.01" min="0" placeholder={t.landUsedPlaceholder} value={crop.landUsed} onChange={(event) => updateCrop(crop.id, 'landUsed', event.target.value)} required /></label>
+                    <div className="flex flex-col gap-5">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <label className={cropLabelClass}>{t.landUsed}
+                          <input className={cropInputClass} type="number" step="0.01" min="0" placeholder={t.landUsedPlaceholder} value={crop.landUsed} onChange={(event) => updateCrop(crop.id, 'landUsed', event.target.value)} required />
+                        </label>
+                        <label className={cropLabelClass}>{t.datePlanted}
+                          <input className={cropInputClass} type="date" value={crop.plantedDate} onChange={(event) => updateCrop(crop.id, 'plantedDate', event.target.value)} required />
+                        </label>
+                      </div>
 
-                      <label>{t.datePlanted}<input type="date" value={crop.plantedDate} onChange={(event) => updateCrop(crop.id, 'plantedDate', event.target.value)} required /></label>
-
-                      <div className="harvested-toggle">
-                        <span>{t.harvestedQuestion}</span>
-                        <div className="toggle-buttons">
-                          <button type="button" className={crop.harvested === true ? 'selected' : ''} onClick={() => updateCrop(crop.id, 'harvested', true)}>{t.yes}</button>
-                          <button type="button" className={crop.harvested === false ? 'selected' : ''} onClick={() => updateCrop(crop.id, 'harvested', false)}>{t.no}</button>
+                      <div>
+                        <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-brand-400">{t.harvestedQuestion}</span>
+                        <div className="flex gap-2.5">
+                          <button
+                            type="button"
+                            className={`flex-1 rounded-xl border-2 py-3 text-sm font-bold transition-colors ${crop.harvested === true ? 'border-brand-600 bg-brand-600 text-white' : 'border-[var(--border-subtle)] bg-[var(--surface)] text-brand-900 hover:border-brand-300'}`}
+                            onClick={() => updateCrop(crop.id, 'harvested', true)}
+                          >
+                            {t.yes}
+                          </button>
+                          <button
+                            type="button"
+                            className={`flex-1 rounded-xl border-2 py-3 text-sm font-bold transition-colors ${crop.harvested === false ? 'border-brand-600 bg-brand-600 text-white' : 'border-[var(--border-subtle)] bg-[var(--surface)] text-brand-900 hover:border-brand-300'}`}
+                            onClick={() => updateCrop(crop.id, 'harvested', false)}
+                          >
+                            {t.no}
+                          </button>
                         </div>
                       </div>
 
                       {crop.harvested !== null && (
-                        <div className="form-grid crop-date-grid">
-                          <label>{crop.harvested ? t.dateHarvested : t.expectedHarvestDate}
-                            <input type="date" value={crop.expectedHarvestDate} onChange={(event) => updateCrop(crop.id, 'expectedHarvestDate', event.target.value)} required />
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <label className={cropLabelClass}>{crop.harvested ? t.dateHarvested : t.expectedHarvestDate}
+                            <input className={cropInputClass} type="date" value={crop.expectedHarvestDate} onChange={(event) => updateCrop(crop.id, 'expectedHarvestDate', event.target.value)} required />
                           </label>
-                          <label>{crop.harvested ? t.turnover : t.expectedTurnover}
+                          <label className={cropLabelClass}>{crop.harvested ? t.turnover : t.expectedTurnover}
                             <input
+                              className={cropInputClass}
                               type="number"
                               step="0.01"
                               min="0"
@@ -279,19 +336,25 @@ export default function CompleteProfileFarmer({ userId, onBack, onComplete, init
                           </label>
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               ))}
 
-              <button type="button" className="add-crop-button" onClick={addCrop}>
-                <span aria-hidden="true">+</span> {t.addAnotherCrop}
+              <button
+                type="button"
+                onClick={addCrop}
+                className="flex items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50 px-6 py-5 text-base font-bold text-brand-700 transition-colors hover:border-brand-500 hover:bg-brand-100"
+              >
+                <span aria-hidden="true" className="text-xl">+</span> {t.addAnotherCrop}
               </button>
             </div>
 
-            <div className="profile-actions">
-              {saveError && <p className="form-error" role="alert">{saveError}</p>}
-              <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? t.savingButton : t.saveFinish}</button>
+            <div className="mt-7 flex flex-col items-end gap-3">
+              {saveError && <p className="w-full rounded-lg border-l-4 border-[var(--color-error)] bg-[var(--color-error-bg)] px-4 py-3 text-sm text-[var(--color-error-ink)]" role="alert">{saveError}</p>}
+              <button type="submit" className="rounded-xl bg-brand-600 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70" disabled={isSaving}>
+                {isSaving ? t.savingButton : t.saveFinish}
+              </button>
             </div>
           </form>
         </div>
