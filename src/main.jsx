@@ -1,6 +1,17 @@
 import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import './styles.css'
+import PublicLayout from './PublicLayout'
+import HomePage from './pages/HomePage'
+import ServicesOverviewPage from './pages/ServicesOverviewPage'
+import ServiceCategoryPage from './pages/ServiceCategoryPage'
+import HowItWorksPage from './pages/HowItWorksPage'
+import AboutPage from './pages/AboutPage'
+import FaqPage from './pages/FaqPage'
+import PolicyPage from './pages/PolicyPage'
+import TermsPage from './pages/TermsPage'
+import ContactPage from './pages/ContactPage'
 import { isSupabaseConfigured, supabase } from './supabase'
 import Dashboard from './Dashboard'
 import BulkBuyerDashboard from './BulkBuyerDashboard'
@@ -63,7 +74,6 @@ function App() {
   const t = useTranslation(language)
   const [showAccessibilityMenu, setShowAccessibilityMenu] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [activeNav, setActiveNav] = useState('home')
   const [accessibility, setAccessibility] = useState({
     fontSizeLevel: DEFAULT_FONT_SIZE_LEVEL,
     saturationLevel: DEFAULT_SATURATION_LEVEL,
@@ -80,7 +90,6 @@ function App() {
   const [logisticsProfile, setLogisticsProfile] = useState(null)
 const authRequestRef = useRef(0)
   const lastSessionUserRef = useRef(null)
-  const heroVideoRef = useRef(null)
   const [buyerProfile, setBuyerProfile] = useState(null)
   const [serviceProfile, setServiceProfile] = useState(null)
 
@@ -201,14 +210,6 @@ authRequestRef.current += 1
   }
 
   useEffect(() => {
-    // Some browsers ignore the `autoplay` attribute on a video that wasn't
-    // already in the initial document (React inserts it after mount), even
-    // when muted -- calling play() explicitly once the element exists covers
-    // that gap without affecting browsers where autoplay already worked.
-    heroVideoRef.current?.play().catch(() => {})
-  }, [])
-
-  useEffect(() => {
     if (!supabase) return undefined
     let active = true
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
@@ -235,30 +236,6 @@ authRequestRef.current += 1
     return () => {
       active = false
       subscription?.subscription.unsubscribe()
-    }
-  }, [])
-
-  useEffect(() => {
-    let offsetAbout = 0
-    let offsetHow = 0
-    const measure = () => {
-      offsetAbout = document.getElementById('about')?.offsetTop || 0
-      offsetHow = document.getElementById('how-it-works')?.offsetTop || 0
-    }
-    const updateActive = () => {
-      const probe = window.scrollY + 150
-      if (probe < offsetAbout) setActiveNav('home')
-      else if (probe < offsetHow) setActiveNav('about')
-      else setActiveNav('how-it-works')
-    }
-    const onResize = () => { measure(); updateActive() }
-    measure()
-    updateActive()
-    window.addEventListener('scroll', updateActive, { passive: true })
-    window.addEventListener('resize', onResize)
-    return () => {
-      window.removeEventListener('scroll', updateActive)
-      window.removeEventListener('resize', onResize)
     }
   }, [])
 
@@ -399,23 +376,23 @@ authRequestRef.current += 1
   }
 
   const navItems = [
-    { key: 'services', label: copy.navServices, href: '#how-it-works' },
-    { key: 'how', label: copy.navHow, href: '#how-it-works' },
-    { key: 'about', label: copy.navAbout, href: '#about' },
+    { key: 'services', label: copy.navServices, href: '/services' },
+    { key: 'how', label: copy.navHow, href: '/how-it-works' },
+    { key: 'about', label: copy.navAbout, href: '/about' },
   ]
 
   const footerLinks = [
-    { key: 'faq', label: copy.faq, href: '#faq' },
-    { key: 'policy', label: copy.policy, href: '#policy' },
-    { key: 'terms', label: copy.termsConditions, href: '#terms' },
-    { key: 'contact', label: copy.contactUs, href: '#contact' },
+    { key: 'faq', label: copy.faq, href: '/faq' },
+    { key: 'policy', label: copy.policy, href: '/policy' },
+    { key: 'terms', label: copy.termsConditions, href: '/terms' },
+    { key: 'contact', label: copy.contactUs, href: '/contact' },
   ]
 
   const servicesLinks = [
-    { key: 'svc-farmers', label: copy.svcFarmers, href: '#farmers' },
-    { key: 'svc-marketplace', label: copy.svcMarketplace, href: '#marketplace' },
-    { key: 'svc-processing', label: copy.svcProcessing, href: '#processing-unit' },
-    { key: 'svc-logistics', label: copy.svcLogistics, href: '#logistics' },
+    { key: 'svc-farmers', label: copy.svcFarmers, href: '/services/farmers' },
+    { key: 'svc-marketplace', label: copy.svcMarketplace, href: '/services/marketplace' },
+    { key: 'svc-processing', label: copy.svcProcessing, href: '/services/processing-unit' },
+    { key: 'svc-logistics', label: copy.svcLogistics, href: '/services/logistics' },
   ]
 
   const NAV_SUBMENUS = { about: footerLinks, services: servicesLinks }
@@ -590,255 +567,50 @@ authRequestRef.current += 1
     )
   }
 
-  const navLinkBase = 'group relative py-2 text-[15px] font-semibold tracking-tight text-brand-800 transition-colors hover:text-brand-600'
-  const primaryButton = 'inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-brand-900/20 transition-all hover:-translate-y-0.5 hover:bg-brand-700'
-  const quietButton = 'inline-flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-brand-800 transition-colors hover:text-brand-600'
-
   return (
-    <div className={`min-h-screen bg-[var(--surface)] font-sans text-[var(--text-primary)] ${accessibilityClass}`} style={accessibilityStyle}>
-      <header className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--surface)]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-4 px-6 py-5 lg:flex-nowrap">
-          <Logo href="#home" label={t.homeLabel} />
-          <nav className="order-3 hidden w-full justify-center lg:order-none lg:flex lg:w-auto lg:flex-1" aria-label={t.mainNavLabel}>
-            <ul className="flex flex-wrap items-center justify-center gap-8">
-              {navItems.map((item) => {
-                const submenuLinks = NAV_SUBMENUS[item.key]
-                return (
-                  <li key={item.key} className={submenuLinks ? 'group/sub relative' : ''}>
-                    <a
-                      href={item.href}
-                      className={`${navLinkBase} ${activeNav === item.key ? 'text-brand-600' : ''}`}
-                      aria-current={activeNav === item.key ? 'page' : undefined}
-                      onClick={() => setActiveNav(item.key)}
-                    >
-                      {item.label}
-                      <span
-                        aria-hidden="true"
-                        className={`absolute -bottom-1.5 left-0 h-0.5 w-full origin-left rounded-full bg-brand-600 transition-transform duration-200 ${
-                          activeNav === item.key ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'
-                        }`}
-                      />
-                    </a>
-                    {submenuLinks && (
-                      <div className="pointer-events-none absolute left-1/2 top-full z-10 -translate-x-1/2 pt-3.5 opacity-0 transition-all duration-200 group-hover/sub:pointer-events-auto group-hover/sub:opacity-100 group-focus-within/sub:pointer-events-auto group-focus-within/sub:opacity-100">
-                        <ul className="min-w-[190px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-2 shadow-lg shadow-brand-900/10">
-                          {submenuLinks.map((link) => (
-                            <li key={link.key}>
-                              <a
-                                href={link.href}
-                                className={`block whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-brand-50 hover:text-brand-600 ${
-                                  link.accent ? 'font-semibold text-brand-400' : 'text-brand-800'
-                                }`}
-                              >
-                                {link.label}
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          </nav>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <div className="relative">
-              <button
-                className="flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-2 text-sm font-semibold text-brand-800 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
-                aria-expanded={showAccessibilityMenu}
-                aria-controls="accessibility-menu"
-                onClick={() => setShowAccessibilityMenu(!showAccessibilityMenu)}
-              >
-                <span aria-hidden="true">♿</span>
-                <span className="hidden sm:inline">{copy.accessibility}</span>
-                <span className="text-xs">{showAccessibilityMenu ? '⌃' : '⌄'}</span>
-              </button>
-              {showAccessibilityMenu && (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[250px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-4 shadow-lg shadow-brand-900/10" id="accessibility-menu">
-                  <div className="mb-4">
-                    <div className="mb-2.5 flex items-center justify-between">
-                      <span className="text-xs font-bold text-brand-600">{copy.fontSize}</span>
-                      <button type="button" className="rounded p-0.5 text-[var(--text-muted)] transition-transform hover:-rotate-[70deg] hover:text-brand-600" aria-label={`${copy.resetLabel} ${copy.fontSize}`} onClick={() => setFontSizeLevel(DEFAULT_FONT_SIZE_LEVEL)}>↻</button>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <button type="button" className="h-7 w-[30px] shrink-0 rounded-lg bg-brand-50 text-xs font-bold text-brand-800 hover:bg-brand-100 hover:text-brand-600" aria-label={`${copy.fontSize} -`} onClick={() => setFontSizeLevel(accessibility.fontSizeLevel - 1)}>A-</button>
-                      <div className="flex flex-1 justify-center gap-1.5" role="group" aria-label={copy.fontSize}>
-                        {FONT_SIZE_LEVELS.map((_, index) => (
-                          <button
-                            key={index}
-                            type="button"
-                            className={`h-2.5 w-2.5 rounded-full transition-transform ${accessibility.fontSizeLevel === index ? 'scale-[1.3] bg-brand-600' : 'bg-brand-200 hover:bg-brand-300'}`}
-                            aria-label={`${copy.fontSize} ${index + 1}`}
-                            aria-pressed={accessibility.fontSizeLevel === index}
-                            onClick={() => setFontSizeLevel(index)}
-                          />
-                        ))}
-                      </div>
-                      <button type="button" className="h-7 w-[30px] shrink-0 rounded-lg bg-brand-50 text-xs font-bold text-brand-800 hover:bg-brand-100 hover:text-brand-600" aria-label={`${copy.fontSize} +`} onClick={() => setFontSizeLevel(accessibility.fontSizeLevel + 1)}>A+</button>
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <div className="mb-2.5 flex items-center justify-between">
-                      <span className="text-xs font-bold text-brand-600">{copy.saturation}</span>
-                      <button type="button" className="rounded p-0.5 text-[var(--text-muted)] transition-transform hover:-rotate-[70deg] hover:text-brand-600" aria-label={`${copy.resetLabel} ${copy.saturation}`} onClick={() => setSaturationLevel(DEFAULT_SATURATION_LEVEL)}>↻</button>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <button type="button" className="h-7 w-[30px] shrink-0 rounded-lg bg-brand-50 text-xs font-bold text-brand-800 hover:bg-brand-100 hover:text-brand-600" aria-label={`${copy.saturation} -`} onClick={() => setSaturationLevel(accessibility.saturationLevel - 1)}>−</button>
-                      <div className="flex flex-1 justify-center gap-1.5" role="group" aria-label={copy.saturation}>
-                        {SATURATION_LEVELS.map((_, index) => (
-                          <button
-                            key={index}
-                            type="button"
-                            className={`h-2.5 w-2.5 rounded-full transition-transform ${accessibility.saturationLevel === index ? 'scale-[1.3] bg-brand-600' : 'bg-brand-200 hover:bg-brand-300'}`}
-                            aria-label={`${copy.saturation} ${index + 1}`}
-                            aria-pressed={accessibility.saturationLevel === index}
-                            onClick={() => setSaturationLevel(index)}
-                          />
-                        ))}
-                      </div>
-                      <button type="button" className="h-7 w-[30px] shrink-0 rounded-lg bg-brand-50 text-xs font-bold text-brand-800 hover:bg-brand-100 hover:text-brand-600" aria-label={`${copy.saturation} +`} onClick={() => setSaturationLevel(accessibility.saturationLevel + 1)}>+</button>
-                    </div>
-                  </div>
-
-                  <div className="mb-2.5 h-px bg-[var(--border-subtle)]" />
-
-                  <div className="grid gap-0.5">
-                    <button type="button" className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2.5 text-left text-[13px] font-semibold text-brand-800 transition-colors hover:bg-brand-50 hover:text-brand-600 aria-pressed:bg-brand-100 aria-pressed:text-brand-700" aria-pressed={accessibility.screenReader} onClick={() => toggleAccessibility('screenReader')}>
-                      <span aria-hidden="true">🔊</span>{copy.screenReader}
-                    </button>
-                    <button type="button" className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2.5 text-left text-[13px] font-semibold text-brand-800 transition-colors hover:bg-brand-50 hover:text-brand-600 aria-pressed:bg-brand-100 aria-pressed:text-brand-700" aria-pressed={accessibility.highContrast} onClick={() => toggleAccessibility('highContrast')}>
-                      <span aria-hidden="true">◐</span>{copy.highContrastTheme}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-[var(--border-subtle)]" />
-            <LanguageSwitcher language={language} setLanguage={handleSetLanguage} />
-          </div>
-          <div className="hidden shrink-0 items-center gap-2 sm:flex">
-            <button className={quietButton} onClick={() => setPanel('login')}>{copy.login}</button>
-            <button className={primaryButton} onClick={() => setPanel('register')}>{copy.register}</button>
-          </div>
-          <button
-            className="flex h-10 w-11 shrink-0 flex-col items-center justify-center gap-1.5 rounded-lg lg:hidden"
-            type="button"
-            aria-label={t.menuToggleLabel}
-            aria-expanded={menuOpen}
-            aria-controls="site-nav-menu"
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <span className={`block h-[2.5px] w-[22px] rounded bg-brand-800 transition-transform ${menuOpen ? 'translate-y-[7.5px] rotate-45' : ''}`} />
-            <span className={`block h-[2.5px] w-[22px] rounded bg-brand-800 transition-opacity ${menuOpen ? 'opacity-0' : ''}`} />
-            <span className={`block h-[2.5px] w-[22px] rounded bg-brand-800 transition-transform ${menuOpen ? '-translate-y-[7.5px] -rotate-45' : ''}`} />
-          </button>
-        </div>
-      </header>
-
-      {menuOpen && (
-        <nav className="flex flex-col border-t border-[var(--border-subtle)] bg-[var(--surface-raised)] px-5 pb-4.5 pt-2.5 shadow-lg lg:hidden" id="site-nav-menu" aria-label={t.mainNavLabel}>
-          <ul className="flex flex-col">
-            {navItems.map((item) => (
-              <li key={item.key}>
-                <a
-                  href={item.href}
-                  className={`block rounded-lg px-3 py-3.5 text-base font-semibold transition-colors hover:bg-brand-50 hover:text-brand-600 ${activeNav === item.key ? 'text-brand-600' : 'text-brand-800'}`}
-                  aria-current={activeNav === item.key ? 'page' : undefined}
-                  onClick={() => { setActiveNav(item.key); setMenuOpen(false) }}
-                >
-                  {item.label}
-                </a>
-              </li>
-            ))}
-            <li className="mt-2 flex gap-2 pt-2">
-              <button className={`${quietButton} flex-1 justify-center border border-[var(--border-subtle)]`} onClick={() => { setPanel('login'); setMenuOpen(false) }}>{copy.login}</button>
-              <button className={`${primaryButton} flex-1 justify-center`} onClick={() => { setPanel('register'); setMenuOpen(false) }}>{copy.register}</button>
-            </li>
-          </ul>
-        </nav>
-      )}
-
-      <main id="home">
-        <section className="mx-auto grid max-w-[1240px] items-center gap-16 px-6 py-14 md:grid-cols-2 md:py-20" id="about">
-          <div>
-            <h1 className="max-w-[600px] font-display text-[clamp(40px,5vw,64px)] font-semibold leading-[1.05] tracking-tight text-brand-900 text-wrap-balance">
-              {copy.title}
-            </h1>
-            <p className="mt-6 max-w-[500px] text-base leading-relaxed text-[var(--text-secondary)]">{copy.hero}</p>
-            <div className="mt-8 flex flex-wrap items-center gap-6">
-              <button
-                className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 px-8 py-4 text-base font-bold text-white shadow-[0_14px_30px_rgba(63,143,95,0.4)] transition-all hover:-translate-y-0.5 hover:shadow-[0_20px_38px_rgba(63,143,95,0.5)]"
-                onClick={() => setPanel('register')}
-              >
-                {copy.join} <span>→</span>
-              </button>
-            </div>
-          </div>
-          <div className="relative aspect-video max-h-[340px] overflow-hidden rounded-[23%_8%_25%_8%] bg-brand-100 shadow-inner" aria-label={t.heroIllustrationLabel}>
-            <video
-              ref={heroVideoRef}
-              className="block h-full w-full object-cover"
-              src="/intro.mp4"
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="auto"
+    <>
+      <Routes>
+        <Route
+          element={
+            <PublicLayout
+              language={language}
+              t={t}
+              copy={copy}
+              navItems={navItems}
+              NAV_SUBMENUS={NAV_SUBMENUS}
+              menuOpen={menuOpen}
+              setMenuOpen={setMenuOpen}
+              showAccessibilityMenu={showAccessibilityMenu}
+              setShowAccessibilityMenu={setShowAccessibilityMenu}
+              accessibility={accessibility}
+              toggleAccessibility={toggleAccessibility}
+              setFontSizeLevel={setFontSizeLevel}
+              setSaturationLevel={setSaturationLevel}
+              fontSizeLevels={FONT_SIZE_LEVELS}
+              saturationLevels={SATURATION_LEVELS}
+              defaultFontSizeLevel={DEFAULT_FONT_SIZE_LEVEL}
+              defaultSaturationLevel={DEFAULT_SATURATION_LEVEL}
+              accessibilityClass={accessibilityClass}
+              accessibilityStyle={accessibilityStyle}
+              setPanel={setPanel}
+              handleSetLanguage={handleSetLanguage}
+              openRegister={openRegister}
+              serviceOfferings={serviceOfferings}
+              servicesLinks={servicesLinks}
             />
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-[1172px] px-6 pb-16" id="how-it-works">
-          <p className="mb-4 text-[11px] font-bold uppercase tracking-[1.6px] text-brand-400">{copy.navServices}</p>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {serviceOfferings.map((service) => (
-              <div
-                className="flex flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-6 transition-all hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-lg hover:shadow-brand-900/[0.08]"
-                key={service.id}
-                id={service.id}
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-2xl" aria-hidden="true">{service.icon}</span>
-                <h3 className="mt-4 mb-2 font-display text-lg font-semibold tracking-tight text-brand-900">{service.title}</h3>
-                <p className="mb-5 flex-1 text-[13.5px] leading-relaxed text-[var(--text-muted)]">{service.desc}</p>
-                <button className={`${primaryButton} w-full justify-center`} onClick={() => openRegister(service.role)}>
-                  {t.createAccount.replace('{role}', service.title)} <span>→</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto grid max-w-[1172px] items-center gap-12 rounded-3xl bg-brand-50 p-10 md:grid-cols-2 md:p-14" id="mission">
-          <div>
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-[1.6px] text-brand-400">{copy.challenge}</p>
-            <h2 className="max-w-[440px] font-display text-3xl font-semibold leading-tight tracking-tight text-brand-900 text-wrap-balance">{copy.mission}</h2>
-          </div>
-          <p className="text-[15px] leading-relaxed text-[var(--text-muted)]">{copy.missionText}</p>
-        </section>
-      </main>
-
-      <footer className="mx-auto mt-14 mb-10 max-w-[1172px] px-6">
-        <nav aria-label="Policies">
-          <ul className="flex flex-wrap justify-between gap-x-8 gap-y-2">
-            {footerLinks.map((link) => (
-              <li key={link.key}>
-                <a
-                  href={link.href}
-                  className={`inline-block py-2 text-[15px] font-medium transition-colors hover:text-brand-600 ${
-                    activeNav === link.key ? 'font-bold text-brand-600' : link.accent ? 'font-semibold text-brand-400' : 'text-brand-900'
-                  }`}
-                  aria-current={activeNav === link.key ? 'page' : undefined}
-                >
-                  {link.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </footer>
-
+          }
+        >
+          <Route index element={<HomePage />} />
+          <Route path="services" element={<ServicesOverviewPage />} />
+          <Route path="services/:categoryId" element={<ServiceCategoryPage />} />
+          <Route path="how-it-works" element={<HowItWorksPage />} />
+          <Route path="about" element={<AboutPage />} />
+          <Route path="faq" element={<FaqPage />} />
+          <Route path="policy" element={<PolicyPage />} />
+          <Route path="terms" element={<TermsPage />} />
+          <Route path="contact" element={<ContactPage />} />
+        </Route>
+      </Routes>
       {panel && (
         <AuthPanel
           key={panel}
@@ -850,7 +622,7 @@ authRequestRef.current += 1
           onSwitch={() => setPanel(panel === 'login' ? 'register' : 'login')}
         />
       )}
-    </div>
+    </>
   )
 }
 
@@ -1233,4 +1005,10 @@ function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole
   )
 }
 
-createRoot(document.getElementById('root')).render(<StrictMode><App /></StrictMode>)
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </StrictMode>
+)

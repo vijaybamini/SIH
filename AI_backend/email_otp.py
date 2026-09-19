@@ -36,7 +36,7 @@ def _hash_code(email: str, code: str) -> str:
     return hashlib.sha256(f"{email.lower()}:{code}".encode()).hexdigest()
 
 
-def _send_email(to_email: str, code: str) -> bool:
+def _send_email(to_email: str, subject: str, html: str, reply_to: Optional[str] = None) -> bool:
     _load_env_once()
     api_key = os.environ.get("RESEND_API_KEY")
     if not api_key:
@@ -46,20 +46,19 @@ def _send_email(to_email: str, code: str) -> bool:
         )
     from_address = os.environ.get("RESEND_FROM_EMAIL", "FarmDirect <onboarding@resend.dev>")
 
+    payload = {
+        "from": from_address,
+        "to": [to_email],
+        "subject": subject,
+        "html": html,
+    }
+    if reply_to:
+        payload["reply_to"] = reply_to
+
     resp = requests.post(
         "https://api.resend.com/emails",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "from": from_address,
-            "to": [to_email],
-            "subject": f"Your FarmDirect login code: {code}",
-            "html": (
-                f"<p>Your FarmDirect login code is:</p>"
-                f"<h2 style='letter-spacing:4px'>{code}</h2>"
-                f"<p>This code expires in {OTP_TTL_MINUTES} minutes. "
-                f"If you didn't request this, you can ignore this email.</p>"
-            ),
-        },
+        json=payload,
         timeout=10,
     )
     if resp.status_code >= 300:
@@ -92,7 +91,13 @@ def request_email_otp(email: str) -> None:
     if stored is not True:
         raise RuntimeError("Could not prepare the login code. Try again shortly.")
 
-    if not _send_email(email, code):
+    html = (
+        f"<p>Your FarmDirect login code is:</p>"
+        f"<h2 style='letter-spacing:4px'>{code}</h2>"
+        f"<p>This code expires in {OTP_TTL_MINUTES} minutes. "
+        f"If you didn't request this, you can ignore this email.</p>"
+    )
+    if not _send_email(email, f"Your FarmDirect login code: {code}", html):
         raise RuntimeError("Could not send the login code email. Try again shortly.")
 
 
@@ -140,3 +145,19 @@ def verify_email_otp(email: str, code: str) -> str:
     if not token_hash:
         raise RuntimeError("Could not complete login. Try again shortly.")
     return token_hash
+
+
+def send_contact_message(name: str, email: str, message: str) -> None:
+    """Sends a public Contact Us submission to the support inbox via Resend,
+    with reply_to set to the visitor's own email so replying from the inbox
+    reaches them directly. Raises RuntimeError on send failure."""
+    from html import escape
+
+    inbox = os.environ.get("CONTACT_INBOX_EMAIL", "dhomavivek2005@gmail.com")
+    html = (
+        f"<p><strong>From:</strong> {escape(name)} &lt;{escape(email)}&gt;</p>"
+        f"<p><strong>Message:</strong></p>"
+        f"<p>{escape(message).replace(chr(10), '<br>')}</p>"
+    )
+    if not _send_email(inbox, f"FarmDirect contact form: {name}", html, reply_to=email):
+        raise RuntimeError("Could not send your message. Try again shortly.")

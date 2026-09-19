@@ -62,3 +62,7 @@ export function requestEmailOtp(email) {
 export function verifyEmailOtpCode(email, code) {
   return request('/api/auth/verify-email-otp', { method: 'POST', body: JSON.stringify({ email, code }) })
 }
+
+export function sendContactMessage({ name, email, message }) {
+  return request('/api/contact', { method: 'POST', body: JSON.stringify({ name, email, message }) })
+}

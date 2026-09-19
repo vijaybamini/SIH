@@ -153,6 +153,25 @@ def verify_email_otp_endpoint(data: dict):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+@app.post("/api/contact")
+def contact_endpoint(data: dict):
+    """Sends a public Contact Us submission to the support inbox via Resend
+    (see email_otp.py's send_contact_message)."""
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip()
+    message = (data.get("message") or "").strip()
+    if not name or not email or not message:
+        raise HTTPException(status_code=400, detail="name, email, and message are required.")
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Enter a valid email address.")
+    try:
+        from email_otp import send_contact_message
+        send_contact_message(name, email, message)
+        return {"sent": True}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
 @app.get("/api/validate-pincode")
 def validate_pincode_endpoint(pincode: str):
     """Real existence check against the India pincode directory (not just

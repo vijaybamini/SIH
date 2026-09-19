@@ -1,4 +1,6 @@
-export default function Logo({ href, className = '', label = 'FarmDirect' }) {
+import { Link } from 'react-router-dom'
+
+export default function Logo({ href, to, className = '', label = 'FarmDirect' }) {
   const content = (
     <>
       <span className="flex h-8 w-8 shrink-0 -rotate-6 items-center justify-center rounded-[10px_10px_10px_3px] bg-brand-600 text-base text-brand-100 shadow-sm shadow-brand-900/20">
@@ -11,6 +13,14 @@ export default function Logo({ href, className = '', label = 'FarmDirect' }) {
   )
 
   const base = `flex shrink-0 items-center gap-2.5 ${className}`
+
+  if (to) {
+    return (
+      <Link className={base} to={to} aria-label={label}>
+        {content}
+      </Link>
+    )
+  }
 
   if (href) {
     return (
