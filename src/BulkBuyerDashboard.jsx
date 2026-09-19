@@ -5,6 +5,9 @@ import { useTranslation } from './i18n'
 import { fetchCommodities, fetchQuote, placeOrder } from './api/aiBackend'
 
 const CATEGORIES = ['All', 'Fruits', 'Vegetables', 'Grains', 'Pulses', 'Other']
+const CATEGORY_ICONS = { All: '🛒', Fruits: '🍎', Vegetables: '🥦', Grains: '🌾', Pulses: '🫘', Other: '🌱' }
+const QUANTITY_STEP_KG = 50
+const MIN_QUANTITY_KG = 50
 
 function commodityCategory(name) {
   const n = name.toLowerCase()
@@ -66,21 +69,56 @@ function money(value) {
 // leaving mismatched whitespace.
 function CommodityCard({ commodity, onSelect }) {
   const [imageFailed, setImageFailed] = useState(false)
+  const [quantity, setQuantity] = useState(500)
   const imageUrl = COMMODITY_IMAGES[commodity]
 
+  function adjustQuantity(delta) {
+    setQuantity((prev) => Math.max(MIN_QUANTITY_KG, prev + delta))
+  }
+
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-900/[0.08]">
-      <div className="h-36 w-full shrink-0 overflow-hidden bg-brand-50">
+    <article className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-900/[0.08]">
+      <div className="relative h-36 w-full shrink-0 overflow-hidden bg-brand-50">
         {imageUrl && !imageFailed ? (
-          <img className="h-36 w-full object-cover" src={imageUrl} alt={commodity} loading="lazy" onError={() => setImageFailed(true)} />
+          <img className="h-36 w-full object-cover transition-transform duration-300 group-hover:scale-105" src={imageUrl} alt={commodity} loading="lazy" onError={() => setImageFailed(true)} />
         ) : (
           <div className="flex h-36 w-full items-center justify-center text-4xl" aria-hidden="true">{commodityIcon(commodity)}</div>
         )}
+        <span className="absolute left-2.5 top-2.5 rounded-full bg-[var(--surface-raised)]/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-700 shadow-sm">
+          {commodityCategory(commodity)}
+        </span>
       </div>
       <div className="flex flex-1 flex-col p-4">
-        <h4 className="mb-3.5 min-h-[2.5em] text-sm font-bold leading-snug text-brand-900">{commodity}</h4>
-        <button type="button" className="mt-auto w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700" onClick={() => onSelect(commodity)}>
-          Get price
+        <h4 className="mb-1 min-h-[2.5em] text-sm font-bold leading-snug text-brand-900">{commodity}</h4>
+        <span className="mb-3 text-xs font-semibold text-brand-400">Live pooled-demand pricing</span>
+
+        <div className="mt-auto flex items-center justify-between gap-2 rounded-lg bg-cream-100 p-1">
+          <button
+            type="button"
+            aria-label="Decrease quantity"
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--surface-raised)] text-base font-bold text-brand-700 shadow-sm transition-colors hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={() => adjustQuantity(-QUANTITY_STEP_KG)}
+            disabled={quantity <= MIN_QUANTITY_KG}
+          >
+            −
+          </button>
+          <span className="text-xs font-bold tabular-nums text-brand-900">{quantity}kg</span>
+          <button
+            type="button"
+            aria-label="Increase quantity"
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--surface-raised)] text-base font-bold text-brand-700 shadow-sm transition-colors hover:bg-brand-100"
+            onClick={() => adjustQuantity(QUANTITY_STEP_KG)}
+          >
+            +
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className="mt-2.5 w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+          onClick={() => onSelect(commodity, quantity)}
+        >
+          Get price →
         </button>
       </div>
     </article>
@@ -101,32 +139,52 @@ function freshnessSummary(allocations) {
 
 function QuoteBreakdown({ result }) {
   const perKg = result.consumer_breakdown.per_kg_breakdown
-  const totals = result.consumer_breakdown.order_totals
+  const orderTotals = result.consumer_breakdown.order_totals
   const market = result.consumer_breakdown.market_intelligence_metrics
   const freshness = freshnessSummary(result.allocations)
-  const rows = [
-    ['Price per kg', money(perKg.final_checkout_price_per_kg)],
-    ['Order total', money(totals.grand_total_to_pay)],
-    ['Demand trend', market.macro_market_trend],
+  const trendTone = /rising|up/i.test(market.macro_market_trend) ? 'text-[var(--color-error-ink)]'
+    : /falling|down/i.test(market.macro_market_trend) ? 'text-brand-700' : 'text-[var(--text-muted)]'
+
+  // These two lines sum to grand_total_to_pay exactly -- no hidden platform
+  // markup is added on top (the platform's only cut is a commission taken
+  // out of the farmer's crop-value share, never added to the buyer's price).
+  const lineItems = [
+    ['Crop value', money(orderTotals.total_crop_value)],
+    ['Logistics cost', money(orderTotals.total_logistics_cost)],
   ]
-  if (freshness) {
-    rows.push(['Freshness', `${freshness.label} ${freshness.date}${freshness.mixed ? ' (some pre-booked)' : ''}`])
-  }
 
   return (
-    <div className="rounded-2xl border border-[var(--border-subtle)] bg-cream-100 p-5">
-      <div className="mb-3.5 flex flex-wrap items-center gap-2">
+    <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-cream-100">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-[var(--border-subtle)] px-5 py-3.5">
         <strong className="text-sm font-bold text-brand-900">
-          Your price ({result.order_demand_kg}kg{result.requested_kg !== result.order_demand_kg ? `, of ${result.requested_kg}kg requested` : ''})
+          Order summary — {result.order_demand_kg}kg{result.requested_kg !== result.order_demand_kg ? ` (of ${result.requested_kg}kg requested)` : ''}
         </strong>
+        <span className={`text-xs font-bold uppercase tracking-wide ${trendTone}`}>{market.macro_market_trend}</span>
       </div>
-      <div className="grid grid-cols-2 gap-3.5">
-        {rows.map(([label, value]) => (
-          <div key={label}>
-            <span className="block text-xs font-bold uppercase tracking-wide text-brand-400">{label}</span>
-            <strong className="text-base text-brand-900">{value}</strong>
+
+      <div className="grid gap-2 px-5 py-4">
+        <div className="flex items-baseline justify-between text-sm text-[var(--text-secondary)]">
+          <span>Price per kg</span>
+          <span className="tabular-nums text-brand-900">{money(perKg.final_checkout_price_per_kg)}</span>
+        </div>
+        {lineItems.map(([label, value]) => (
+          <div key={label} className="flex items-baseline justify-between text-sm text-[var(--text-secondary)]">
+            <span>{label}</span>
+            <span className="tabular-nums text-brand-900">{value}</span>
           </div>
         ))}
+        {freshness && (
+          <div className="flex items-baseline justify-between text-sm text-[var(--text-secondary)]">
+            <span>Freshness</span>
+            <span className="text-right text-brand-900">{freshness.label} {freshness.date}{freshness.mixed ? ' (some pre-booked)' : ''}</span>
+          </div>
+        )}
+        <p className="mt-1 text-xs text-brand-400">Farmer receives {money(orderTotals.total_farmer_payout)} of the crop value — no middleman commission.</p>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-[var(--border-subtle)] bg-brand-50 px-5 py-3.5">
+        <span className="text-sm font-bold text-brand-900">Total to pay</span>
+        <strong className="font-display text-xl font-semibold text-brand-900">{money(orderTotals.grand_total_to_pay)}</strong>
       </div>
     </div>
   )
@@ -193,8 +251,8 @@ function PaymentForm({ amount, onPay, paying, error }) {
   )
 }
 
-function QuoteModal({ commodity, buyerId, buyerPincode, onClose }) {
-  const [quantity, setQuantity] = useState('500')
+function QuoteModal({ commodity, initialQuantity, buyerId, buyerPincode, onClose }) {
+  const [quantity, setQuantity] = useState(String(initialQuantity || 500))
   const [pincode, setPincode] = useState(buyerPincode || '')
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [quoteError, setQuoteError] = useState('')
@@ -314,7 +372,7 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
-  const [selectedCommodity, setSelectedCommodity] = useState(null)
+  const [selection, setSelection] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -337,53 +395,65 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
 
   return (
     <div className="min-h-screen bg-cream-200 font-sans text-[15px] text-[var(--text-primary)]">
-      <header className="sticky top-0 z-30 flex flex-wrap items-center gap-4 border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] px-8 py-4">
-        <Logo />
+      <header className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--surface-raised)]">
+        <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-4 px-8 py-4">
+          <Logo />
 
-        <div className="flex min-w-[220px] flex-1 items-center gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-cream-100 px-4 py-2.5">
-          <span className="text-brand-400" aria-hidden="true">⌕</span>
-          <input
-            type="search"
-            className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--text-muted)]"
-            placeholder="Search commodities…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            aria-label="Search commodities"
-          />
-        </div>
+          <div className="hidden shrink-0 flex-col leading-tight lg:flex">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-brand-400">Deliver bulk orders to</span>
+            <span className="flex items-center gap-1 text-sm font-bold text-brand-900">
+              <span aria-hidden="true">📍</span> {buyerProfile?.pincode ? `PIN ${buyerProfile.pincode}` : 'Add your pincode'}
+            </span>
+          </div>
 
-        <div className="flex shrink-0 items-center gap-3.5">
-          <LanguageSwitcher language={language} setLanguage={setLanguage} />
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-300 text-sm font-bold text-brand-900" aria-hidden="true">{initials}</div>
-            <div className="hidden flex-col leading-tight sm:flex">
-              <strong className="text-sm text-brand-900">{user.name || 'Buyer'}</strong>
-              <span className="text-xs font-semibold text-brand-400">{buyerProfile?.pincode ? `PIN ${buyerProfile.pincode}` : 'Add your pincode'}</span>
+          <div className="flex min-w-[220px] flex-1 items-center gap-2.5 rounded-full border border-[var(--border-subtle)] bg-cream-100 px-4 py-2.5 focus-within:border-brand-400">
+            <span className="text-brand-400" aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--text-muted)]"
+              placeholder="Search for rice, wheat, mangoes…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search commodities"
+            />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3.5">
+            <LanguageSwitcher language={language} setLanguage={setLanguage} />
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-300 text-sm font-bold text-brand-900" aria-hidden="true">{initials}</div>
+              <div className="hidden flex-col leading-tight sm:flex">
+                <strong className="text-sm text-brand-900">{user.name || 'Buyer'}</strong>
+                <span className="text-xs font-semibold text-brand-400">Bulk buyer</span>
+              </div>
+              <button className="ml-1 text-xs font-bold text-brand-800 hover:text-brand-600" onClick={onLogout}>{t.logout}</button>
             </div>
-            <button className="ml-1 text-xs font-bold text-brand-800 hover:text-brand-600" onClick={onLogout}>{t.logout}</button>
           </div>
         </div>
+
+        <nav className="mx-auto flex max-w-[1240px] gap-2 overflow-x-auto px-8 pb-4" aria-label="Filter by category">
+          {CATEGORIES.map((category) => (
+            <button
+              key={category}
+              type="button"
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-[13.5px] font-semibold transition-colors ${
+                activeCategory === category ? 'border-brand-600 bg-brand-600 text-white' : 'border-[var(--border-subtle)] bg-cream-100 text-brand-900 hover:border-brand-300'
+              }`}
+              onClick={() => setActiveCategory(category)}
+            >
+              <span aria-hidden="true">{CATEGORY_ICONS[category]}</span> {category}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <nav className="mx-auto flex max-w-[1240px] flex-wrap gap-2 px-8 pt-5" aria-label="Filter by category">
-        {CATEGORIES.map((category) => (
-          <button
-            key={category}
-            type="button"
-            className={`rounded-full border px-4 py-2 text-[13.5px] font-semibold transition-colors ${
-              activeCategory === category ? 'border-brand-600 bg-brand-600 text-white' : 'border-[var(--border-subtle)] bg-[var(--surface-raised)] text-brand-900 hover:border-brand-300'
-            }`}
-            onClick={() => setActiveCategory(category)}
-          >
-            {category}
-          </button>
-        ))}
-      </nav>
-
       <main className="mx-auto max-w-[1240px] px-8 py-7">
-        <h3 className="mb-4 font-display text-2xl font-bold text-brand-900">
-          {searchTerm ? `Results for "${search.trim()}"` : 'Browse commodities'}
-        </h3>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="font-display text-2xl font-bold text-brand-900">
+            {searchTerm ? `Results for "${search.trim()}"` : 'Browse commodities'}
+          </h3>
+          {!loading && !loadError && <span className="text-sm font-semibold text-brand-400">{filtered.length} available</span>}
+        </div>
         {loading ? (
           <p className="text-sm text-[var(--text-muted)]">Loading catalog…</p>
         ) : loadError ? (
@@ -393,18 +463,19 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filtered.map((commodity) => (
-              <CommodityCard key={commodity} commodity={commodity} onSelect={setSelectedCommodity} />
+              <CommodityCard key={commodity} commodity={commodity} onSelect={(name, quantity) => setSelection({ commodity: name, quantity })} />
             ))}
           </div>
         )}
       </main>
 
-      {selectedCommodity && (
+      {selection && (
         <QuoteModal
-          commodity={selectedCommodity}
+          commodity={selection.commodity}
+          initialQuantity={selection.quantity}
           buyerId={user.id}
           buyerPincode={buyerProfile?.pincode}
-          onClose={() => setSelectedCommodity(null)}
+          onClose={() => setSelection(null)}
         />
       )}
     </div>
