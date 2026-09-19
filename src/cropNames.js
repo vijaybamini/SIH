@@ -46,8 +46,7 @@ export function displayCropName(name, language) {
 // (apple, mango) can legitimately take years before a first harvest.
 // Keyed by the canonical English name -- kept in sync with the real,
 // price-backed commodity list in i18n.js's cropSuggestions (the AI
-// backend's actual Agmarknet commodities, plus Rice -- see pipeline.py's
-// rice supplement for why Rice needed adding back in separately).
+// backend's actual Agmarknet commodities).
 const CROP_MAX_CYCLE_DAYS = {
   'Apple': 1825,
   'Arhar (Tur/Red Gram)(Whole)': 180,
@@ -70,7 +69,6 @@ const CROP_MAX_CYCLE_DAYS = {
   'Maize': 120,
   'Mango': 1825,
   'Mustard': 130,
-  'Rice': 150,
   'Soyabean': 110,
   'Wheat': 150,
 }

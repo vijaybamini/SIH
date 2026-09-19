@@ -71,11 +71,6 @@ function AdvisoryBanner({ trend, cropName, t }) {
     <div className={`rounded-2xl border px-5 py-4 text-sm font-medium ${toneStyles[tone]}`}>
       <span className="mr-2 text-base" aria-hidden="true">{tone === 'rising' ? '📈' : tone === 'falling' ? '📉' : '➡️'}</span>
       {messages[tone]}
-      {trend.is_synthetic_data && (
-        <span className="ml-2 inline-block rounded-full bg-[#8a6d1f]/15 px-2 py-0.5 text-[10px] font-bold uppercase text-[#8a6d1f]" title={t.estimatedDataHint}>
-          {t.estimatedDataBadge}
-        </span>
-      )}
     </div>
   )
 }

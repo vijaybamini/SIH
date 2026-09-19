@@ -29,11 +29,6 @@ function CropPriceCard({ cropName, displayName, entry, t }) {
             <em className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-bold not-italic">
               {trendArrow(entry.data.market_demand_trend_pct)} {Math.abs(entry.data.market_demand_trend_pct)}%
             </em>
-            {entry.data.is_synthetic_data && (
-              <em className="rounded-full bg-[#8a6d1f]/30 px-2 py-0.5 text-[10px] font-bold uppercase not-italic text-[#fdf1cf]" title={t.estimatedDataHint}>
-                {t.estimatedDataBadge}
-              </em>
-            )}
           </div>
         </>
       )}

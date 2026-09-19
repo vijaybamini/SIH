@@ -39,7 +39,6 @@ const COMMODITY_IMAGES = {
   'Maize': 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Dried_corn_cobs_and_kernels_stored_in_a_rustic_barn_during_autumn_harvest_season.jpg/500px-Dried_corn_cobs_and_kernels_stored_in_a_rustic_barn_during_autumn_harvest_season.jpg',
   'Mango': 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Mango_fruit_Nam_Dok_Mai.jpg/500px-Mango_fruit_Nam_Dok_Mai.jpg',
   'Mustard': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Mustard_Seeds_in_a_plate_at_Reganigudem.jpg/500px-Mustard_Seeds_in_a_plate_at_Reganigudem.jpg',
-  'Rice': 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Rice_grains.jpg/500px-Rice_grains.jpg',
   'Soyabean': 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Soybean.USDA.jpg/500px-Soybean.USDA.jpg',
   'Wheat': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Wheat_close-up.JPG/500px-Wheat_close-up.JPG',
 }
@@ -120,11 +119,6 @@ function QuoteBreakdown({ result }) {
         <strong className="text-sm font-bold text-brand-900">
           Your price ({result.order_demand_kg}kg{result.requested_kg !== result.order_demand_kg ? `, of ${result.requested_kg}kg requested` : ''})
         </strong>
-        {result.is_synthetic_data && (
-          <span className="rounded-full bg-[#8a6d1f]/15 px-2 py-0.5 text-[10px] font-bold uppercase text-[#8a6d1f]" title="This price is based on an estimated dataset, not real market records.">
-            Estimated
-          </span>
-        )}
       </div>
       <div className="grid grid-cols-2 gap-3.5">
         {rows.map(([label, value]) => (
