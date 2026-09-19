@@ -42,6 +42,21 @@ AGMARKNET_RELATIVE_CANDIDATES = [
                  "agmarknet_india_historical_prices_2024_2025.csv"),
 ]
 
+# Rice has zero real rows anywhere in the primary dataset (checked directly
+# against the raw CSV, not a bug in list_commodities()). This supplement is
+# the Rice-only subset of a second dataset whose own Source column tags it
+# 100% SYNTHETIC (fabricated, not scraped Agmarknet records) -- added back
+# in ONLY for Rice, by explicit product decision, on the condition that it's
+# tracked via `is_synthetic` and surfaced to users as estimated/non-real
+# rather than silently presented as real market data (see
+# is_commodity_synthetic() and its callers).
+RICE_SUPPLEMENT_RELATIVE_CANDIDATES = [
+    os.path.join("..", "agmarknet_data", "agmarknet-india-commodity-prices-2024-2025",
+                 "rice_synthetic_supplement.csv"),
+    os.path.join("agmarknet_data", "agmarknet-india-commodity-prices-2024-2025",
+                 "rice_synthetic_supplement.csv"),
+]
+
 PINCODE_RELATIVE_CANDIDATES = [
     "all_india_pincode_directory_2025.csv",
 ]
@@ -92,6 +107,16 @@ def resolve_agmarknet_csv() -> Optional[str]:
         return env
     base = os.path.dirname(os.path.abspath(__file__))
     for c in AGMARKNET_RELATIVE_CANDIDATES:
+        for root in (base, os.path.dirname(base)):
+            p = os.path.join(root, c)
+            if os.path.exists(p):
+                return os.path.abspath(p)
+    return None
+
+
+def resolve_rice_supplement_csv() -> Optional[str]:
+    base = os.path.dirname(os.path.abspath(__file__))
+    for c in RICE_SUPPLEMENT_RELATIVE_CANDIDATES:
         for root in (base, os.path.dirname(base)):
             p = os.path.join(root, c)
             if os.path.exists(p):
@@ -153,6 +178,9 @@ def _load_dataset_with_timeout(path: str) -> pd.DataFrame:
     return payload
 
 
+_merged_dataset_cache: Dict[str, pd.DataFrame] = {}
+
+
 def load_dataset() -> pd.DataFrame:
     path = resolve_agmarknet_csv()
     if not path:
@@ -160,7 +188,37 @@ def load_dataset() -> pd.DataFrame:
             "Agmarknet CSV not found. Set AGMARKNET_CSV or place the dataset "
             "under agmarknet_data/agmarknet-india-commodity-prices-2024-2025/."
         )
-    return _load_dataset_with_timeout(path)
+
+    cached = _merged_dataset_cache.get(path)
+    if cached is not None:
+        return cached
+
+    primary_df = _load_dataset_with_timeout(path)
+    if "is_synthetic" not in primary_df.columns:
+        primary_df["is_synthetic"] = False
+
+    combined = primary_df
+    rice_path = resolve_rice_supplement_csv()
+    if rice_path:
+        try:
+            rice_df = _load_dataset_with_timeout(rice_path)
+            if "is_synthetic" not in rice_df.columns:
+                rice_df["is_synthetic"] = True
+            combined = pd.concat([primary_df, rice_df], ignore_index=True)
+        except Exception as exc:  # noqa: BLE001 -- supplement is optional, never break the real dataset over it
+            print(f"[pipeline] Rice supplement failed to load (continuing without it): {exc}")
+
+    _merged_dataset_cache[path] = combined
+    return combined
+
+
+def is_commodity_synthetic(df: pd.DataFrame, commodity: str) -> bool:
+    """True only if EVERY row backing this commodity is from a non-real
+    (fabricated) source -- see RICE_SUPPLEMENT_RELATIVE_CANDIDATES."""
+    if "is_synthetic" not in df.columns:
+        return False
+    rows = df.loc[df["commodity"] == commodity, "is_synthetic"]
+    return bool(len(rows)) and bool(rows.all())
 
 
 # --------------------------------------------------------------------------- #
@@ -450,6 +508,7 @@ def price_trend_for(df: pd.DataFrame, commodity: str, market: str,
         ],
         "demand_pressure_signal": accuracy["demand_pressure_signal"],
         "pct_change_vs_recent_avg": accuracy["pct_change_vs_recent_avg"],
+        "is_synthetic_data": is_commodity_synthetic(df, commodity),
     }
 
 
@@ -484,6 +543,7 @@ def price_trend_with_fallback(df: pd.DataFrame, commodity: str, market: str,
             "forecast": [],
             "demand_pressure_signal": "STABLE",
             "pct_change_vs_recent_avg": 0.0,
+            "is_synthetic_data": is_commodity_synthetic(df, commodity),
         }
 
     _price_trend_cache[cache_key] = (time.monotonic(), result)
@@ -765,6 +825,13 @@ def get_consumer_quote(payload: Dict[str, Any]) -> Dict[str, Any]:
                         f"{pooled_demand_kg:.0f}kg total currently being requested for "
                         f"'{real_commodity}' across all buyers (last {window_min} min).")
 
+    is_synthetic = is_commodity_synthetic(df, real_commodity)
+    if is_synthetic:
+        warnings.append(
+            f"Price history for '{real_commodity}' is an estimated/synthetic dataset, "
+            f"not real Agmarknet market records."
+        )
+
     # sanity: middleman cut check — neither farmer payout nor freight includes
     # any commission line; only an explicit platform commission (deducted
     # from the farmer, never added for the buyer) is present.
@@ -786,6 +853,7 @@ def get_consumer_quote(payload: Dict[str, Any]) -> Dict[str, Any]:
             "total_logistics_cost": logistics_freight_total,
         },
         "consumer_breakdown": breakdown,
+        "is_synthetic_data": is_synthetic,
         "totals": {
             "farmer_payout": breakdown["order_totals"]["total_farmer_payout"],
             "logistics_cost": breakdown["order_totals"]["total_logistics_cost"],
@@ -854,6 +922,8 @@ def get_farmer_price_signal(payload: Dict[str, Any]) -> Dict[str, Any]:
         pooled_demand_kg=pooled_demand_kg,
     )
 
+    is_synthetic = is_commodity_synthetic(df, real_commodity)
+
     warnings = []
     if forecast_warning:
         warnings.append(forecast_warning)
@@ -861,6 +931,11 @@ def get_farmer_price_signal(payload: Dict[str, Any]) -> Dict[str, Any]:
         warnings.append(f"No market specified; used '{market}' (most recent history for '{real_commodity}').")
     if supply_source == "heuristic_placeholder":
         warnings.append(f"No live Supabase listings found for '{real_commodity}'; supply/scarcity is a placeholder.")
+    if is_synthetic:
+        warnings.append(
+            f"Price history for '{real_commodity}' is an estimated/synthetic dataset, "
+            f"not real Agmarknet market records."
+        )
 
     return {
         "commodity": real_commodity,
@@ -874,5 +949,6 @@ def get_farmer_price_signal(payload: Dict[str, Any]) -> Dict[str, Any]:
         "total_platform_supply_kg": supply_kg,
         "supply_source": supply_source,
         "pooled_demand_kg": pooled_demand_kg,
+        "is_synthetic_data": is_synthetic,
         "warnings": warnings,
     }

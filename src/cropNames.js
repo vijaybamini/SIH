@@ -41,39 +41,38 @@ export function displayCropName(name, language) {
 }
 
 // Realistic max days from planting to (first) harvest, per crop -- real
-// agronomic figures, not a single blanket cap: annual crops top out around
-// 4-6 months, while the few genuinely perennial/tree crops in the
-// suggestion list (mango, coconut, tea, coffee, banana) can legitimately
-// take years before a first harvest. Keyed by the canonical English name.
+// agronomic figures, not a single blanket cap: annual/vegetable crops top
+// out around 2-9 months, while the genuinely perennial ones in the list
+// (apple, mango) can legitimately take years before a first harvest.
+// Keyed by the canonical English name -- kept in sync with the real,
+// price-backed commodity list in i18n.js's cropSuggestions (the AI
+// backend's actual Agmarknet commodities, plus Rice -- see pipeline.py's
+// rice supplement for why Rice needed adding back in separately).
 const CROP_MAX_CYCLE_DAYS = {
-  'Rice': 150,
-  'Wheat': 150,
-  'Maize': 120,
-  'Bajra': 100,
-  'Jowar': 120,
-  'Sugarcane': 540,
-  'Cotton': 180,
-  'Groundnut': 130,
-  'Soybean': 110,
-  'Mustard': 130,
-  'Chickpea (Gram)': 120,
-  'Pigeon Pea (Tur)': 180,
-  'Green Gram (Moong)': 70,
-  'Black Gram (Urad)': 90,
-  'Potato': 100,
-  'Onion': 150,
-  'Tomato': 120,
+  'Apple': 1825,
+  'Arhar (Tur/Red Gram)(Whole)': 180,
+  'Bajra(Pearl Millet/Cumbu)': 100,
   'Banana': 400,
+  'Bhindi(Ladies Finger)': 70,
+  'Brinjal': 120,
+  'Cabbage': 100,
+  'Carrot': 100,
+  'Cauliflower': 120,
+  'Cotton': 180,
+  'Garlic': 180,
+  'Ginger(Green)': 270,
+  'Green Chilli': 150,
+  'Green Gram (Moong)(Whole)': 70,
+  'Groundnut': 130,
+  'Gur(Jaggery)': 540,
+  'Jowar(Sorghum)': 120,
+  'Lentil (Masur)(Whole)': 130,
+  'Maize': 120,
   'Mango': 1825,
-  'Turmeric': 270,
-  'Chilli': 150,
-  'Coconut': 2555,
-  'Tea': 1095,
-  'Coffee': 1460,
-  'Jute': 120,
-  'Barley': 130,
-  'Sunflower': 100,
-  'Sesame': 100,
+  'Mustard': 130,
+  'Rice': 150,
+  'Soyabean': 110,
+  'Wheat': 150,
 }
 
 // Generous fallback for a custom/free-typed crop not in the suggestion

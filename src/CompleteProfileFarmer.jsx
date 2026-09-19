@@ -46,7 +46,7 @@ function CropAutocomplete({ value, onChange, suggestions, placeholder, required 
       />
       {open && filtered.length > 0 && (
         <ul className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-64 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-1.5 shadow-lg shadow-brand-900/10">
-          {filtered.slice(0, 8).map((item) => (
+          {filtered.map((item) => (
             <li
               key={item}
               className="cursor-pointer rounded-lg px-3.5 py-2.5 text-sm font-medium text-brand-900 transition-colors hover:bg-brand-50 hover:text-brand-700"

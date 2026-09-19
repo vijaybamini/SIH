@@ -39,6 +39,7 @@ const COMMODITY_IMAGES = {
   'Maize': 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Dried_corn_cobs_and_kernels_stored_in_a_rustic_barn_during_autumn_harvest_season.jpg/500px-Dried_corn_cobs_and_kernels_stored_in_a_rustic_barn_during_autumn_harvest_season.jpg',
   'Mango': 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Mango_fruit_Nam_Dok_Mai.jpg/500px-Mango_fruit_Nam_Dok_Mai.jpg',
   'Mustard': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Mustard_Seeds_in_a_plate_at_Reganigudem.jpg/500px-Mustard_Seeds_in_a_plate_at_Reganigudem.jpg',
+  'Rice': 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Rice_grains.jpg/500px-Rice_grains.jpg',
   'Soyabean': 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Soybean.USDA.jpg/500px-Soybean.USDA.jpg',
   'Wheat': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Wheat_close-up.JPG/500px-Wheat_close-up.JPG',
 }
@@ -60,26 +61,28 @@ function money(value) {
   return `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
 }
 
+// Fixed-size media box: every commodity photo -- regardless of its own
+// native resolution/aspect ratio -- renders at exactly the same pixel
+// footprint, cropped to fill via object-cover instead of stretching or
+// leaving mismatched whitespace.
 function CommodityCard({ commodity, onSelect }) {
   const [imageFailed, setImageFailed] = useState(false)
   const imageUrl = COMMODITY_IMAGES[commodity]
 
   return (
-    <article className="buyer-product-card">
-      <div className="buyer-product-media">
+    <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-900/[0.08]">
+      <div className="h-36 w-full shrink-0 overflow-hidden bg-brand-50">
         {imageUrl && !imageFailed ? (
-          <img src={imageUrl} alt={commodity} loading="lazy" onError={() => setImageFailed(true)} />
+          <img className="h-36 w-full object-cover" src={imageUrl} alt={commodity} loading="lazy" onError={() => setImageFailed(true)} />
         ) : (
-          <div className="buyer-product-media-fallback" aria-hidden="true">{commodityIcon(commodity)}</div>
+          <div className="flex h-36 w-full items-center justify-center text-4xl" aria-hidden="true">{commodityIcon(commodity)}</div>
         )}
       </div>
-      <div className="buyer-product-body">
-        <h4 className="buyer-product-name">{commodity}</h4>
-        <div className="buyer-product-footer">
-          <button type="button" className="button button-primary buyer-add-button" onClick={() => onSelect(commodity)}>
-            Get price
-          </button>
-        </div>
+      <div className="flex flex-1 flex-col p-4">
+        <h4 className="mb-3.5 min-h-[2.5em] text-sm font-bold leading-snug text-brand-900">{commodity}</h4>
+        <button type="button" className="mt-auto w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700" onClick={() => onSelect(commodity)}>
+          Get price
+        </button>
       </div>
     </article>
   )
@@ -102,19 +105,34 @@ function QuoteBreakdown({ result }) {
   const totals = result.consumer_breakdown.order_totals
   const market = result.consumer_breakdown.market_intelligence_metrics
   const freshness = freshnessSummary(result.allocations)
+  const rows = [
+    ['Price per kg', money(perKg.final_checkout_price_per_kg)],
+    ['Order total', money(totals.grand_total_to_pay)],
+    ['Demand trend', market.macro_market_trend],
+  ]
+  if (freshness) {
+    rows.push(['Freshness', `${freshness.label} ${freshness.date}${freshness.mixed ? ' (some pre-booked)' : ''}`])
+  }
+
   return (
-    <div className="summary-crop-card">
-      <strong>Your price ({result.order_demand_kg}kg{result.requested_kg !== result.order_demand_kg ? `, of ${result.requested_kg}kg requested` : ''})</strong>
-      <div className="summary-grid">
-        <div><span>Price per kg</span><strong>{money(perKg.final_checkout_price_per_kg)}</strong></div>
-        <div><span>Order total</span><strong>{money(totals.grand_total_to_pay)}</strong></div>
-        <div><span>Demand trend</span><strong>{market.macro_market_trend}</strong></div>
-        {freshness && (
-          <div>
-            <span>Freshness</span>
-            <strong>{freshness.label} {freshness.date}{freshness.mixed ? ' (some pre-booked)' : ''}</strong>
-          </div>
+    <div className="rounded-2xl border border-[var(--border-subtle)] bg-cream-100 p-5">
+      <div className="mb-3.5 flex flex-wrap items-center gap-2">
+        <strong className="text-sm font-bold text-brand-900">
+          Your price ({result.order_demand_kg}kg{result.requested_kg !== result.order_demand_kg ? `, of ${result.requested_kg}kg requested` : ''})
+        </strong>
+        {result.is_synthetic_data && (
+          <span className="rounded-full bg-[#8a6d1f]/15 px-2 py-0.5 text-[10px] font-bold uppercase text-[#8a6d1f]" title="This price is based on an estimated dataset, not real market records.">
+            Estimated
+          </span>
         )}
+      </div>
+      <div className="grid grid-cols-2 gap-3.5">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <span className="block text-xs font-bold uppercase tracking-wide text-brand-400">{label}</span>
+            <strong className="text-base text-brand-900">{value}</strong>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -128,6 +146,9 @@ function formatExpiry(value) {
   const digits = value.replace(/\D/g, '').slice(0, 4)
   return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
 }
+
+const buyerInputClass = 'w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3.5 py-3 text-[15px] text-brand-900 outline-none transition-shadow focus:border-brand-400 focus:shadow-[0_0_0_3px_var(--color-brand-50)]'
+const buyerLabelClass = 'grid gap-1.5 text-xs font-semibold text-[var(--text-secondary)]'
 
 function PaymentForm({ amount, onPay, paying, error }) {
   const [cardNumber, setCardNumber] = useState('')
@@ -146,32 +167,33 @@ function PaymentForm({ amount, onPay, paying, error }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="payment-form">
-      <div className="payment-badge">🔒 Test mode — no real charge will be made</div>
-      <div className="payment-amount">
-        <span>Amount to pay</span>
-        <strong>{money(amount)}</strong>
+    <form onSubmit={handleSubmit} className="grid gap-4">
+      <div className="rounded-lg bg-brand-50 px-3.5 py-2.5 text-xs font-semibold text-brand-700">🔒 Test mode — no real charge will be made</div>
+      <div className="flex items-center justify-between rounded-xl bg-cream-100 px-4 py-3.5">
+        <span className="text-sm text-[var(--text-muted)]">Amount to pay</span>
+        <strong className="font-display text-xl font-semibold text-brand-900">{money(amount)}</strong>
       </div>
-      <label>Card number
+      <label className={buyerLabelClass}>Card number
         <input
+          className={buyerInputClass}
           type="text" inputMode="numeric" placeholder="4242 4242 4242 4242"
           value={cardNumber} onChange={(event) => setCardNumber(formatCardNumber(event.target.value))} required
         />
       </label>
-      <label>Name on card
-        <input type="text" placeholder="AS ON CARD" value={cardName} onChange={(event) => setCardName(event.target.value.toUpperCase())} required />
+      <label className={buyerLabelClass}>Name on card
+        <input className={buyerInputClass} type="text" placeholder="AS ON CARD" value={cardName} onChange={(event) => setCardName(event.target.value.toUpperCase())} required />
       </label>
-      <div className="form-grid">
-        <label>Expiry
-          <input type="text" inputMode="numeric" placeholder="MM/YY" value={expiry} onChange={(event) => setExpiry(formatExpiry(event.target.value))} required />
+      <div className="grid grid-cols-2 gap-4">
+        <label className={buyerLabelClass}>Expiry
+          <input className={buyerInputClass} type="text" inputMode="numeric" placeholder="MM/YY" value={expiry} onChange={(event) => setExpiry(formatExpiry(event.target.value))} required />
         </label>
-        <label>CVV
-          <input type="password" inputMode="numeric" placeholder="•••" maxLength={3} value={cvv} onChange={(event) => setCvv(event.target.value.replace(/\D/g, '').slice(0, 3))} required />
+        <label className={buyerLabelClass}>CVV
+          <input className={buyerInputClass} type="password" inputMode="numeric" placeholder="•••" maxLength={3} value={cvv} onChange={(event) => setCvv(event.target.value.replace(/\D/g, '').slice(0, 3))} required />
         </label>
       </div>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="button button-primary submit-button" type="submit" disabled={!isValid || paying}>
-        {paying ? 'Processing payment…' : `Pay ${money(amount)}`} <span>→</span>
+      {error && <p className="rounded-lg border-l-4 border-[var(--color-error)] bg-[var(--color-error-bg)] px-4 py-3 text-sm text-[var(--color-error-ink)]" role="alert">{error}</p>}
+      <button className="rounded-xl bg-brand-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70" type="submit" disabled={!isValid || paying}>
+        {paying ? 'Processing payment…' : `Pay ${money(amount)}`} →
       </button>
     </form>
   )
@@ -237,53 +259,53 @@ function QuoteModal({ commodity, buyerId, buyerPincode, onClose }) {
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="buyer-category-modal" role="dialog" aria-modal="true" aria-labelledby="quote-modal-title">
-        <button className="close-button" aria-label="Close" onClick={onClose}>×</button>
-        <p className="eyebrow">{commodityIcon(commodity)} GET A PRICE</p>
-        <h2 id="quote-modal-title">{commodity}</h2>
+    <div className="fixed inset-0 z-50 grid items-start justify-items-center overflow-y-auto bg-brand-900/45 px-4 py-8" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="relative w-full max-w-[480px] rounded-2xl bg-[var(--surface-raised)] p-8 shadow-2xl shadow-brand-900/25" role="dialog" aria-modal="true" aria-labelledby="quote-modal-title">
+        <button className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-xl text-[var(--text-muted)] hover:text-brand-700" aria-label="Close" onClick={onClose}>×</button>
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-brand-400">{commodityIcon(commodity)} Get a price</p>
+        <h2 id="quote-modal-title" className="font-display text-2xl font-semibold text-brand-900">{commodity}</h2>
 
-        <form onSubmit={handleGetPrice} className="form-grid" style={{ marginTop: 16 }}>
-          <label>Quantity (kg)
-            <input type="number" min="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} required />
+        <form onSubmit={handleGetPrice} className="mt-5 grid grid-cols-2 gap-4">
+          <label className={buyerLabelClass}>Quantity (kg)
+            <input className={buyerInputClass} type="number" min="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} required />
           </label>
-          <label>Your pincode
-            <input type="text" inputMode="numeric" pattern="[0-9]{6}" placeholder="e.g. 500001" value={pincode} onChange={(event) => setPincode(event.target.value)} />
+          <label className={buyerLabelClass}>Your pincode
+            <input className={buyerInputClass} type="text" inputMode="numeric" pattern="[0-9]{6}" placeholder="e.g. 500001" value={pincode} onChange={(event) => setPincode(event.target.value)} />
           </label>
-          {quoteError && <p className="form-error" role="alert" style={{ gridColumn: '1 / -1' }}>{quoteError}</p>}
-          <button className="button button-primary submit-button" type="submit" disabled={quoteLoading} style={{ gridColumn: '1 / -1' }}>
-            {quoteLoading ? 'Getting price…' : 'Get price'} <span>→</span>
+          {quoteError && <p className="col-span-2 rounded-lg border-l-4 border-[var(--color-error)] bg-[var(--color-error-bg)] px-4 py-3 text-sm text-[var(--color-error-ink)]" role="alert">{quoteError}</p>}
+          <button className="col-span-2 rounded-xl bg-brand-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70" type="submit" disabled={quoteLoading}>
+            {quoteLoading ? 'Getting price…' : 'Get price'} →
           </button>
         </form>
 
         {quote && checkoutStage === 'quote' && (
-          <div style={{ marginTop: 22 }}>
+          <div className="mt-5 flex flex-col gap-4">
             <QuoteBreakdown result={quote} />
-            <button className="button button-primary submit-button" onClick={() => setCheckoutStage('payment')}>
-              Proceed to payment <span>→</span>
+            <button className="rounded-xl bg-brand-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700" onClick={() => setCheckoutStage('payment')}>
+              Proceed to payment →
             </button>
           </div>
         )}
 
         {quote && checkoutStage === 'payment' && (
-          <div style={{ marginTop: 22 }}>
+          <div className="mt-5 flex flex-col gap-3">
             <PaymentForm
               amount={quote.consumer_breakdown.order_totals.grand_total_to_pay}
               onPay={handlePay}
               paying={orderLoading}
               error={orderError}
             />
-            <button type="button" className="text-link" style={{ marginTop: 10 }} onClick={() => setCheckoutStage('quote')} disabled={orderLoading}>
+            <button type="button" className="text-sm font-semibold text-brand-700 hover:text-brand-600" onClick={() => setCheckoutStage('quote')} disabled={orderLoading}>
               ← Back
             </button>
           </div>
         )}
 
         {checkoutStage === 'done' && (
-          <div className="summary-crop-card payment-success" style={{ marginTop: 22 }}>
-            <div className="payment-success-icon" aria-hidden="true">✓</div>
-            <strong>Payment successful</strong>
-            <span>Order confirmed — #{orderId}</span>
+          <div className="mt-5 rounded-2xl border border-[var(--border-subtle)] bg-cream-100 p-7 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-100 text-3xl text-brand-600" aria-hidden="true">✓</div>
+            <strong className="block text-lg font-bold text-brand-900">Payment successful</strong>
+            <span className="mt-1 block text-sm text-[var(--text-muted)]">Order confirmed — #{orderId}</span>
           </div>
         )}
       </section>
@@ -320,14 +342,15 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
   const initials = (user.name || 'B').trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'B'
 
   return (
-    <div className="buyer-shell">
-      <header className="buyer-topbar">
-        <Logo className="brand buyer-brand" />
+    <div className="min-h-screen bg-cream-200 font-sans text-[15px] text-[var(--text-primary)]">
+      <header className="sticky top-0 z-30 flex flex-wrap items-center gap-4 border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] px-8 py-4">
+        <Logo />
 
-        <div className="buyer-search">
-          <span className="buyer-search-icon" aria-hidden="true">⌕</span>
+        <div className="flex min-w-[220px] flex-1 items-center gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-cream-100 px-4 py-2.5">
+          <span className="text-brand-400" aria-hidden="true">⌕</span>
           <input
             type="search"
+            className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-[var(--text-muted)]"
             placeholder="Search commodities…"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -335,25 +358,27 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
           />
         </div>
 
-        <div className="buyer-topbar-actions">
+        <div className="flex shrink-0 items-center gap-3.5">
           <LanguageSwitcher language={language} setLanguage={setLanguage} />
-          <div className="buyer-profile">
-            <div className="buyer-avatar" aria-hidden="true">{initials}</div>
-            <div className="buyer-profile-info">
-              <strong>{user.name || 'Buyer'}</strong>
-              <span>{buyerProfile?.pincode ? `PIN ${buyerProfile.pincode}` : 'Add your pincode'}</span>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-300 text-sm font-bold text-brand-900" aria-hidden="true">{initials}</div>
+            <div className="hidden flex-col leading-tight sm:flex">
+              <strong className="text-sm text-brand-900">{user.name || 'Buyer'}</strong>
+              <span className="text-xs font-semibold text-brand-400">{buyerProfile?.pincode ? `PIN ${buyerProfile.pincode}` : 'Add your pincode'}</span>
             </div>
-            <button className="text-link buyer-logout" onClick={onLogout}>{t.logout}</button>
+            <button className="ml-1 text-xs font-bold text-brand-800 hover:text-brand-600" onClick={onLogout}>{t.logout}</button>
           </div>
         </div>
       </header>
 
-      <nav className="buyer-filter-row" aria-label="Filter by category">
+      <nav className="mx-auto flex max-w-[1240px] flex-wrap gap-2 px-8 pt-5" aria-label="Filter by category">
         {CATEGORIES.map((category) => (
           <button
             key={category}
             type="button"
-            className={`buyer-filter-chip${activeCategory === category ? ' active' : ''}`}
+            className={`rounded-full border px-4 py-2 text-[13.5px] font-semibold transition-colors ${
+              activeCategory === category ? 'border-brand-600 bg-brand-600 text-white' : 'border-[var(--border-subtle)] bg-[var(--surface-raised)] text-brand-900 hover:border-brand-300'
+            }`}
             onClick={() => setActiveCategory(category)}
           >
             {category}
@@ -361,18 +386,18 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
         ))}
       </nav>
 
-      <main className="buyer-main">
-        <div className="section-heading-row">
-          <h3>{searchTerm ? `Results for "${search.trim()}"` : 'Browse commodities'}</h3>
-        </div>
+      <main className="mx-auto max-w-[1240px] px-8 py-7">
+        <h3 className="mb-4 font-display text-2xl font-bold text-brand-900">
+          {searchTerm ? `Results for "${search.trim()}"` : 'Browse commodities'}
+        </h3>
         {loading ? (
-          <p className="buyer-loading">Loading catalog…</p>
+          <p className="text-sm text-[var(--text-muted)]">Loading catalog…</p>
         ) : loadError ? (
-          <div className="empty-card"><p>{loadError}</p></div>
+          <div className="rounded-2xl border border-dashed border-brand-200 bg-cream-100 p-7 text-center text-brand-900">{loadError}</div>
         ) : filtered.length === 0 ? (
-          <div className="empty-card"><p>No commodities found.</p></div>
+          <div className="rounded-2xl border border-dashed border-brand-200 bg-cream-100 p-7 text-center text-brand-900">No commodities found.</div>
         ) : (
-          <div className="buyer-product-grid">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filtered.map((commodity) => (
               <CommodityCard key={commodity} commodity={commodity} onSelect={setSelectedCommodity} />
             ))}
