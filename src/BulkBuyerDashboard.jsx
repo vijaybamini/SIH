@@ -89,8 +89,7 @@ function CommodityCard({ commodity, onSelect }) {
         </span>
       </div>
       <div className="flex flex-1 flex-col p-4">
-        <h4 className="mb-1 min-h-[2.5em] text-sm font-bold leading-snug text-brand-900">{commodity}</h4>
-        <span className="mb-3 text-xs font-semibold text-brand-400">Live pooled-demand pricing</span>
+        <h4 className="mb-3 min-h-[2.5em] text-sm font-bold leading-snug text-brand-900">{commodity}</h4>
 
         <div className="mt-auto flex items-center justify-between gap-2 rounded-lg bg-cream-100 p-1">
           <button
