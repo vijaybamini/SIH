@@ -5,9 +5,28 @@ import { useTranslation } from './i18n'
 import { fetchCommodities, fetchQuote, placeOrder } from './api/aiBackend'
 
 const CATEGORIES = ['All', 'Fruits', 'Vegetables', 'Grains', 'Pulses', 'Other']
-const CATEGORY_ICONS = { All: '🛒', Fruits: '🍎', Vegetables: '🥦', Grains: '🌾', Pulses: '🫘', Other: '🌱' }
 const QUANTITY_STEP_KG = 50
 const MIN_QUANTITY_KG = 50
+
+// Flat line icons (not emoji) so the category rail reads as one consistent
+// icon set instead of mismatched platform emoji glyphs.
+function CategoryIcon({ category }) {
+  const common = { width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
+  switch (category) {
+    case 'All':
+      return <svg {...common}><circle cx="9" cy="20" r="1.4" fill="currentColor" stroke="none" /><circle cx="18" cy="20" r="1.4" fill="currentColor" stroke="none" /><path d="M2.5 3h2.4l2 12.2a2 2 0 0 0 2 1.7h8.6a2 2 0 0 0 1.97-1.64L20.9 8H6.1" /></svg>
+    case 'Fruits':
+      return <svg {...common}><path d="M12 5c.3-1.3 1.5-2.2 3-2.2" /><path d="M12 8c-3.9 0-6.5 2.9-6.5 6.6 0 3.6 2.5 6.9 5.6 6.9.6 0 1-.2 1.4-.5" /><path d="M12 8c3.9 0 6.5 2.9 6.5 6.6 0 3.6-2.5 6.9-5.6 6.9-.5 0-1-.2-1.4-.5" /></svg>
+    case 'Vegetables':
+      return <svg {...common}><path d="M12 21c-4-2-6-5.4-6-9.5C6 6.8 8.7 4 12 4s6 2.8 6 7.5c0 4.1-2 7.5-6 9.5Z" /><path d="M12 21V9" /></svg>
+    case 'Grains':
+      return <svg {...common}><path d="M12 2v20" /><path d="M12 4c2 .5 3.5 2 3.5 4S14 11.5 12 12" /><path d="M12 4c-2 .5-3.5 2-3.5 4S10 11.5 12 12" /><path d="M12 12c2 .5 3.5 2 3.5 4S14 19.5 12 20" /><path d="M12 12c-2 .5-3.5 2-3.5 4S10 19.5 12 20" /></svg>
+    case 'Pulses':
+      return <svg {...common}><path d="M4.5 12c0-5 3.8-8.5 8-8.5S19 8.5 19 13a6.5 6.5 0 0 1-13 0" /><ellipse cx="9.3" cy="10.3" rx="1.6" ry="2" transform="rotate(-30 9.3 10.3)" /><ellipse cx="13.8" cy="13.6" rx="1.6" ry="2" transform="rotate(-30 13.8 13.6)" /></svg>
+    default:
+      return <svg {...common}><path d="M12 21c0-6 0-9 6-13" /><path d="M12 21c0-5-2-7-6-9" /><path d="M18 8c1 2 .3 4-1.5 5" /><path d="M6 12c-1.2 1.3-1 3 .3 4" /></svg>
+  }
+}
 
 function commodityCategory(name) {
   const n = name.toLowerCase()
@@ -434,12 +453,12 @@ export default function BulkBuyerDashboard({ user, buyerProfile, language, setLa
             <button
               key={category}
               type="button"
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-[13.5px] font-semibold transition-colors ${
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 py-2 text-[13.5px] font-semibold transition-colors ${
                 activeCategory === category ? 'border-brand-600 bg-brand-600 text-white' : 'border-[var(--border-subtle)] bg-cream-100 text-brand-900 hover:border-brand-300'
               }`}
               onClick={() => setActiveCategory(category)}
             >
-              <span aria-hidden="true">{CATEGORY_ICONS[category]}</span> {category}
+              <CategoryIcon category={category} /> {category}
             </button>
           ))}
         </nav>
