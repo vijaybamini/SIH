@@ -178,7 +178,7 @@ function QuoteBreakdown({ result }) {
             <span className="text-right text-brand-900">{freshness.label} {freshness.date}{freshness.mixed ? ' (some pre-booked)' : ''}</span>
           </div>
         )}
-        <p className="mt-1 text-xs text-brand-400">Farmer receives {money(orderTotals.total_farmer_payout)} of the crop value — no middleman commission.</p>
+        <p className="mt-1 text-xs text-brand-400">Farmer receives {money(orderTotals.total_farmer_payout)} after commission.</p>
       </div>
 
       <div className="flex items-center justify-between border-t border-[var(--border-subtle)] bg-brand-50 px-5 py-3.5">
@@ -219,7 +219,6 @@ function PaymentForm({ amount, onPay, paying, error }) {
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4">
-      <div className="rounded-lg bg-brand-50 px-3.5 py-2.5 text-xs font-semibold text-brand-700">🔒 Test mode — no real charge will be made</div>
       <div className="flex items-center justify-between rounded-xl bg-cream-100 px-4 py-3.5">
         <span className="text-sm text-[var(--text-muted)]">Amount to pay</span>
         <strong className="font-display text-xl font-semibold text-brand-900">{money(amount)}</strong>
