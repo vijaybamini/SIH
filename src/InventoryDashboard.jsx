@@ -16,6 +16,9 @@ function todayISO() {
   return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10)
 }
 
+const inputClass = 'w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3.5 py-3 text-[15px] text-brand-900 outline-none transition-shadow focus:border-brand-400 focus:shadow-[0_0_0_3px_var(--color-brand-50)]'
+const labelClass = 'grid gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-400'
+
 export default function InventoryDashboard({ userId, initialData, language, setLanguage, onBack, onComplete }) {
   const t = useTranslation(language)
   const [tab, setTab] = useState('current')
@@ -86,55 +89,64 @@ export default function InventoryDashboard({ userId, initialData, language, setL
     facility && (facility.type || (facility.capacity !== '' && facility.capacity != null) || facility.location || (facility.fill !== '' && facility.fill != null))
   )
 
+  const stats = [
+    ['Available records', currentRecords.length],
+    ['Sold', pastRecords.length],
+    ['Facility fill', facility?.fill !== '' && facility?.fill != null ? `${facility.fill}%` : '—'],
+  ]
+
   return (
-    <div className="profile-page">
-      <div className="profile-page-inner" style={{ maxWidth: 900 }}>
-        <div className="profile-page-topbar">
-          <button className="back-button" onClick={onBack}>{t.backToLogistics}</button>
+    <div className="min-h-screen bg-cream-200 font-sans text-[15px] text-[var(--text-primary)]">
+      <div className="mx-auto max-w-[960px] px-6 py-10">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <button className="text-sm font-semibold text-brand-700 hover:text-brand-600" onClick={onBack}>{t.backToLogistics}</button>
           <LanguageSwitcher language={language} setLanguage={setLanguage} />
         </div>
 
-        <div className="manage-head">
-          <div>
-            <p className="eyebrow" style={{ marginBottom: 6 }}>{t.stepInventory}</p>
-            <h2>{t.inventoryCard}</h2>
-          </div>
+        <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-brand-400">{t.stepInventory}</p>
+        <h2 className="mb-6 font-display text-3xl font-bold tracking-tight text-brand-900">{t.inventoryCard}</h2>
+
+        <div className="mb-8 grid grid-cols-3 gap-4">
+          {stats.map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5">
+              <span className="block text-[11px] font-bold uppercase tracking-wide text-brand-400">{label}</span>
+              <strong className="mt-1 block font-display text-3xl font-bold text-brand-900">{value}</strong>
+            </div>
+          ))}
         </div>
 
-        <div className="manage-tabs-row">
-          <div className="manage-tabs" role="tablist">
-            <button type="button" className={`manage-tab ${tab === 'current' ? 'active' : ''}`} onClick={() => setTab('current')}>{t.currentInventoryLabel}</button>
-            <button type="button" className={`manage-tab ${tab === 'past' ? 'active' : ''}`} onClick={() => setTab('past')}>{t.pastInventoryLabel}</button>
-          </div>
+        <div className="mb-5 inline-flex rounded-xl bg-cream-100 p-1">
+          <button type="button" className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${tab === 'current' ? 'bg-white text-brand-900 shadow-sm' : 'text-[var(--text-muted)]'}`} onClick={() => setTab('current')}>{t.currentInventoryLabel}</button>
+          <button type="button" className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${tab === 'past' ? 'bg-white text-brand-900 shadow-sm' : 'text-[var(--text-muted)]'}`} onClick={() => setTab('past')}>{t.pastInventoryLabel}</button>
         </div>
 
         {list.length === 0 ? (
-          <p className="manage-empty">{emptyText}</p>
+          <p className="rounded-2xl border border-dashed border-brand-200 bg-cream-100 p-7 text-center text-brand-900">{emptyText}</p>
         ) : (
-          <div className="manage-grid">
+          <div className="grid gap-4 sm:grid-cols-2">
             {list.map((record) => {
               const isPast = record.status === 'sold'
               const quantity = record.quantity != null && record.quantity !== ''
                 ? `${record.quantity} ${record.unit || ''}`.trim()
                 : '—'
               return (
-                <div className="manage-card" key={record.id}>
-                  <div className="manage-card-head">
-                    <strong>{record.crop || '—'}</strong>
-                    <span className={`status-badge ${isPast ? 'status-archived' : 'status-active'}`}>
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5" key={record.id}>
+                  <div className="mb-3.5 flex items-center justify-between gap-2">
+                    <strong className="text-base text-brand-900">{record.crop || '—'}</strong>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${isPast ? 'bg-cream-200 text-[var(--text-muted)]' : 'bg-brand-100 text-brand-700'}`}>
                       {isPast ? t.statusSold : t.statusAvailable}
                     </span>
                   </div>
-                  <div className="manage-fields">
-                    <div className="manage-field"><span>{t.inventoryQuantityLabel}</span><strong>{quantity}</strong></div>
-                    <div className="manage-field"><span>{t.harvestDateShort}</span><strong>{record.harvestDate || '—'}</strong></div>
-                    <div className="manage-field"><span>{t.inventoryLocationLabel}</span><strong>{record.location || '—'}</strong></div>
+                  <div className="grid gap-2.5">
+                    <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.inventoryQuantityLabel}</span><strong className="text-brand-900">{quantity}</strong></div>
+                    <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.harvestDateShort}</span><strong className="text-brand-900">{record.harvestDate || '—'}</strong></div>
+                    <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.inventoryLocationLabel}</span><strong className="text-brand-900">{record.location || '—'}</strong></div>
                   </div>
-                  <div className="manage-card-actions">
+                  <div className="mt-3.5 border-t border-[var(--border-subtle)] pt-3.5">
                     {isPast ? (
-                      <button type="button" className="button button-quiet" onClick={() => restoreRecord(record.id)} disabled={isSaving}>{t.restoreVehicle}</button>
+                      <button type="button" className="text-sm font-semibold text-brand-600 hover:text-brand-700" onClick={() => restoreRecord(record.id)} disabled={isSaving}>{t.restoreVehicle}</button>
                     ) : (
-                      <button type="button" className="button button-quiet" onClick={() => moveToPast(record.id)} disabled={isSaving}>{t.moveToPastInventory}</button>
+                      <button type="button" className="text-sm font-semibold text-brand-600 hover:text-brand-700" onClick={() => moveToPast(record.id)} disabled={isSaving}>{t.moveToPastInventory}</button>
                     )}
                   </div>
                 </div>
@@ -144,59 +156,57 @@ export default function InventoryDashboard({ userId, initialData, language, setL
         )}
 
         {tab === 'current' && hasFacility && (
-          <div className="manage-card" style={{ marginTop: 18 }}>
-            <div className="manage-card-head">
-              <strong>{t.storageFacilityTitle}</strong>
-            </div>
-            <div className="manage-fields">
-              <div className="manage-field"><span>{t.coldStorageType}</span><strong>{facility.type || '—'}</strong></div>
-              <div className="manage-field"><span>{t.coldStorageCapacity}</span>
-                <strong>{facility.capacity !== '' && facility.capacity != null ? `${facility.capacity} tonnes` : '—'}</strong>
+          <div className="mt-6 rounded-2xl border border-[var(--border-subtle)] bg-brand-50 p-5">
+            <strong className="mb-3.5 block text-base text-brand-900">{t.storageFacilityTitle}</strong>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.coldStorageType}</span><strong className="text-brand-900">{facility.type || '—'}</strong></div>
+              <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.coldStorageCapacity}</span>
+                <strong className="text-brand-900">{facility.capacity !== '' && facility.capacity != null ? `${facility.capacity} tonnes` : '—'}</strong>
               </div>
-              <div className="manage-field"><span>{t.storageLocation}</span><strong>{facility.location || '—'}</strong></div>
-              <div className="manage-field"><span>{t.storageFillLabel}</span>
-                <strong>{facility.fill !== '' && facility.fill != null ? `${facility.fill}%` : '—'}</strong>
+              <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.storageLocation}</span><strong className="text-brand-900">{facility.location || '—'}</strong></div>
+              <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.storageFillLabel}</span>
+                <strong className="text-brand-900">{facility.fill !== '' && facility.fill != null ? `${facility.fill}%` : '—'}</strong>
               </div>
             </div>
           </div>
         )}
 
         {showAddForm && (
-          <form className="profile-form-card manage-add-panel" onSubmit={handleAddSubmit}>
-            <h3 className="manage-add-title">{t.addInventoryTitle}</h3>
-            <div className="form-grid">
-              <label>{t.cropWord}
-                <select value={form.crop} onChange={(event) => updateForm('crop', event.target.value)} required>
+          <form onSubmit={handleAddSubmit} className="mt-6 grid gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-6">
+            <h3 className="font-display text-lg font-bold text-brand-900">{t.addInventoryTitle}</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className={labelClass}>{t.cropWord}
+                <select className={inputClass} value={form.crop} onChange={(event) => updateForm('crop', event.target.value)} required>
                   <option value="">{t.selectCrop}</option>
                   {t.cropSuggestions.map((crop) => <option key={crop} value={crop}>{crop}</option>)}
                 </select>
               </label>
-              <label>{t.inventoryLocationLabel}
-                <input type="text" value={form.location} onChange={(event) => updateForm('location', event.target.value)} placeholder={t.storageLocationPlaceholder} />
+              <label className={labelClass}>{t.inventoryLocationLabel}
+                <input className={inputClass} type="text" value={form.location} onChange={(event) => updateForm('location', event.target.value)} placeholder={t.storageLocationPlaceholder} />
               </label>
-              <label>{t.inventoryQuantityLabel}
-                <input type="number" step="0.01" min="0" value={form.quantity} onChange={(event) => updateForm('quantity', event.target.value)} placeholder="0" required />
+              <label className={labelClass}>{t.inventoryQuantityLabel}
+                <input className={inputClass} type="number" step="0.01" min="0" value={form.quantity} onChange={(event) => updateForm('quantity', event.target.value)} placeholder="0" required />
               </label>
-              <label>{t.quantityUnitLabel}
-                <select value={form.unit || 'kg'} onChange={(event) => updateForm('unit', event.target.value)}>
+              <label className={labelClass}>{t.quantityUnitLabel}
+                <select className={inputClass} value={form.unit || 'kg'} onChange={(event) => updateForm('unit', event.target.value)}>
                   {t.unitSuggestions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
                 </select>
               </label>
-              <label>{t.harvestDateShort}
-                <input type="date" value={form.harvestDate} onChange={(event) => updateForm('harvestDate', event.target.value)} required />
+              <label className={labelClass}>{t.harvestDateShort}
+                <input className={inputClass} type="date" value={form.harvestDate} onChange={(event) => updateForm('harvestDate', event.target.value)} required />
               </label>
             </div>
-            {saveError && <p className="form-error" role="alert">{saveError}</p>}
-            <div className="manage-add-actions">
-              <button type="button" className="button button-quiet" onClick={() => { setShowAddForm(false); setSaveError('') }}>{t.back}</button>
-              <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? t.savingButton : t.addInventoryButton}</button>
+            {saveError && <p className="rounded-lg border-l-4 border-[var(--color-error)] bg-[var(--color-error-bg)] px-4 py-3 text-sm text-[var(--color-error-ink)]" role="alert">{saveError}</p>}
+            <div className="flex gap-2.5">
+              <button type="button" className="rounded-lg px-4 py-3 text-sm font-semibold text-brand-800 hover:text-brand-600" onClick={() => { setShowAddForm(false); setSaveError('') }}>{t.back}</button>
+              <button type="submit" className="rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70" disabled={isSaving}>{isSaving ? t.savingButton : t.addInventoryButton}</button>
             </div>
           </form>
         )}
 
         {!showAddForm && (
-          <div className="manage-foot">
-            <button type="button" className="button button-primary" onClick={() => setShowAddForm(true)}>{t.addInventoryButton}</button>
+          <div className="mt-6">
+            <button type="button" className="rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700" onClick={() => setShowAddForm(true)}>{t.addInventoryButton}</button>
           </div>
         )}
       </div>

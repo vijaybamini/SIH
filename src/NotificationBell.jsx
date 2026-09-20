@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { acceptTripOffer, fetchNotifications, markAllNotificationsRead, markNotificationRead, subscribeToNotifications } from './api/notifications'
+import { fetchNotifications, markAllNotificationsRead, markNotificationRead, subscribeToNotifications } from './api/notifications'
 
 function timeAgo(isoString) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000))
@@ -11,82 +11,10 @@ function timeAgo(isoString) {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-function formatRupees(value) {
-  const n = Number(value)
-  return Number.isFinite(n) ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '—'
-}
-
-const COST_ROWS = [
-  ['fuel_cost', 'Fuel'],
-  ['driver_cost', 'Driver'],
-  ['toll_cost', 'Toll'],
-  ['maintenance_cost', 'Maintenance'],
-  ['depreciation_cost', 'Depreciation'],
-  ['loading_unloading_cost', 'Loading / unloading'],
-  ['insurance_cost', 'Insurance'],
-  ['permit_cost', 'Permits'],
-]
-
-function TripOfferDetail({ notification, acceptState, onAccept }) {
-  const payload = notification.payload || {}
-  const cost = payload.cost_breakdown || {}
-  const route = [payload.pickup, ...(Array.isArray(payload.stops) ? payload.stops.slice(1, -1) : []), payload.destination].filter(Boolean)
-  const state = acceptState || 'idle'
-
-  return (
-    <div className="notification-detail">
-      <div className="notification-detail-row">
-        <span>Commodity</span><strong>{payload.commodity || '—'} · {payload.shipment_weight_kg ? `${payload.shipment_weight_kg}kg` : '—'}</strong>
-      </div>
-      <div className="notification-detail-row">
-        <span>Route</span><strong>{route.length ? route.join(' → ') : '—'}</strong>
-      </div>
-      <div className="notification-detail-row">
-        <span>Distance</span><strong>{payload.distance_km ? `${payload.distance_km}km` : '—'}{payload.estimated_travel_time ? ` · ${payload.estimated_travel_time}` : ''}</strong>
-      </div>
-      <div className="notification-detail-row">
-        <span>Vehicle needed</span><strong>{payload.vehicle_label || '—'}</strong>
-      </div>
-
-      <p className="notification-detail-subhead">Cost breakdown</p>
-      <table className="notification-cost-table">
-        <tbody>
-          {COST_ROWS.map(([key, label]) => (
-            cost[key] != null && (
-              <tr key={key}><td>{label}</td><td>{formatRupees(cost[key])}</td></tr>
-            )
-          ))}
-          <tr className="notification-cost-total"><td>Total operating cost</td><td>{formatRupees(cost.total_operating_cost)}</td></tr>
-          <tr className="notification-cost-payout"><td>Your payout</td><td>{formatRupees(cost.driver_payout ?? payload.quoted_payout)}</td></tr>
-        </tbody>
-      </table>
-
-      {payload.order_trip_id != null && (
-        <div className="notification-accept-row">
-          {state === 'accepted' && <span className="notification-status notification-status-accepted">✓ You accepted this job</span>}
-          {state === 'taken' && <span className="notification-status notification-status-taken">Already accepted by another provider</span>}
-          {state === 'error' && <span className="notification-status notification-status-taken">Couldn't accept — try again</span>}
-          {(state === 'idle' || state === 'accepting' || state === 'error') && (
-            <button
-              type="button"
-              className="button button-primary notification-accept-button"
-              disabled={state === 'accepting'}
-              onClick={() => onAccept(notification)}
-            >
-              {state === 'accepting' ? 'Accepting…' : 'Accept job'}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default function NotificationBell({ userId }) {
+export default function NotificationBell({ userId, onViewTripOffer }) {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [expandedId, setExpandedId] = useState(null)
-  const [acceptStates, setAcceptStates] = useState({})
   const wrapRef = useRef(null)
 
   useEffect(() => {
@@ -125,29 +53,27 @@ export default function NotificationBell({ userId }) {
     try { await markAllNotificationsRead(userId) } catch { /* best-effort */ }
   }
 
-  async function handleItemClick(item) {
-    setExpandedId((current) => (current === item.id ? null : item.id))
+  async function markRead(item) {
     if (item.is_read) return
     setNotifications((current) => current.map((row) => (row.id === item.id ? { ...row, is_read: true } : row)))
     try { await markNotificationRead(item.id) } catch { /* best-effort */ }
   }
 
-  async function handleAccept(notification) {
-    const tripId = notification.payload?.order_trip_id
-    if (tripId == null) return
-    setAcceptStates((current) => ({ ...current, [notification.id]: 'accepting' }))
-    try {
-      const result = await acceptTripOffer(tripId, userId)
-      setAcceptStates((current) => ({ ...current, [notification.id]: result?.success ? 'accepted' : 'taken' }))
-    } catch {
-      setAcceptStates((current) => ({ ...current, [notification.id]: 'error' }))
+  async function handleItemClick(item) {
+    if (item.type === 'trip_offer') {
+      await markRead(item)
+      setOpen(false)
+      onViewTripOffer?.(item)
+      return
     }
+    setExpandedId((current) => (current === item.id ? null : item.id))
+    await markRead(item)
   }
 
   return (
-    <div ref={wrapRef} className="utility-menu notification-bell-wrap">
+    <div ref={wrapRef} className="relative">
       <button
-        className="utility-button notification-bell-button"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full text-lg transition-colors hover:bg-brand-50"
         type="button"
         aria-expanded={open}
         aria-haspopup="true"
@@ -155,37 +81,40 @@ export default function NotificationBell({ userId }) {
         onClick={() => setOpen((current) => !current)}
       >
         <span aria-hidden="true">🔔</span>
-        {unreadCount > 0 && <span className="notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+        {unreadCount > 0 && (
+          <span className="absolute right-1 top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-bold text-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
       </button>
       {open && (
-        <div className="utility-popover notification-popover">
-          <div className="notification-popover-head">
-            <p className="popover-title">Notifications</p>
+        <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-[340px] max-w-[90vw] overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] shadow-lg shadow-brand-900/10">
+          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
+            <p className="text-sm font-bold text-brand-900">Notifications</p>
             {unreadCount > 0 && (
-              <button type="button" className="notification-mark-all" onClick={handleMarkAllRead}>Mark all read</button>
+              <button type="button" className="text-xs font-semibold text-brand-600 hover:text-brand-700" onClick={handleMarkAllRead}>Mark all read</button>
             )}
           </div>
           {notifications.length === 0 ? (
-            <p className="notification-empty">No job offers yet — they'll show up here as soon as an order needs your vehicle.</p>
+            <p className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">No job offers yet — they'll show up here as soon as an order needs your vehicle.</p>
           ) : (
-            <ul className="notification-list">
+            <ul className="max-h-[360px] overflow-y-auto">
               {notifications.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} className="border-b border-[var(--border-subtle)] last:border-b-0">
                   <button
                     type="button"
-                    className={`notification-item ${item.is_read ? '' : 'unread'}`}
+                    className={`flex w-full flex-col gap-0.5 px-4 py-3 text-left transition-colors hover:bg-cream-100 ${item.is_read ? '' : 'bg-brand-50/60'}`}
                     onClick={() => handleItemClick(item)}
                   >
-                    <span className="notification-item-title">{item.title}</span>
-                    <span className="notification-item-body">{item.body}</span>
-                    <span className="notification-item-time">{timeAgo(item.created_at)}</span>
+                    <span className="text-sm font-bold text-brand-900">{item.title}</span>
+                    <span className="text-[13px] text-[var(--text-secondary)]">{item.body}</span>
+                    <span className="text-[11px] text-[var(--text-muted)]">{timeAgo(item.created_at)}</span>
+                    {item.type === 'trip_offer' && (
+                      <span className="mt-1 text-xs font-semibold text-brand-600">View full offer →</span>
+                    )}
                   </button>
-                  {expandedId === item.id && item.type === 'trip_offer' && (
-                    <TripOfferDetail
-                      notification={item}
-                      acceptState={acceptStates[item.id]}
-                      onAccept={handleAccept}
-                    />
+                  {expandedId === item.id && item.type !== 'trip_offer' && (
+                    <div className="px-4 pb-3 text-sm text-[var(--text-muted)]">{item.body}</div>
                   )}
                 </li>
               ))}

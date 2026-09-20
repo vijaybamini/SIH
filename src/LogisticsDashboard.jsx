@@ -63,18 +63,19 @@ function useHoverMenu() {
 }
 
 function ProfileMenu({ profileComplete, onOpenCompleteProfile, onLogout, tooltipRef, visible, t }) {
+  if (!visible) return null
   return (
-    <div className="profile-tooltip" role="menu" ref={tooltipRef} hidden={!visible}>
+    <div ref={tooltipRef} role="menu" className="absolute right-0 top-[calc(100%+10px)] z-20 min-w-[220px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-2 shadow-lg shadow-brand-900/10">
       {!profileComplete ? (
-        <>
-          <p>{t.profileIncompleteMsg}</p>
-          <button className="profile-tooltip-cta" onClick={onOpenCompleteProfile}>{t.completeProfile} →</button>
-        </>
-      ) : (
-        <div className="profile-menu-list">
-          <button className="menu-item" onClick={onOpenCompleteProfile}><span aria-hidden="true">👤</span> {t.viewProfile}</button>
-          <button className="menu-item" onClick={onLogout}><span aria-hidden="true">⤶</span> {t.logout}</button>
+        <div className="mb-2 rounded-lg bg-brand-50 p-3">
+          <p className="mb-2 text-xs text-brand-800">{t.profileIncompleteMsg}</p>
+          <button className="text-xs font-bold text-brand-600 hover:text-brand-700" onClick={onOpenCompleteProfile}>{t.completeProfile} →</button>
         </div>
+      ) : (
+        <>
+          <button className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-brand-800 hover:bg-brand-50 hover:text-brand-600" onClick={onOpenCompleteProfile}><span aria-hidden="true">👤</span> {t.viewProfile}</button>
+          <button className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-brand-800 hover:bg-brand-50 hover:text-brand-600" onClick={onLogout}><span aria-hidden="true">⤶</span> {t.logout}</button>
+        </>
       )}
     </div>
   )
@@ -120,43 +121,55 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
 
   const pickedTitle = picked ? sections.find((section) => section.id === picked)?.title : ''
 
-  return (
-    <div className="dashboard-shell">
-      <aside className="dash-sidebar">
-        <div className="dash-brand"><Logo /></div>
+  function goToNav(key) {
+    setActiveNav(key)
+    if (key === 'Transport') onSelectSection('transport')
+    if (key === 'Storage') onSelectSection('inventory')
+    if (key === 'Profile') onSelectSection('profile')
+  }
 
-        <nav className="dash-nav" aria-label={t.dashboardNavLabel}>
+  return (
+    <div className="flex min-h-screen bg-cream-200 font-sans text-[15px] leading-relaxed text-[var(--text-primary)]">
+      <aside className="flex w-[260px] shrink-0 flex-col bg-[#dcebc4] p-7">
+        <div className="mb-9 px-2"><Logo /></div>
+
+        <nav className="flex flex-col gap-1.5" aria-label={t.dashboardNavLabel}>
           {navItems.map(([key, label]) => (
             <button
               key={key}
-              className={activeNav === key ? 'active' : ''}
-              onClick={() => {
-                setActiveNav(key)
-                if (key === 'Transport') onSelectSection('transport')
-                if (key === 'Storage') onSelectSection('inventory')
-                if (key === 'Profile') onSelectSection('profile')
-              }}
+              className={`rounded-xl px-4 py-3.5 text-left text-[16px] font-medium transition-colors ${
+                activeNav === key ? 'bg-white font-bold text-brand-900 shadow-sm' : 'text-[#4a5c40] hover:bg-white/55 hover:text-brand-900'
+              }`}
+              onClick={() => goToNav(key)}
             >{label}</button>
           ))}
         </nav>
 
-        <button className="dash-logout" onClick={onLogout}><span aria-hidden="true">⤶</span> {t.logout}</button>
+        <button className="mt-auto flex items-center gap-2.5 rounded-xl px-4 py-3.5 text-left text-[16px] font-medium text-[#4a5c40] hover:text-brand-900" onClick={onLogout}>
+          <span aria-hidden="true">⤶</span> {t.logout}
+        </button>
       </aside>
 
-      <main className="dash-main">
-        <header className="dash-topbar">
+      <main className="min-w-0 flex-1 px-9 pb-14 pt-8">
+        <header className="mb-7 flex items-center justify-between gap-4">
           <div>
-            <p className="dash-greeting-eyebrow">{t.dashboardLabel}</p>
-            <h2 className="dash-greeting">{t.welcomeBack}{user.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>
+            <p className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-400">{t.dashboardLabel}</p>
+            <h2 className="font-display text-3xl font-bold tracking-tight text-brand-900">{t.welcomeBack}{user.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>
           </div>
           {chosenSection && (
-            <div className="dash-topbar-actions">
-              <NotificationBell userId={user.id} />
+            <div className="flex items-center gap-3.5">
+              <NotificationBell userId={user.id} onViewTripOffer={() => goToNav('Transport')} />
               <LanguageSwitcher language={language} setLanguage={setLanguage} />
-              <div className="dash-avatar-wrap" ref={wrapRef} onMouseEnter={showTop}>
-                <div className="dash-avatar" tabIndex={0} onClick={showTop} onFocus={showTop} onBlur={hideTop}>
+              <div className="relative" ref={wrapRef} onMouseEnter={showTop}>
+                <div
+                  className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brand-600 text-base font-bold text-white"
+                  tabIndex={0}
+                  onClick={showTop}
+                  onFocus={showTop}
+                  onBlur={hideTop}
+                >
                   {initials}
-                  {!user.profileComplete && <span className="profile-alert" aria-label={t.profileIncompleteLabel}>!</span>}
+                  {!user.profileComplete && <span className="absolute -right-1 -top-1 flex h-[23px] w-[23px] items-center justify-center rounded-full border-2 border-cream-300 bg-cream-300 text-sm font-extrabold text-brand-600" aria-label={t.profileIncompleteLabel}>!</span>}
                 </div>
                 <ProfileMenu
                   profileComplete={user.profileComplete}
@@ -171,97 +184,96 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
           )}
         </header>
 
-        <div className="dash-grid dash-grid-reverse">
-          <div className="dash-col-side">
-            <h3>{t.providerDetails}</h3>
-            <div className="farmer-details-card">
-              <div className="farmer-photo-wrap">
+        <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[340px_1fr]">
+          <div className="flex flex-col gap-4">
+            <h3 className="font-display text-2xl font-bold text-brand-900">{t.providerDetails}</h3>
+            <div className="rounded-2xl border border-[var(--border-subtle)] bg-brand-50 p-5">
+              <div className="mb-4">
                 {logisticsProfile?.photo ? (
-                  <img className="farmer-photo" src={logisticsProfile.photo} alt="" />
+                  <img className="block h-[260px] w-full rounded-xl object-cover" src={logisticsProfile.photo} alt="" />
                 ) : (
-                  <div className="farmer-photo farmer-photo-empty" aria-hidden="true">{initials}</div>
+                  <div className="flex h-[260px] items-center justify-center rounded-xl bg-brand-600 text-4xl font-extrabold text-white" aria-hidden="true">{initials}</div>
                 )}
               </div>
-              <div className="farmer-details-row">
-                <span>{t.name}</span>
-                <strong>{profile?.name || user.name || '—'}</strong>
-              </div>
-              <div className="farmer-details-row">
-                <span>{t.phone}</span>
-                <strong>{profile?.phone || '—'}</strong>
-              </div>
-              <div className="farmer-details-row">
-                <span>{t.address}</span>
-                <strong>{profile?.address || '—'}</strong>
-              </div>
-              <div className="farmer-details-row">
-                <span>{t.cropsLabel}</span>
-                <strong>{(profile?.crops || []).filter(Boolean).join(', ') || '—'}</strong>
-              </div>
+              {[
+                [t.name, profile?.name || user.name],
+                [t.phone, profile?.phone],
+                [t.address, profile?.address],
+                [t.cropsLabel, (profile?.crops || []).filter(Boolean).join(', ')],
+              ].map(([label, value], i) => (
+                <div key={label} className={`flex flex-col gap-1 py-3 ${i > 0 ? 'border-t border-brand-600/10' : 'pt-0'}`}>
+                  <span className="text-xs font-bold uppercase tracking-wide text-brand-400">{label}</span>
+                  <strong className="text-lg text-brand-900">{value || '—'}</strong>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="dash-col-main">
-            {activeNav === 'Jobs' ? (
-              <>
-                <p className="eyebrow">LOGISTICS</p>
-                <h2 className="dash-greeting" style={{ marginBottom: 10 }}>My Jobs</h2>
-                <p className="panel-subtitle">Jobs you've accepted from the notification bell, and their delivery status.</p>
-                <MyJobsPanel userId={user.id} />
-              </>
-            ) : !chosenSection ? (
-              <div className="section-choice">
-                <h2 className="dash-greeting" style={{ marginBottom: 10 }}>{t.chooseOneSection}</h2>
-                <p className="panel-subtitle">{t.chooseOneSub}</p>
+          <div className="min-w-0">
+        {activeNav === 'Jobs' ? (
+          <>
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-brand-400">LOGISTICS</p>
+            <h2 className="mb-2 font-display text-2xl font-bold text-brand-900">My Jobs</h2>
+            <p className="mb-6 text-sm text-[var(--text-muted)]">Jobs you've accepted from the notification bell, and their delivery status.</p>
+            <MyJobsPanel userId={user.id} />
+          </>
+        ) : !chosenSection ? (
+          <div>
+            <h2 className="mb-2 font-display text-2xl font-bold text-brand-900">{t.chooseOneSection}</h2>
+            <p className="mb-7 text-sm text-[var(--text-muted)]">{t.chooseOneSub}</p>
 
-                <div className="choose-section-grid">
-                  {sections.map((section) => (
-                    <button
-                      key={section.id}
-                      className={`choose-section-card ${picked === section.id ? 'selected' : ''}`}
-                      onClick={() => setPicked(section.id)}
-                    >
-                      <span className="choose-section-icon" aria-hidden="true">{section.icon}</span>
-                      <strong>{section.title}</strong>
-                      <small>{section.desc}</small>
-                      <span className={`choose-section-radio ${picked === section.id ? 'checked' : ''}`} aria-hidden="true" />
-                    </button>
-                  ))}
-                </div>
-
-                <button className="button button-primary section-select-confirm" disabled={!picked} onClick={() => { if (picked) onChooseSection(picked) }}>
-                  {t.continueWith} {pickedTitle || '…'}
+            <div className="mb-7 grid gap-5 sm:grid-cols-2">
+              {sections.map((section) => (
+                <button
+                  key={section.id}
+                  className={`relative flex flex-col items-start gap-2 rounded-2xl border-2 p-6 text-left transition-all ${
+                    picked === section.id ? 'border-brand-600 bg-brand-50' : 'border-[var(--border-subtle)] bg-[var(--surface-raised)] hover:border-brand-300'
+                  }`}
+                  onClick={() => setPicked(section.id)}
+                >
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-2xl" aria-hidden="true">{section.icon}</span>
+                  <strong className="font-display text-lg text-brand-900">{section.title}</strong>
+                  <small className="text-sm text-[var(--text-muted)]">{section.desc}</small>
+                  <span className={`absolute right-5 top-5 h-5 w-5 rounded-full border-2 ${picked === section.id ? 'border-brand-600 bg-brand-600' : 'border-[var(--border-subtle)]'}`} aria-hidden="true" />
                 </button>
-              </div>
-            ) : (
-              <>
-                <p className="eyebrow">{t.howRegister}</p>
-                <h2 className="dash-greeting" style={{ marginBottom: 10 }}>{t.chooseSection}</h2>
-                <p className="panel-subtitle">{t.chooseSectionSub}</p>
+              ))}
+            </div>
 
-                <div className="choose-section-grid">
-                  {sections.map((section) => {
-                    const isOther = section.id !== chosenSection
-                    const notAdded = isOther && !section.complete
-                    const addLabel = `${t.addLabel} ${section.title}`
-                    return (
-                      <button
-                        key={section.id}
-                        className={`choose-section-card ${isOther ? 'section-card-secondary' : 'section-card-primary'} ${notAdded ? 'section-card-add' : ''}`}
-                        onClick={() => onSelectSection(section.id)}
-                      >
-                        <span className="choose-section-icon" aria-hidden="true">{section.icon}</span>
-                        <strong>{notAdded ? addLabel : section.title}</strong>
-                        <small>{section.desc}</small>
-                        <span className="choose-section-incomplete">
-                          {notAdded ? `${addLabel} →` : `${section.complete ? t.viewProfile : t.completeProfile} →`}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
+            <button className="rounded-lg bg-brand-600 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={!picked} onClick={() => { if (picked) onChooseSection(picked) }}>
+              {t.continueWith} {pickedTitle || '…'}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-brand-400">{t.howRegister}</p>
+            <h2 className="mb-2 font-display text-2xl font-bold text-brand-900">{t.chooseSection}</h2>
+            <p className="mb-7 text-sm text-[var(--text-muted)]">{t.chooseSectionSub}</p>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              {sections.map((section) => {
+                const isOther = section.id !== chosenSection
+                const notAdded = isOther && !section.complete
+                const addLabel = `${t.addLabel} ${section.title}`
+                return (
+                  <button
+                    key={section.id}
+                    className={`flex flex-col items-start gap-2 rounded-2xl border p-6 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-900/[0.08] ${
+                      isOther ? 'border-[var(--border-subtle)] bg-cream-100' : 'border-brand-300 bg-[var(--surface-raised)]'
+                    }`}
+                    onClick={() => onSelectSection(section.id)}
+                  >
+                    <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-2xl" aria-hidden="true">{section.icon}</span>
+                    <strong className="font-display text-lg text-brand-900">{notAdded ? addLabel : section.title}</strong>
+                    <small className="text-sm text-[var(--text-muted)]">{section.desc}</small>
+                    <span className="mt-1 text-sm font-semibold text-brand-600">
+                      {notAdded ? `${addLabel} →` : `${section.complete ? t.viewProfile : t.completeProfile} →`}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
           </div>
         </div>
       </main>

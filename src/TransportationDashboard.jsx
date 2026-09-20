@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslation } from './i18n'
 import { saveLogisticsData } from './api/logistics'
+import { acceptTripOffer, fetchNotifications, markNotificationRead } from './api/notifications'
+import TripOfferCard from './TripOfferCard'
 
 let vehicleIdCounter = 1
 
@@ -17,18 +19,26 @@ function todayISO() {
 }
 
 const STATUS_KEYS = ['active', 'repair', 'transit', 'idle']
-const STATUS_CLASS = { active: 'status-active', repair: 'status-repair', transit: 'status-transit', idle: 'status-idle' }
+const STATUS_TONE = {
+  active: 'bg-brand-100 text-brand-700',
+  repair: 'bg-[var(--color-error-bg)] text-[var(--color-error-ink)]',
+  transit: 'bg-[var(--color-info-bg)] text-[var(--color-info-ink)]',
+  idle: 'bg-cream-200 text-[var(--text-muted)]',
+}
+
+const inputClass = 'w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] px-3.5 py-3 text-[15px] text-brand-900 outline-none transition-shadow focus:border-brand-400 focus:shadow-[0_0_0_3px_var(--color-brand-50)]'
+const labelClass = 'grid gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-400'
 
 function StatusBadge({ status, t }) {
   const label = status === 'repair' ? t.statusRepair : status === 'transit' ? t.statusInTransit : status === 'idle' ? t.statusIdle : t.statusActive
-  return <span className={`status-badge ${STATUS_CLASS[status] || 'status-active'}`}>{label}</span>
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_TONE[status] || STATUS_TONE.active}`}>{label}</span>
 }
 
 function VehicleUpdateBox({ vehicle, t, onSave }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ status: vehicle.status || 'active', date: todayISO(), note: '' })
   if (!open) {
-    return <button type="button" className="button button-quiet update-toggle" onClick={() => setOpen(true)}>+ {t.addStatusUpdate}</button>
+    return <button type="button" className="text-sm font-semibold text-brand-600 hover:text-brand-700" onClick={() => setOpen(true)}>+ {t.addStatusUpdate}</button>
   }
   function submit(event) {
     event.preventDefault()
@@ -38,23 +48,77 @@ function VehicleUpdateBox({ vehicle, t, onSave }) {
     setOpen(false)
   }
   return (
-    <form className="vehicle-update-row" onSubmit={submit}>
-      <label>{t.updateDate}<input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} required /></label>
-      <label>{t.statusLabel}
-        <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
-          {STATUS_KEYS.map((key) => (
-            <option key={key} value={key}>{key === 'repair' ? t.statusRepair : key === 'transit' ? t.statusInTransit : key === 'idle' ? t.statusIdle : t.statusActive}</option>
-          ))}
-        </select>
-      </label>
-      <div className="update-note">
-        <input type="text" placeholder={t.updateNotePlaceholder} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
+    <form onSubmit={submit} className="grid gap-3 rounded-xl bg-cream-100 p-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={labelClass}>{t.updateDate}
+          <input className={inputClass} type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} required />
+        </label>
+        <label className={labelClass}>{t.statusLabel}
+          <select className={inputClass} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+            {STATUS_KEYS.map((key) => (
+              <option key={key} value={key}>{key === 'repair' ? t.statusRepair : key === 'transit' ? t.statusInTransit : key === 'idle' ? t.statusIdle : t.statusActive}</option>
+            ))}
+          </select>
+        </label>
       </div>
-      <div className="update-actions">
-        <button type="submit" className="button button-primary">{t.saveUpdate}</button>
-        <button type="button" className="button button-quiet" onClick={() => setOpen(false)}>{t.back}</button>
+      <label className={labelClass}>{t.updateNotePlaceholder}
+        <input className={inputClass} type="text" placeholder={t.updateNotePlaceholder} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
+      </label>
+      <div className="flex gap-2.5">
+        <button type="submit" className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">{t.saveUpdate}</button>
+        <button type="button" className="rounded-lg px-4 py-2.5 text-sm font-semibold text-brand-800 hover:text-brand-600" onClick={() => setOpen(false)}>{t.back}</button>
       </div>
     </form>
+  )
+}
+
+function JobOffers({ userId }) {
+  const [notifications, setNotifications] = useState([])
+  const [acceptStates, setAcceptStates] = useState({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!userId) return
+    let active = true
+    fetchNotifications(userId)
+      .then((rows) => { if (active) setNotifications(rows.filter((row) => row.type === 'trip_offer')) })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [userId])
+
+  async function handleAccept(notification) {
+    const tripId = notification.payload?.order_trip_id
+    if (tripId == null) return
+    setAcceptStates((current) => ({ ...current, [notification.id]: 'accepting' }))
+    try {
+      const result = await acceptTripOffer(tripId, userId)
+      setAcceptStates((current) => ({ ...current, [notification.id]: result?.success ? 'accepted' : 'taken' }))
+    } catch {
+      setAcceptStates((current) => ({ ...current, [notification.id]: 'error' }))
+    }
+    if (!notification.is_read) {
+      markNotificationRead(notification.id).catch(() => {})
+      setNotifications((current) => current.map((row) => (row.id === notification.id ? { ...row, is_read: true } : row)))
+    }
+  }
+
+  if (loading || notifications.length === 0) return null
+
+  return (
+    <section className="mb-8">
+      <h3 className="mb-3.5 font-display text-xl font-bold text-brand-900">Job offers</h3>
+      <div className="grid gap-4">
+        {notifications.map((notification) => (
+          <TripOfferCard
+            key={notification.id}
+            notification={notification}
+            acceptState={acceptStates[notification.id]}
+            onAccept={handleAccept}
+          />
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -71,6 +135,7 @@ export default function TransportationDashboard({ userId, initialData, language,
 
   const currentVehicles = vehicles.filter((vehicle) => !vehicle.archived)
   const pastVehicles = vehicles.filter((vehicle) => vehicle.archived)
+  const inTransitCount = currentVehicles.filter((vehicle) => vehicle.status === 'transit').length
 
   async function doSave(nextVehicles) {
     setIsSaving(true)
@@ -132,80 +197,93 @@ export default function TransportationDashboard({ userId, initialData, language,
   const list = tab === 'past' ? pastVehicles : currentVehicles
   const emptyText = tab === 'past' ? t.noPastTransportation : t.noVehiclesYet
 
+  const stats = [
+    ['Active vehicles', currentVehicles.length],
+    ['In transit', inTransitCount],
+    ['Archived', pastVehicles.length],
+  ]
+
   return (
-    <div className="profile-page">
-      <div className="profile-page-inner" style={{ maxWidth: 900 }}>
-        <div className="profile-page-topbar">
-          <button className="back-button" onClick={onBack}>{t.backToLogistics}</button>
+    <div className="min-h-screen bg-cream-200 font-sans text-[15px] text-[var(--text-primary)]">
+      <div className="mx-auto max-w-[960px] px-6 py-10">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <button className="text-sm font-semibold text-brand-700 hover:text-brand-600" onClick={onBack}>{t.backToLogistics}</button>
           <LanguageSwitcher language={language} setLanguage={setLanguage} />
         </div>
 
-        <div className="manage-head">
-          <div>
-            <p className="eyebrow" style={{ marginBottom: 6 }}>{t.stepTransportation}</p>
-            <h2>{t.transportCard}</h2>
-          </div>
+        <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-brand-400">{t.stepTransportation}</p>
+        <h2 className="mb-6 font-display text-3xl font-bold tracking-tight text-brand-900">{t.transportCard}</h2>
+
+        <div className="mb-8 grid grid-cols-3 gap-4">
+          {stats.map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5">
+              <span className="block text-[11px] font-bold uppercase tracking-wide text-brand-400">{label}</span>
+              <strong className="mt-1 block font-display text-3xl font-bold text-brand-900">{value}</strong>
+            </div>
+          ))}
         </div>
 
-        <div className="manage-tabs-row">
-          <div className="manage-tabs" role="tablist">
-            <button type="button" className={`manage-tab ${tab === 'current' ? 'active' : ''}`} onClick={() => setTab('current')}>{t.currentTransportLabel}</button>
-            <button type="button" className={`manage-tab ${tab === 'past' ? 'active' : ''}`} onClick={() => setTab('past')}>{t.pastTransportLabel}</button>
-          </div>
+        <JobOffers userId={userId} />
+
+        <div className="mb-5 inline-flex rounded-xl bg-cream-100 p-1">
+          <button type="button" className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${tab === 'current' ? 'bg-white text-brand-900 shadow-sm' : 'text-[var(--text-muted)]'}`} onClick={() => setTab('current')}>{t.currentTransportLabel}</button>
+          <button type="button" className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${tab === 'past' ? 'bg-white text-brand-900 shadow-sm' : 'text-[var(--text-muted)]'}`} onClick={() => setTab('past')}>{t.pastTransportLabel}</button>
         </div>
 
         {list.length === 0 ? (
-          <p className="manage-empty">{emptyText}</p>
+          <p className="rounded-2xl border border-dashed border-brand-200 bg-cream-100 p-7 text-center text-brand-900">{emptyText}</p>
         ) : (
-          <div className="manage-grid">
+          <div className="grid gap-4 sm:grid-cols-2">
             {list.map((vehicle) => {
               const isPast = tab === 'past'
               return (
-                <div className="manage-card" key={vehicle.id}>
-                  <div className="manage-card-head">
-                    <strong>{vehicle.type || t.vehicleWord}</strong>
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5" key={vehicle.id}>
+                  <div className="mb-3.5 flex items-center justify-between gap-2">
+                    <strong className="text-base text-brand-900">{vehicle.type || t.vehicleWord}</strong>
                     {isPast ? (
-                      <span className="status-badge status-archived">{t.statusSold}</span>
+                      <span className="inline-flex rounded-full bg-cream-200 px-2.5 py-1 text-xs font-bold text-[var(--text-muted)]">{t.statusSold}</span>
                     ) : (
                       <StatusBadge status={vehicle.status} t={t} />
                     )}
                   </div>
-                  <div className="manage-fields">
-                    <div className="manage-field"><span>{t.regNumber}</span><strong>{vehicle.registrationNumber || '—'}</strong></div>
-                    <div className="manage-field"><span>{t.capacityLabel}</span>
-                      <strong>{vehicle.capacity != null && vehicle.capacity !== '' ? `${vehicle.capacity} kg` : '—'}</strong>
+                  <div className="mb-3.5 grid gap-2.5">
+                    <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.regNumber}</span><strong className="text-brand-900">{vehicle.registrationNumber || '—'}</strong></div>
+                    <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.capacityLabel}</span>
+                      <strong className="text-brand-900">{vehicle.capacity != null && vehicle.capacity !== '' ? `${vehicle.capacity} kg` : '—'}</strong>
                     </div>
-                    <div className="manage-field"><span>{t.vehicleLocation}</span><strong>{vehicle.location || '—'}</strong></div>
+                    <div className="flex items-baseline justify-between text-sm"><span className="text-[var(--text-muted)]">{t.vehicleLocation}</span><strong className="text-brand-900">{vehicle.location || '—'}</strong></div>
                   </div>
 
                   {isPast ? (
                     vehicle.archivedDate && (
-                      <p className="manage-empty" style={{ padding: '10px 0 0' }}>{t.archivedOn.replace('{date}', vehicle.archivedDate)}</p>
+                      <p className="text-sm text-[var(--text-muted)]">{t.archivedOn.replace('{date}', vehicle.archivedDate)}</p>
                     )
                   ) : (
                     <>
-                      <div className="vehicle-history">
-                        <p className="vehicle-history-title">{t.historyLabel}</p>
+                      <div className="mb-3.5 border-t border-[var(--border-subtle)] pt-3.5">
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-400">{t.historyLabel}</p>
                         {(vehicle.history || []).length === 0 ? (
-                          <p className="panel-subtitle">{t.noHistoryYet}</p>
+                          <p className="text-sm text-[var(--text-muted)]">{t.noHistoryYet}</p>
                         ) : (
-                          (vehicle.history || []).map((entry, entryIndex) => (
-                            <div className="history-entry" key={`${vehicle.id}-${entryIndex}`}>
-                              <span className="history-date">{entry.date || '—'}</span>
-                              <span className="history-note">{entry.note || ''}</span>
-                            </div>
-                          ))
+                          <div className="grid gap-1.5">
+                            {(vehicle.history || []).map((entry, entryIndex) => (
+                              <div className="flex gap-2.5 text-sm" key={`${vehicle.id}-${entryIndex}`}>
+                                <span className="shrink-0 font-semibold text-brand-700">{entry.date || '—'}</span>
+                                <span className="text-[var(--text-muted)]">{entry.note || ''}</span>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                       <VehicleUpdateBox vehicle={vehicle} t={t} onSave={(update) => addVehicleUpdate(vehicle.id, update)} />
                     </>
                   )}
 
-                  <div className="manage-card-actions">
+                  <div className="mt-3.5 border-t border-[var(--border-subtle)] pt-3.5">
                     {isPast ? (
-                      <button type="button" className="button button-quiet" onClick={() => restoreVehicle(vehicle.id)} disabled={isSaving}>{t.restoreVehicle}</button>
+                      <button type="button" className="text-sm font-semibold text-brand-600 hover:text-brand-700" onClick={() => restoreVehicle(vehicle.id)} disabled={isSaving}>{t.restoreVehicle}</button>
                     ) : (
-                      <button type="button" className="button button-quiet" onClick={() => moveToPast(vehicle.id)} disabled={isSaving}>{t.moveVehicleToPast}</button>
+                      <button type="button" className="text-sm font-semibold text-brand-600 hover:text-brand-700" onClick={() => moveToPast(vehicle.id)} disabled={isSaving}>{t.moveVehicleToPast}</button>
                     )}
                   </div>
                 </div>
@@ -215,45 +293,45 @@ export default function TransportationDashboard({ userId, initialData, language,
         )}
 
         {showAddForm && (
-          <form className="profile-form-card manage-add-panel" onSubmit={handleAddSubmit}>
-            <h3 className="manage-add-title">{t.addVehicleTitle}</h3>
-            <div className="form-grid">
-              <label>{t.vehicleType}
-                <select value={form.type} onChange={(event) => updateForm('type', event.target.value)} required>
+          <form onSubmit={handleAddSubmit} className="mt-6 grid gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-6">
+            <h3 className="font-display text-lg font-bold text-brand-900">{t.addVehicleTitle}</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className={labelClass}>{t.vehicleType}
+                <select className={inputClass} value={form.type} onChange={(event) => updateForm('type', event.target.value)} required>
                   <option value="">{t.vehicleTypePlaceholder}</option>
                   {t.vehicleTypeSuggestions.map((item) => (
                     <option key={item} value={item}>{item}</option>
                   ))}
                 </select>
               </label>
-              <label>{t.vehicleRegistration}
-                <input type="text" placeholder={t.vehicleRegPlaceholder} value={form.registrationNumber} onChange={(event) => updateForm('registrationNumber', event.target.value)} required />
+              <label className={labelClass}>{t.vehicleRegistration}
+                <input className={inputClass} type="text" placeholder={t.vehicleRegPlaceholder} value={form.registrationNumber} onChange={(event) => updateForm('registrationNumber', event.target.value)} required />
               </label>
-              <label>{t.vehicleCapacity}
-                <input type="number" step="0.01" min="0" placeholder={t.vehicleCapacityPlaceholder} value={form.capacity} onChange={(event) => updateForm('capacity', event.target.value)} />
+              <label className={labelClass}>{t.vehicleCapacity}
+                <input className={inputClass} type="number" step="0.01" min="0" placeholder={t.vehicleCapacityPlaceholder} value={form.capacity} onChange={(event) => updateForm('capacity', event.target.value)} />
               </label>
-              <label>{t.vehicleLocation}
-                <input type="text" placeholder={t.vehicleLocationPlaceholder} value={form.location} onChange={(event) => updateForm('location', event.target.value)} />
+              <label className={labelClass}>{t.vehicleLocation}
+                <input className={inputClass} type="text" placeholder={t.vehicleLocationPlaceholder} value={form.location} onChange={(event) => updateForm('location', event.target.value)} />
               </label>
-              <label>{t.statusLabel}
-                <select value={form.status} onChange={(event) => updateForm('status', event.target.value)}>
+              <label className={labelClass}>{t.statusLabel}
+                <select className={inputClass} value={form.status} onChange={(event) => updateForm('status', event.target.value)}>
                   {STATUS_KEYS.map((key) => (
                     <option key={key} value={key}>{key === 'repair' ? t.statusRepair : key === 'transit' ? t.statusInTransit : key === 'idle' ? t.statusIdle : t.statusActive}</option>
                   ))}
                 </select>
               </label>
             </div>
-            {saveError && <p className="form-error" role="alert">{saveError}</p>}
-            <div className="manage-add-actions">
-              <button type="button" className="button button-quiet" onClick={() => { setShowAddForm(false); setSaveError('') }}>{t.back}</button>
-              <button type="submit" className="button button-primary" disabled={isSaving}>{isSaving ? t.savingButton : t.addVehicleButton}</button>
+            {saveError && <p className="rounded-lg border-l-4 border-[var(--color-error)] bg-[var(--color-error-bg)] px-4 py-3 text-sm text-[var(--color-error-ink)]" role="alert">{saveError}</p>}
+            <div className="flex gap-2.5">
+              <button type="button" className="rounded-lg px-4 py-3 text-sm font-semibold text-brand-800 hover:text-brand-600" onClick={() => { setShowAddForm(false); setSaveError('') }}>{t.back}</button>
+              <button type="submit" className="rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70" disabled={isSaving}>{isSaving ? t.savingButton : t.addVehicleButton}</button>
             </div>
           </form>
         )}
 
         {!showAddForm && (
-          <div className="manage-foot">
-            <button type="button" className="button button-primary" onClick={() => setShowAddForm(true)}>{t.addVehicleButton}</button>
+          <div className="mt-6">
+            <button type="button" className="rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700" onClick={() => setShowAddForm(true)}>{t.addVehicleButton}</button>
           </div>
         )}
       </div>

@@ -35,15 +35,6 @@ export default function AboutPage() {
         </p>
       </div>
 
-      <div className="mt-12 rounded-2xl border border-[var(--border-subtle)] bg-brand-50 p-7">
-        <h2 className="mb-2 font-display text-lg font-semibold text-brand-900">Built for Smart India Hackathon 2026</h2>
-        <p className="text-[14.5px] leading-relaxed text-[var(--text-muted)]">
-          FarmDirect was built as a submission for Smart India Hackathon 2026, tackling the
-          problem of price transparency and middleman dependency in India's agricultural
-          supply chain.
-        </p>
-      </div>
-
       <p className="mt-10 text-[15px] leading-relaxed text-[var(--text-muted)]">
         Curious how it works in practice? See our{' '}
         <Link to="/how-it-works" className="font-semibold text-brand-600 hover:text-brand-700">step-by-step guide</Link>

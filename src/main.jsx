@@ -371,7 +371,7 @@ authRequestRef.current += 1
     missionText: 'Multiple intermediaries reduce farmers’ earnings and increase consumer prices. FarmDirect brings both sides closer together through one transparent platform.',
     accessibility: 'Accessibility', language: 'Language',
     fontSize: 'Font Size', saturation: 'Saturation', screenReader: 'Screen Reader', highContrastTheme: 'High Contrast Theme', resetLabel: 'Reset',
-    faq: 'FAQ', shippingPolicy: 'Shipping Policy', policy: 'Policy', cancelPolicy: 'cancel policy', termsConditions: 'Term & Conditions', contactUs: 'Contact Us',
+    faq: 'FAQ', shippingPolicy: 'Shipping Policy', policy: 'Policy', cancelPolicy: 'cancel policy', termsConditions: 'Terms & Conditions', contactUs: 'Contact Us',
     svcFarmers: 'Farmers', svcMarketplace: 'Market Place', svcProcessing: 'Processing Unit', svcLogistics: 'Logistic'
   }
 

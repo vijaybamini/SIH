@@ -67,7 +67,6 @@ export default function Footer({ copy }) {
       <div className="border-t border-[var(--border-subtle)] px-6 py-5">
         <div className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-2 text-xs font-medium text-[var(--text-muted)]">
           <span>© {year} FarmDirect. All rights reserved.</span>
-          <span>Built for Smart India Hackathon 2026.</span>
         </div>
       </div>
     </footer>
