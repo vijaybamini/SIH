@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react'
-import LanguageSwitcher from './LanguageSwitcher'
-import { useTranslation } from './i18n'
 import { saveLogisticsData } from './api/logistics'
 import { acceptTripOffer, fetchNotifications, markNotificationRead } from './api/notifications'
 import TripOfferCard from './TripOfferCard'
@@ -122,8 +120,7 @@ function JobOffers({ userId }) {
   )
 }
 
-export default function TransportationDashboard({ userId, initialData, language, setLanguage, onBack, onComplete }) {
-  const t = useTranslation(language)
+export default function TransportationDashboard({ userId, initialData, t, onComplete }) {
   const [tab, setTab] = useState('current')
   const [showAddForm, setShowAddForm] = useState(false)
   const [form, setForm] = useState(() => emptyVehicle())
@@ -204,16 +201,7 @@ export default function TransportationDashboard({ userId, initialData, language,
   ]
 
   return (
-    <div className="min-h-screen bg-cream-200 font-sans text-[15px] text-[var(--text-primary)]">
-      <div className="mx-auto max-w-[960px] px-6 py-10">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <button className="text-sm font-semibold text-brand-700 hover:text-brand-600" onClick={onBack}>{t.backToLogistics}</button>
-          <LanguageSwitcher language={language} setLanguage={setLanguage} />
-        </div>
-
-        <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-brand-400">{t.stepTransportation}</p>
-        <h2 className="mb-6 font-display text-3xl font-bold tracking-tight text-brand-900">{t.transportCard}</h2>
-
+    <div>
         <div className="mb-8 grid grid-cols-3 gap-4">
           {stats.map(([label, value]) => (
             <div key={label} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5">
@@ -334,7 +322,6 @@ export default function TransportationDashboard({ userId, initialData, language,
             <button type="button" className="rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700" onClick={() => setShowAddForm(true)}>{t.addVehicleButton}</button>
           </div>
         )}
-      </div>
     </div>
   )
 }

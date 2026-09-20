@@ -93,7 +93,10 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
   ]
 
   return (
-    <div className="flex min-h-screen bg-cream-200 font-sans text-[15px] leading-relaxed text-[var(--text-primary)]">
+    <div
+      className="flex bg-cream-200 font-sans text-[15px] leading-relaxed text-[var(--text-primary)]"
+      style={{ zoom: 0.9, minHeight: 'calc(100vh / 0.9)' }}
+    >
       <aside className="flex w-[260px] shrink-0 flex-col bg-[#dcebc4] p-7">
         <div className="mb-9 px-2"><Logo /></div>
 

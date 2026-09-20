@@ -19,9 +19,6 @@ import CompleteProfileFarmer from './CompleteProfileFarmer'
 import CompleteProfileService from './CompleteProfileService'
 import ServiceDashboard from './ServiceDashboard'
 import LogisticsDashboard from './LogisticsDashboard'
-import TransportationDashboard from './TransportationDashboard'
-import InventoryDashboard from './InventoryDashboard'
-import CompleteProfileLogistics from './CompleteProfileLogistics'
 import LanguageSwitcher from './LanguageSwitcher'
 import LanguageSelection from './LanguageSelection'
 import Logo from './Logo'
@@ -84,7 +81,6 @@ function App() {
   const [authStatus, setAuthStatus] = useState(supabase ? 'loading' : 'unauthenticated')
   const [completingProfile, setCompletingProfile] = useState(false)
   const [quickAddCrop, setQuickAddCrop] = useState(false)
-  const [logisticsPage, setLogisticsPage] = useState(null)
   const [chosenSection, setChosenSection] = useState(null)
   const [farmerProfile, setFarmerProfile] = useState(null)
   const [logisticsProfile, setLogisticsProfile] = useState(null)
@@ -111,7 +107,6 @@ const authRequestRef = useRef(0)
     setLogisticsProfile(null)
     setBuyerProfile(null)
     setServiceProfile(null)
-    setLogisticsPage(null)
     setChosenSection(null)
     setCompletingProfile(false)
     setQuickAddCrop(false)
@@ -143,7 +138,6 @@ const authRequestRef = useRef(0)
     setAuthStatus('loading')
     setFarmerProfile(null)
     setLogisticsProfile(null)
-    setLogisticsPage(null)
     setCompletingProfile(false)
     setQuickAddCrop(false)
 
@@ -268,7 +262,6 @@ authRequestRef.current += 1
   function handleChooseSection(section) {
     rememberLogisticsChoice(currentUser?.id, section)
     setChosenSection(section)
-    setLogisticsPage(section)
   }
 
   function handleLogisticsSave(data) {
@@ -475,42 +468,6 @@ authRequestRef.current += 1
 
   if (currentUser) {
     if (currentUser.role === 'logistics') {
-      if (logisticsPage === 'transport') {
-        return (
-          <TransportationDashboard
-            userId={currentUser.id}
-            initialData={logisticsProfile}
-            language={language}
-            setLanguage={handleSetLanguage}
-            onBack={() => setLogisticsPage(null)}
-            onComplete={handleLogisticsSave}
-          />
-        )
-      }
-      if (logisticsPage === 'inventory') {
-        return (
-          <InventoryDashboard
-            userId={currentUser.id}
-            initialData={logisticsProfile}
-            language={language}
-            setLanguage={handleSetLanguage}
-            onBack={() => setLogisticsPage(null)}
-            onComplete={handleLogisticsSave}
-          />
-        )
-      }
-      if (logisticsPage === 'profile') {
-        return (
-          <CompleteProfileLogistics
-            userId={currentUser.id}
-            initialData={logisticsProfile}
-            language={language}
-            setLanguage={handleSetLanguage}
-            onBack={() => setLogisticsPage(null)}
-            onComplete={handleLogisticsSave}
-          />
-        )
-      }
       return (
         <LogisticsDashboard
           user={currentUser}
@@ -519,8 +476,7 @@ authRequestRef.current += 1
           setLanguage={handleSetLanguage}
           chosenSection={chosenSection}
           onChooseSection={handleChooseSection}
-          onSelectSection={setLogisticsPage}
-          onOpenCompleteProfile={() => setLogisticsPage('profile')}
+          onComplete={handleLogisticsSave}
           onLogout={handleLogout}
         />
       )
