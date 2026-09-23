@@ -17,6 +17,9 @@ export default function HomePage() {
     <>
       <section className="mx-auto grid max-w-[1240px] items-center gap-16 px-6 py-14 md:grid-cols-2 md:py-20">
         <div>
+          <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-brand-50 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-brand-700">
+            F2C <span className="text-brand-400" aria-hidden="true">—</span> Farmer to Consumer
+          </p>
           <h1 className="max-w-[600px] font-display text-[clamp(40px,5vw,64px)] font-semibold leading-[1.05] tracking-tight text-brand-900 text-wrap-balance">
             {copy.title}
           </h1>

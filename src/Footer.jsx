@@ -31,7 +31,8 @@ export default function Footer({ copy }) {
       <div className="mx-auto grid max-w-[1240px] gap-10 px-6 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <Logo to="/" />
-          <p className="mt-4 max-w-[280px] text-[14.5px] leading-relaxed text-[var(--text-muted)]">
+          <p className="mt-3 text-xs font-bold uppercase tracking-wide text-brand-400">Farmer to Consumer</p>
+          <p className="mt-2 max-w-[280px] text-[14.5px] leading-relaxed text-[var(--text-muted)]">
             {copy.hero}
           </p>
         </div>

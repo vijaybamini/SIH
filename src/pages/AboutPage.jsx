@@ -13,6 +13,12 @@ export default function AboutPage() {
 
       <div className="mt-10 grid gap-6 text-[15px] leading-relaxed text-[var(--text-muted)]">
         <p>
+          <strong className="text-brand-900">F2C stands for Farmer to Consumer</strong> — the
+          idea that produce should move from the person who grows it to the person who needs
+          it with as few disconnected hands (and as little hidden margin) in between as
+          possible.
+        </p>
+        <p>
           Farmers in India routinely lose a large share of their crop's real value to layers
           of middlemen between the field and the final buyer, while buyers pay prices that
           don't clearly reflect the produce's actual quality, freshness, or market value.
