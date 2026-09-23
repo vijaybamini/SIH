@@ -44,7 +44,7 @@ def _send_email(to_email: str, subject: str, html: str, reply_to: Optional[str] 
             "RESEND_API_KEY is not set. Sign up free at resend.com, create an "
             "API key, and add it to the repo-root .env.local as RESEND_API_KEY=..."
         )
-    from_address = os.environ.get("RESEND_FROM_EMAIL", "FarmDirect <onboarding@resend.dev>")
+    from_address = os.environ.get("RESEND_FROM_EMAIL", "F2C <onboarding@resend.dev>")
 
     payload = {
         "from": from_address,
@@ -92,12 +92,12 @@ def request_email_otp(email: str) -> None:
         raise RuntimeError("Could not prepare the login code. Try again shortly.")
 
     html = (
-        f"<p>Your FarmDirect login code is:</p>"
+        f"<p>Your F2C login code is:</p>"
         f"<h2 style='letter-spacing:4px'>{code}</h2>"
         f"<p>This code expires in {OTP_TTL_MINUTES} minutes. "
         f"If you didn't request this, you can ignore this email.</p>"
     )
-    if not _send_email(email, f"Your FarmDirect login code: {code}", html):
+    if not _send_email(email, f"Your F2C login code: {code}", html):
         raise RuntimeError("Could not send the login code email. Try again shortly.")
 
 
@@ -159,5 +159,5 @@ def send_contact_message(name: str, email: str, message: str) -> None:
         f"<p><strong>Message:</strong></p>"
         f"<p>{escape(message).replace(chr(10), '<br>')}</p>"
     )
-    if not _send_email(inbox, f"FarmDirect contact form: {name}", html, reply_to=email):
+    if not _send_email(inbox, f"F2C contact form: {name}", html, reply_to=email):
         raise RuntimeError("Could not send your message. Try again shortly.")

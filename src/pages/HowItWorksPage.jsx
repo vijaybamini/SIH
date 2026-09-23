@@ -6,7 +6,7 @@ const TRACKS = [
     title: 'For Farmers',
     icon: '🌱',
     steps: [
-      { title: 'List your crops', text: 'Add each crop with its planted and expected harvest date. FarmDirect checks the dates against realistic harvest cycles for that crop.' },
+      { title: 'List your crops', text: 'Add each crop with its planted and expected harvest date. F2C checks the dates against realistic harvest cycles for that crop.' },
       { title: 'Get a live price', text: 'Pricing comes from real Agmarknet market data plus current demand pooled across every buyer wanting that crop right now — not a single buyer\'s offer.' },
       { title: 'Get discovered', text: 'Bulk buyers see your crop as part of the platform\'s live supply the moment it\'s listed.' },
       { title: 'Get paid transparently', text: 'When an order is placed, you see your exact net payout — the platform\'s commission is a fixed share taken only from the crop value, never hidden.' },
@@ -43,7 +43,7 @@ export default function HowItWorksPage() {
     <section className="mx-auto max-w-[1000px] px-6 py-16">
       <p className="mb-3 text-[11px] font-bold uppercase tracking-[1.6px] text-brand-400">{copy.navHow}</p>
       <h1 className="max-w-[620px] font-display text-4xl font-semibold leading-tight tracking-tight text-brand-900 text-wrap-balance">
-        How FarmDirect actually works
+        How F2C actually works
       </h1>
       <p className="mt-4 max-w-[640px] text-[15px] leading-relaxed text-[var(--text-muted)]">
         The flow is different depending on which side of the platform you're on.

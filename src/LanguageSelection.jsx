@@ -7,7 +7,7 @@ export default function LanguageSelection({ onSelect }) {
   return (
     <div className="language-screen">
       <div className="language-panel">
-        <Logo href="#home" label="FarmDirect home" />
+        <Logo href="#home" label="F2C home" />
 
         <h1 className="language-heading">{copy.title}</h1>
         <p className="language-subtitle">{copy.subtitle}</p>

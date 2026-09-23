@@ -10,7 +10,7 @@ export default function ServicesOverviewPage() {
         One platform, four ways to take part
       </h1>
       <p className="mt-4 max-w-[640px] text-[15px] leading-relaxed text-[var(--text-muted)]">
-        FarmDirect connects the whole crop journey — from the field to the buyer's
+        F2C connects the whole crop journey — from the field to the buyer's
         doorstep — under one roof. Pick the role that matches what you do, and see
         exactly how the platform works for you.
       </p>

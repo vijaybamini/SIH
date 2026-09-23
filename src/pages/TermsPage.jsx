@@ -7,11 +7,11 @@ const SECTIONS = [
   },
   {
     title: 'How pricing works',
-    body: 'Prices shown on FarmDirect are calculated from real market data and current pooled demand, and can change as market conditions or demand change. FarmDirect does not guarantee a fixed price for any commodity — the price at the time an order is placed is the price that applies to that order.',
+    body: 'Prices shown on F2C are calculated from real market data and current pooled demand, and can change as market conditions or demand change. F2C does not guarantee a fixed price for any commodity — the price at the time an order is placed is the price that applies to that order.',
   },
   {
     title: 'Commission & fees',
-    body: 'FarmDirect charges a platform commission, taken only from the farmer\'s crop-value share and shown transparently on every quote. Logistics cost is passed through to the buyer at the logistics provider\'s quoted rate, with no markup added by the platform.',
+    body: 'F2C charges a platform commission, taken only from the farmer\'s crop-value share and shown transparently on every quote. Logistics cost is passed through to the buyer at the logistics provider\'s quoted rate, with no markup added by the platform.',
   },
   {
     title: 'Responsibilities',
@@ -19,11 +19,11 @@ const SECTIONS = [
   },
   {
     title: 'Disputes',
-    body: 'If an order doesn\'t go as expected, contact us with the order details and we\'ll help resolve it. FarmDirect acts as the platform connecting the parties in a transaction; it is not itself a party to the underlying sale of goods between farmer and buyer.',
+    body: 'If an order doesn\'t go as expected, contact us with the order details and we\'ll help resolve it. F2C acts as the platform connecting the parties in a transaction; it is not itself a party to the underlying sale of goods between farmer and buyer.',
   },
   {
     title: 'Changes to these terms',
-    body: 'These terms may be updated as the platform evolves. Continued use of FarmDirect after an update means you accept the revised terms.',
+    body: 'These terms may be updated as the platform evolves. Continued use of F2C after an update means you accept the revised terms.',
   },
 ]
 

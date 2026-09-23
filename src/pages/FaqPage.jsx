@@ -4,14 +4,14 @@ import { Link, useOutletContext } from 'react-router-dom'
 const FAQS = [
   {
     q: 'How is the price of my crop decided?',
-    a: 'FarmDirect calculates price using real historical and forecasted Agmarknet market data for that commodity, adjusted for current demand pooled across every buyer wanting it right now. It is a live, market-driven number — not a price one buyer negotiates with you.',
+    a: 'F2C calculates price using real historical and forecasted Agmarknet market data for that commodity, adjusted for current demand pooled across every buyer wanting it right now. It is a live, market-driven number — not a price one buyer negotiates with you.',
   },
   {
     q: 'What does "pooled demand" mean?',
     a: 'If five buyers all want the same crop at the same time, the platform treats that as one combined demand against the available supply, the same way a real market would respond to that many buyers competing for a limited amount of produce. This keeps pricing fair to everyone, instead of the first buyer getting an artificially low price.',
   },
   {
-    q: 'Does FarmDirect take a commission?',
+    q: 'Does F2C take a commission?',
     a: 'Yes, a percentage commission is taken, but only from the farmer\'s crop-value share — it is never added on top of what a buyer pays. Every quote shows the exact commission-adjusted amount the farmer receives.',
   },
   {
@@ -27,16 +27,16 @@ const FAQS = [
     a: 'Each account is registered under one role (Farmer, Bulk Buyer, Logistics, or Service Provider) based on what you signed up as. If you need a different role, you can register a separate account for it.',
   },
   {
-    q: 'What languages does FarmDirect support?',
+    q: 'What languages does F2C support?',
     a: 'The app interface is available in English, Hindi, Telugu, Tamil, Malayalam, Kannada, Marathi, and Bengali. You can change your language at any time from the language switcher in the header.',
   },
   {
     q: 'How do I log in without a password?',
-    a: 'You can request a one-time 6-digit code sent to your registered email instead of using a password. It\'s sent by FarmDirect directly and expires after a short time for security.',
+    a: 'You can request a one-time 6-digit code sent to your registered email instead of using a password. It\'s sent by F2C directly and expires after a short time for security.',
   },
   {
     q: 'How is delivery/logistics cost calculated?',
-    a: 'Logistics cost is passed through to the buyer at exactly the rate quoted by the logistics provider handling that trip — FarmDirect does not add any markup on top of it.',
+    a: 'Logistics cost is passed through to the buyer at exactly the rate quoted by the logistics provider handling that trip — F2C does not add any markup on top of it.',
   },
 ]
 

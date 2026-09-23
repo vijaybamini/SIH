@@ -277,7 +277,7 @@ authRequestRef.current += 1
     hero: 'किसानों और उपभोक्ताओं के बीच सीधा संपर्क, जिससे किसानों को अधिक कमाई और परिवारों को उचित मूल्य पर ताज़ी उपज मिल सके।',
     join: 'प्लेटफ़ॉर्म से जुड़ें', middlemen: 'अनावश्यक बिचौलिए', connection: 'किसान से खरीदार का सीधा संपर्क', transparency: '100% मूल्य पारदर्शिता',
     challenge: 'चुनौती', mission: 'एक सरल लक्ष्य: भोजन की यात्रा को अधिक निष्पक्ष बनाना।',
-    missionText: 'कई बिचौलिए किसानों की कमाई घटाते हैं और उपभोक्ताओं की कीमतें बढ़ाते हैं। FarmDirect एक पारदर्शी प्लेटफ़ॉर्म के ज़रिए दोनों पक्षों को करीब लाता है।',
+    missionText: 'कई बिचौलिए किसानों की कमाई घटाते हैं और उपभोक्ताओं की कीमतें बढ़ाते हैं। F2C एक पारदर्शी प्लेटफ़ॉर्म के ज़रिए दोनों पक्षों को करीब लाता है।',
     accessibility: 'सुलभता', language: 'भाषा',
     fontSize: 'फ़ॉन्ट आकार', saturation: 'संतृप्ति', screenReader: 'स्क्रीन रीडर', highContrastTheme: 'हाई कॉन्ट्रास्ट थीम', resetLabel: 'रीसेट',
     faq: 'सामान्य प्रश्न', shippingPolicy: 'शिपिंग नीति', policy: 'नीति', cancelPolicy: 'रद्द करने की नीति', termsConditions: 'नियम व शर्तें', contactUs: 'संपर्क करें',
@@ -289,7 +289,7 @@ authRequestRef.current += 1
     hero: 'రైతులు మరియు వినియోగదారుల మధ్య ప్రత్యక్ష అనుసంధానం. రైతులకు ఎక్కువ ఆదాయం, కుటుంబాలకు సరసమైన ధరకు తాజా ఉత్పత్తులు.',
     join: 'ప్లాట్‌ఫారమ్‌లో చేరండి', middlemen: 'అనవసర మధ్యవర్తులు', connection: 'రైతు నుండి కొనుగోలుదారుకు ప్రత్యక్ష అనుసంధానం', transparency: 'ధరలో పూర్తి పారదర్శకత',
     challenge: 'సవాలు', mission: 'ఒకే లక్ష్యం: ఆహార ప్రయాణాన్ని మరింత న్యాయంగా చేయడం.',
-    missionText: 'అనేక మధ్యవర్తులు రైతుల ఆదాయాన్ని తగ్గించి వినియోగదారుల ధరలను పెంచుతారు. FarmDirect పారదర్శక వేదిక ద్వారా ఇరుపక్షాలను దగ్గర చేస్తుంది.',
+    missionText: 'అనేక మధ్యవర్తులు రైతుల ఆదాయాన్ని తగ్గించి వినియోగదారుల ధరలను పెంచుతారు. F2C పారదర్శక వేదిక ద్వారా ఇరుపక్షాలను దగ్గర చేస్తుంది.',
     accessibility: 'అందుబాటు', language: 'భాష',
     fontSize: 'ఫాంట్ పరిమాణం', saturation: 'సంతృప్తత', screenReader: 'స్క్రీన్ రీడర్', highContrastTheme: 'హై కాంట్రాస్ట్ థీమ్', resetLabel: 'రీసెట్',
     faq: 'తరచుగా అడిగే ప్రశ్నలు', shippingPolicy: 'షిప్పింగ్ విధానం', policy: 'విధానం', cancelPolicy: 'రద్దు విధానం', termsConditions: 'నిబంధనలు & షరతులు', contactUs: 'మమ్మల్ని సంప్రదించండి',
@@ -301,7 +301,7 @@ authRequestRef.current += 1
     hero: 'விவசாயிகளுக்கும் நுகர்வோருக்கும் நேரடி இணைப்பு. விவசாயிகள் அதிகம் சம்பாதிக்கவும், குடும்பங்கள் நியாயமான விலையில் புதிய விளைபொருட்களை வாங்கவும் உதவுகிறது.',
     join: 'தளத்தில் இணையுங்கள்', middlemen: 'தேவையற்ற இடைத்தரகர்கள்', connection: 'விவசாயி முதல் வாங்குபவர் வரை நேரடி இணைப்பு', transparency: 'முழு விலை வெளிப்படைத்தன்மை',
     challenge: 'சவால்', mission: 'ஒரே குறிக்கோள்: உணவுப் பயணத்தை நியாயமானதாக மாற்றுவது.',
-    missionText: 'பல இடைத்தரகர்கள் விவசாயிகளின் வருமானத்தைக் குறைத்து நுகர்வோர் விலைகளை அதிகரிக்கின்றனர். FarmDirect வெளிப்படையான தளத்தின் மூலம் இரு தரப்பினரையும் இணைக்கிறது.',
+    missionText: 'பல இடைத்தரகர்கள் விவசாயிகளின் வருமானத்தைக் குறைத்து நுகர்வோர் விலைகளை அதிகரிக்கின்றனர். F2C வெளிப்படையான தளத்தின் மூலம் இரு தரப்பினரையும் இணைக்கிறது.',
     accessibility: 'அணுகல்தன்மை', language: 'மொழி',
     fontSize: 'எழுத்துரு அளவு', saturation: 'செறிவூட்டல்', screenReader: 'திரை வாசகர்', highContrastTheme: 'உயர் மாறுபாடு தீம்', resetLabel: 'மீட்டமை',
     faq: 'அடிக்கடி கேட்கப்படும் கேள்விகள்', shippingPolicy: 'அனுப்புகை கொள்கை', policy: 'கொள்கை', cancelPolicy: 'ரத்து கொள்கை', termsConditions: 'விதிமுறைகள் & நிபந்தனைகள்', contactUs: 'எங்களை தொடர்பு கொள்ள',
@@ -313,7 +313,7 @@ authRequestRef.current += 1
     hero: 'കർഷകരെയും ഉപഭോക്താക്കളെയും നേരിട്ട് ബന്ധിപ്പിക്കുന്നു. കർഷകർക്ക് കൂടുതൽ വരുമാനവും കുടുംബങ്ങൾക്ക് ന്യായമായ വിലയിൽ പുതിയ ഉൽപ്പന്നങ്ങളും ലഭിക്കുന്നു.',
     join: 'പ്ലാറ്റ്‌ഫോമിൽ ചേരുക', middlemen: 'അനാവശ്യ ഇടനിലക്കാർ', connection: 'കർഷകനിൽ നിന്ന് വാങ്ങുന്നയാളിലേക്ക് നേരിട്ടുള്ള ബന്ധം', transparency: 'പൂർണ്ണ വില സുതാര്യത',
     challenge: 'വെല്ലുവിളി', mission: 'ഒരേയൊരു ലക്ഷ്യം: ഭക്ഷണ യാത്ര കൂടുതൽ നീതിയുക്തമാക്കുക.',
-    missionText: 'നിരവധി ഇടനിലക്കാർ കർഷകരുടെ വരുമാനം കുറയ്ക്കുകയും ഉപഭോക്തൃ വില വർധിപ്പിക്കുകയും ചെയ്യുന്നു. FarmDirect സുതാര്യമായ ഒരു പ്ലാറ്റ്‌ഫോമിലൂടെ ഇരുപക്ഷത്തെയും അടുപ്പിക്കുന്നു.',
+    missionText: 'നിരവധി ഇടനിലക്കാർ കർഷകരുടെ വരുമാനം കുറയ്ക്കുകയും ഉപഭോക്തൃ വില വർധിപ്പിക്കുകയും ചെയ്യുന്നു. F2C സുതാര്യമായ ഒരു പ്ലാറ്റ്‌ഫോമിലൂടെ ഇരുപക്ഷത്തെയും അടുപ്പിക്കുന്നു.',
     accessibility: 'പ്രവേശനക്ഷമത', language: 'ഭാഷ',
     fontSize: 'ഫോണ്ട് വലുപ്പം', saturation: 'സാച്ചുറേഷൻ', screenReader: 'സ്ക്രീൻ റീഡർ', highContrastTheme: 'ഹൈ കോൺട്രാസ്റ്റ് തീം', resetLabel: 'പുനഃസജ്ജമാക്കുക',
     faq: 'പതിവ് ചോദ്യങ്ങൾ', shippingPolicy: 'ഷിപ്പിംഗ് നയം', policy: 'നയം', cancelPolicy: 'റദ്ദാക്കൽ നയം', termsConditions: 'നിബന്ധനകളും വ്യവസ്ഥകളും', contactUs: 'ഞങ്ങളെ ബന്ധപ്പെടുക',
@@ -325,7 +325,7 @@ authRequestRef.current += 1
     hero: 'ರೈತರು ಮತ್ತು ಗ್ರಾಹಕರ ನಡುವೆ ನೇರ ಸಂಪರ್ಕ. ರೈತರಿಗೆ ಹೆಚ್ಚು ಆದಾಯ ಮತ್ತು ಕುಟುಂಬಗಳಿಗೆ ನ್ಯಾಯಯುತ ಬೆಲೆಯಲ್ಲಿ ತಾಜಾ ಉತ್ಪನ್ನಗಳನ್ನು ಒದಗಿಸುತ್ತದೆ.',
     join: 'ವೇದಿಕೆಗೆ ಸೇರಿ', middlemen: 'ಅನಗತ್ಯ ಮಧ್ಯವರ್ತಿಗಳು', connection: 'ರೈತರಿಂದ ಖರೀದಿದಾರರಿಗೆ ನೇರ ಸಂಪರ್ಕ', transparency: '100% ಬೆಲೆ ಪಾರದರ್ಶಕತೆ',
     challenge: 'ಸವಾಲು', mission: 'ಒಂದು ಸರಳ ಗುರಿ: ಆಹಾರದ ಪ್ರಯಾಣವನ್ನು ಹೆಚ್ಚು ನ್ಯಾಯಯುತಗೊಳಿಸುವುದು.',
-    missionText: 'ಹಲವು ಮಧ್ಯವರ್ತಿಗಳು ರೈತರ ಆದಾಯವನ್ನು ಕಡಿಮೆ ಮಾಡಿ ಗ್ರಾಹಕರ ಬೆಲೆಗಳನ್ನು ಹೆಚ್ಚಿಸುತ್ತಾರೆ. FarmDirect ಪಾರದರ್ಶಕ ವೇದಿಕೆಯ ಮೂಲಕ ಎರಡೂ ಬದಿಗಳನ್ನು ಹತ್ತಿರ ತರುತ್ತದೆ.',
+    missionText: 'ಹಲವು ಮಧ್ಯವರ್ತಿಗಳು ರೈತರ ಆದಾಯವನ್ನು ಕಡಿಮೆ ಮಾಡಿ ಗ್ರಾಹಕರ ಬೆಲೆಗಳನ್ನು ಹೆಚ್ಚಿಸುತ್ತಾರೆ. F2C ಪಾರದರ್ಶಕ ವೇದಿಕೆಯ ಮೂಲಕ ಎರಡೂ ಬದಿಗಳನ್ನು ಹತ್ತಿರ ತರುತ್ತದೆ.',
     accessibility: 'ಪ್ರವೇಶಿಸುವಿಕೆ', language: 'ಭಾಷೆ',
     fontSize: 'ಫಾಂಟ್ ಗಾತ್ರ', saturation: 'ಸ್ಯಾಚುರೇಶನ್', screenReader: 'ಸ್ಕ್ರೀನ್ ರೀಡರ್', highContrastTheme: 'ಹೈ ಕಾಂಟ್ರಾಸ್ಟ್ ಥೀಮ್', resetLabel: 'ಮರುಹೊಂದಿಸಿ',
     faq: 'ಪದೇ ಪದೇ ಕೇಳಲಾಗುವ ಪ್ರಶ್ನೆಗಳು', shippingPolicy: 'ಶಿಪ್ಪಿಂಗ್ ನೀತಿ', policy: 'ನೀತಿ', cancelPolicy: 'ರದ್ದತಿ ನೀತಿ', termsConditions: 'ನಿಯಮಗಳು ಮತ್ತು ಷರತ್ತುಗಳು', contactUs: 'ನಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸಿ',
@@ -337,7 +337,7 @@ authRequestRef.current += 1
     hero: 'शेतकरी आणि ग्राहकांमधील थेट संपर्क, ज्यामुळे शेतकऱ्यांना अधिक कमाई आणि कुटुंबांना योग्य किमतीत ताजा भाजीपाला मिळतो.',
     join: 'प्लॅटफॉर्ममध्ये सामील व्हा', middlemen: 'अनावश्यक मध्यस्थ', connection: 'शेतकरी ते खरेदीदार थेट संपर्क', transparency: '100% किंमत पारदर्शकता',
     challenge: 'आव्हान', mission: 'एक साधे ध्येय: अन्नाचा प्रवास अधिक न्याय्य बनवणे.',
-    missionText: 'अनेक मध्यस्थ शेतकऱ्यांची कमाई कमी करतात आणि ग्राहकांच्या किमती वाढवतात. FarmDirect एका पारदर्शक प्लॅटफॉर्मद्वारे दोन्ही बाजूंना जवळ आणते.',
+    missionText: 'अनेक मध्यस्थ शेतकऱ्यांची कमाई कमी करतात आणि ग्राहकांच्या किमती वाढवतात. F2C एका पारदर्शक प्लॅटफॉर्मद्वारे दोन्ही बाजूंना जवळ आणते.',
     accessibility: 'सुलभता', language: 'भाषा',
     fontSize: 'फॉन्ट आकार', saturation: 'संपृक्तता', screenReader: 'स्क्रीन रीडर', highContrastTheme: 'हाय काँट्रास्ट थीम', resetLabel: 'रीसेट',
     faq: 'वारंवार विचारले जाणारे प्रश्न', shippingPolicy: 'शिपिंग धोरण', policy: 'धोरण', cancelPolicy: 'रद्द करण्याचे धोरण', termsConditions: 'नियम व अटी', contactUs: 'आमच्याशी संपर्क साधा',
@@ -349,7 +349,7 @@ authRequestRef.current += 1
     hero: 'কৃষক ও ভোক্তাদের মধ্যে সরাসরি সংযোগ, যা কৃষকদের বেশি আয় করতে এবং পরিবারগুলিকে ন্যায্য মূল্যে তাজা ফসল কিনতে সাহায্য করে।',
     join: 'প্ল্যাটফর্মে যোগ দিন', middlemen: 'অপ্রয়োজনীয় মধ্যস্বত্বভোগী', connection: 'কৃষক থেকে ক্রেতার সরাসরি সংযোগ', transparency: '১০০% মূল্য স্বচ্ছতা',
     challenge: 'চ্যালেঞ্জ', mission: 'একটি সহজ লক্ষ্য: খাদ্যের যাত্রাকে আরও ন্যায্য করা।',
-    missionText: 'অনেক মধ্যস্বত্বভোগী কৃষকদের আয় কমিয়ে দেয় এবং ভোক্তাদের দাম বাড়িয়ে দেয়। FarmDirect একটি স্বচ্ছ প্ল্যাটফর্মের মাধ্যমে উভয় পক্ষকে কাছাকাছি নিয়ে আসে।',
+    missionText: 'অনেক মধ্যস্বত্বভোগী কৃষকদের আয় কমিয়ে দেয় এবং ভোক্তাদের দাম বাড়িয়ে দেয়। F2C একটি স্বচ্ছ প্ল্যাটফর্মের মাধ্যমে উভয় পক্ষকে কাছাকাছি নিয়ে আসে।',
     accessibility: 'অ্যাক্সেসিবিলিটি', language: 'ভাষা',
     fontSize: 'ফন্ট সাইজ', saturation: 'স্যাচুরেশন', screenReader: 'স্ক্রিন রিডার', highContrastTheme: 'হাই কনট্রাস্ট থিম', resetLabel: 'রিসেট',
     faq: 'প্রায়শই জিজ্ঞাসিত প্রশ্ন', shippingPolicy: 'শিপিং নীতি', policy: 'নীতি', cancelPolicy: 'বাতিলকরণ নীতি', termsConditions: 'শর্তাবলী', contactUs: 'যোগাযোগ করুন',
@@ -361,7 +361,7 @@ authRequestRef.current += 1
     hero: 'A direct connection between farmers and consumers, helping farmers earn more and families buy fresh produce at a fair price.',
     join: 'Join the platform', middlemen: 'Unnecessary middlemen', connection: 'Farmer to buyer connection', transparency: 'Price transparency',
     challenge: 'THE CHALLENGE', mission: 'One simple goal: make the food journey fairer.',
-    missionText: 'Multiple intermediaries reduce farmers’ earnings and increase consumer prices. FarmDirect brings both sides closer together through one transparent platform.',
+    missionText: 'Multiple intermediaries reduce farmers’ earnings and increase consumer prices. F2C brings both sides closer together through one transparent platform.',
     accessibility: 'Accessibility', language: 'Language',
     fontSize: 'Font Size', saturation: 'Saturation', screenReader: 'Screen Reader', highContrastTheme: 'High Contrast Theme', resetLabel: 'Reset',
     faq: 'FAQ', shippingPolicy: 'Shipping Policy', policy: 'Policy', cancelPolicy: 'cancel policy', termsConditions: 'Terms & Conditions', contactUs: 'Contact Us',
@@ -846,7 +846,7 @@ function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole
         <section className={`${panelShell} relative max-w-[610px]`} role="dialog" aria-modal="true" aria-labelledby="auth-title">
           <button className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-xl text-[var(--text-muted)] hover:text-brand-700" aria-label={t.closeLabel} onClick={onClose}>×</button>
           <LanguageSwitcher language={language} setLanguage={setLanguage} className="mb-3.5 mr-11 inline-flex" />
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-brand-400">FARMDIRECT</p>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-brand-400">F2C</p>
           <h2 id="auth-title" className="font-display text-[28px] font-semibold text-brand-900">{t.howRegister}</h2>
           <p className="mb-6 mt-1.5 text-sm text-[var(--text-muted)]">{t.chooseAccount}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -889,7 +889,7 @@ function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole
       <section className={panelShell} role="dialog" aria-modal="true" aria-labelledby="auth-title">
         <button className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-xl text-[var(--text-muted)] hover:text-brand-700" aria-label={t.closeLabel} onClick={onClose}>×</button>
         <LanguageSwitcher language={language} setLanguage={setLanguage} className="mb-3.5 mr-11 inline-flex" />
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-brand-400">FARMDIRECT</p>
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-brand-400">F2C</p>
         {isRegister && <button className="mb-4 -mt-1 block text-xs font-bold text-brand-800 hover:text-brand-600" onClick={() => setRole(null)}>{t.changeRole}</button>}
         <h2 id="auth-title" className="font-display text-[28px] font-semibold text-brand-900">
           {isRegister ? t.createAccount.replace('{role}', selectedRole.title) : `${t.welcomeBack} · ${roles[loginRole].title}`}
@@ -955,7 +955,7 @@ function AuthPanel({ type, onClose, onSwitch, language, setLanguage, initialRole
             </button>
           </form>
         )}
-        <p className="mt-5 text-center text-xs text-[var(--text-muted)]">{isRegister ? t.alreadyHaveAccount : t.newToFarmDirect} <button className="font-bold text-brand-600" onClick={onSwitch}>{isRegister ? t.login : t.register}</button></p>
+        <p className="mt-5 text-center text-xs text-[var(--text-muted)]">{isRegister ? t.alreadyHaveAccount : t.newToF2C} <button className="font-bold text-brand-600" onClick={onSwitch}>{isRegister ? t.login : t.register}</button></p>
       </section>
     </div>
   )

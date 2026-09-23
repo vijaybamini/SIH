@@ -5,7 +5,7 @@ const SERVICE_CATEGORY_CONTENT = {
     role: 'farmer',
     tagline: 'Sell your harvest at a fair, transparent price — no middlemen.',
     intro: [
-      'FarmDirect prices your crop using real Agmarknet market data and current demand across every buyer on the platform, not a single haggled number from a middleman. The price you see is a live, market-driven rate that updates as demand does.',
+      'F2C prices your crop using real Agmarknet market data and current demand across every buyer on the platform, not a single haggled number from a middleman. The price you see is a live, market-driven rate that updates as demand does.',
       'When more than one buyer wants the same crop at the same time, the platform pools that demand so your price reflects real scarcity — the same way a real market clears, just without you having to negotiate it yourself.',
     ],
     benefits: [
@@ -17,7 +17,7 @@ const SERVICE_CATEGORY_CONTENT = {
     steps: [
       'Register as a farmer and complete your profile with your farm size and location.',
       'Add each crop you grow, along with planted and expected harvest dates.',
-      'FarmDirect shows you a live, pooled-demand price per crop — updated as buyer demand changes.',
+      'F2C shows you a live, pooled-demand price per crop — updated as buyer demand changes.',
       'When a buyer orders, you get paid your net price directly, with the exact commission shown up front.',
     ],
   },
@@ -25,7 +25,7 @@ const SERVICE_CATEGORY_CONTENT = {
     role: 'buyer',
     tagline: 'Source fresh produce in bulk, straight from verified farmers.',
     intro: [
-      'The Marketplace is where bulk buyers — retailers, institutions, processors — order directly from the farmers already on FarmDirect, at a price set by real market data and pooled demand instead of a middleman\'s markup.',
+      'The Marketplace is where bulk buyers — retailers, institutions, processors — order directly from the farmers already on F2C, at a price set by real market data and pooled demand instead of a middleman\'s markup.',
       'Every quote is itemized before you pay: the crop value that goes to the farmer, and the logistics cost of getting it to you — nothing else is added on top.',
     ],
     benefits: [
@@ -45,8 +45,8 @@ const SERVICE_CATEGORY_CONTENT = {
     role: 'service',
     tagline: 'List your processing facility and connect it to the crops it handles.',
     intro: [
-      'Processing units — rice mills, oil mills, flour mills, and similar facilities — can register on FarmDirect with the crop types they process and their GST details, making their capacity visible on the platform.',
-      'This is the newest part of FarmDirect and is intentionally simple today: register your facility and the crops you handle, with more direct farmer-to-processor matching planned as the platform grows.',
+      'Processing units — rice mills, oil mills, flour mills, and similar facilities — can register on F2C with the crop types they process and their GST details, making their capacity visible on the platform.',
+      'This is the newest part of F2C and is intentionally simple today: register your facility and the crops you handle, with more direct farmer-to-processor matching planned as the platform grows.',
     ],
     benefits: [
       'Register one or more mills/facilities, each with the specific crop types it processes',
@@ -56,14 +56,14 @@ const SERVICE_CATEGORY_CONTENT = {
     steps: [
       'Register as a service provider and complete your business profile.',
       'Add each mill or facility you operate, with the crop types it processes and GSTIN.',
-      'Your facility becomes part of FarmDirect\'s network of processing capacity.',
+      'Your facility becomes part of F2C\'s network of processing capacity.',
     ],
   },
   logistics: {
     role: 'logistics',
     tagline: 'Offer transport and delivery services for real, priced-in trips.',
     intro: [
-      'Logistics providers move crops from farm to buyer. FarmDirect factors real logistics cost into every quote — the freight you\'re paid is passed through to the buyer at your quoted rate, with no platform markup taken on top of it.',
+      'Logistics providers move crops from farm to buyer. F2C factors real logistics cost into every quote — the freight you\'re paid is passed through to the buyer at your quoted rate, with no platform markup taken on top of it.',
       'Register your vehicles or your storage/inventory capacity, and manage trip and storage details from one dashboard.',
     ],
     benefits: [

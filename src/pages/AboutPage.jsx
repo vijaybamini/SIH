@@ -16,7 +16,7 @@ export default function AboutPage() {
           Farmers in India routinely lose a large share of their crop's real value to layers
           of middlemen between the field and the final buyer, while buyers pay prices that
           don't clearly reflect the produce's actual quality, freshness, or market value.
-          FarmDirect exists to close that gap — connecting farmers directly to bulk buyers,
+          F2C exists to close that gap — connecting farmers directly to bulk buyers,
           with a pricing engine that draws on real Agmarknet market data and live demand,
           not a haggled number set by whoever has the most leverage in the chain.
         </p>
@@ -28,7 +28,7 @@ export default function AboutPage() {
           platform's own commission taken only from the farmer's side and shown up front.
         </p>
         <p>
-          Beyond pricing, FarmDirect brings the rest of the supply chain onto the same
+          Beyond pricing, F2C brings the rest of the supply chain onto the same
           platform: logistics providers who move the produce, and processing facilities who
           turn raw crops into market-ready goods — so the whole journey from farm to buyer
           happens in one connected system instead of a chain of disconnected middlemen.

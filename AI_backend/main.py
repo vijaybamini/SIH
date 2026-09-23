@@ -14,7 +14,7 @@ CONFIG_PATH = Path(__file__).resolve().parent / "pricing_config.json"
 engine = PricingEngine(str(CONFIG_PATH))
 
 app = FastAPI(
-    title="FarmDirect AI Backend",
+    title="F2C AI Backend",
     description="Transport pricing + end-to-end farmer-to-consumer quote engine.",
     version="1.1.0",
 )
@@ -70,7 +70,7 @@ def _warm_dataset_cache():
 
 @app.get("/")
 def home():
-    return {"message": "FarmDirect AI backend is running", "build": "dedup-single-fit-2026-09-13e"}
+    return {"message": "F2C AI backend is running", "build": "dedup-single-fit-2026-09-13e"}
 
 
 @app.get("/api/commodities")
