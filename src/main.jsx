@@ -618,7 +618,7 @@ function AuthLoadingScreen({ language }) {
   return (
     <main className="auth-loading" aria-live="polite" aria-busy="true">
       <div className="auth-loading-mark" aria-hidden="true">✦</div>
-      <strong>Farm<span>Direct</span></strong>
+      <strong>F<span>2</span>C</strong>
       <p>{t.restoringSession}</p>
     </main>
   )
