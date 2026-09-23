@@ -159,32 +159,30 @@ export default function LogisticsDashboard({ user, logisticsProfile, language, s
             <p className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-400">{t.dashboardLabel}</p>
             <h2 className="font-display text-3xl font-bold tracking-tight text-brand-900">{t.welcomeBack}{user.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>
           </div>
-          {chosenSection && (
-            <div className="flex items-center gap-3.5">
-              <NotificationBell userId={user.id} onViewTripOffer={() => goToNav('Transport')} />
-              <LanguageSwitcher language={language} setLanguage={setLanguage} />
-              <div className="relative" ref={wrapRef} onMouseEnter={showTop}>
-                <div
-                  className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brand-600 text-base font-bold text-white"
-                  tabIndex={0}
-                  onClick={showTop}
-                  onFocus={showTop}
-                  onBlur={hideTop}
-                >
-                  {initials}
-                  {!user.profileComplete && <span className="absolute -right-1 -top-1 flex h-[23px] w-[23px] items-center justify-center rounded-full border-2 border-cream-300 bg-cream-300 text-sm font-extrabold text-brand-600" aria-label={t.profileIncompleteLabel}>!</span>}
-                </div>
-                <ProfileMenu
-                  profileComplete={user.profileComplete}
-                  onOpenCompleteProfile={() => goToNav('Profile')}
-                  onLogout={onLogout}
-                  tooltipRef={tooltipRef}
-                  visible={showTopMenu}
-                  t={t}
-                />
+          <div className="flex items-center gap-3.5">
+            <NotificationBell userId={user.id} onViewTripOffer={() => goToNav('Transport')} />
+            <LanguageSwitcher language={language} setLanguage={setLanguage} />
+            <div className="relative" ref={wrapRef} onMouseEnter={showTop}>
+              <div
+                className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brand-600 text-base font-bold text-white"
+                tabIndex={0}
+                onClick={showTop}
+                onFocus={showTop}
+                onBlur={hideTop}
+              >
+                {initials}
+                {!user.profileComplete && <span className="absolute -right-1 -top-1 flex h-[23px] w-[23px] items-center justify-center rounded-full border-2 border-cream-300 bg-cream-300 text-sm font-extrabold text-brand-600" aria-label={t.profileIncompleteLabel}>!</span>}
               </div>
+              <ProfileMenu
+                profileComplete={user.profileComplete}
+                onOpenCompleteProfile={() => goToNav('Profile')}
+                onLogout={onLogout}
+                tooltipRef={tooltipRef}
+                visible={showTopMenu}
+                t={t}
+              />
             </div>
-          )}
+          </div>
         </header>
 
         {activeNav === 'Transport' ? (
