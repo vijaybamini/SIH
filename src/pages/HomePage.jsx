@@ -37,7 +37,7 @@ export default function HomePage() {
           <video
             ref={heroVideoRef}
             className="block h-full w-full object-cover"
-            src="/intro.mp4"
+            src="/F2C_Main_page_intro.mp4"
             autoPlay
             loop
             muted
