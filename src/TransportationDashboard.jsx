@@ -202,7 +202,7 @@ export default function TransportationDashboard({ userId, initialData, t, onComp
 
   return (
     <div>
-        <div className="mb-8 grid grid-cols-3 gap-4">
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {stats.map(([label, value]) => (
             <div key={label} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5">
               <span className="block text-[11px] font-bold uppercase tracking-wide text-brand-400">{label}</span>

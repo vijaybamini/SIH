@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import LanguageSwitcher from './LanguageSwitcher'
 import PriceWidget from './PriceWidget'
 import FarmerAnalytics from './FarmerAnalytics'
-import Logo from './Logo'
+import DashboardShell from './DashboardShell'
 import { useTranslation } from './i18n'
 import { fetchFarmerPrice } from './api/aiBackend'
 import { displayCropName } from './cropNames'
@@ -302,62 +302,47 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
   const cropNames = [...new Set(allCrops.map((crop) => crop.name))]
   const prices = useCropPrices(cropNames)
 
-  const navButtonClass = (active) =>
-    `rounded-xl px-4 py-3.5 text-left text-[16px] font-medium transition-colors ${
-      active ? 'bg-white font-bold text-brand-900 shadow-sm' : 'text-[var(--sidebar-text,#4a5c40)] hover:bg-white/55 hover:text-brand-900'
-    }`
+  const greeting = `${t.welcomeBack}${user.name ? `, ${user.name.split(' ')[0]}` : ''}`
 
   return (
-    <div
-      className="flex bg-cream-200 font-sans text-[15px] leading-relaxed text-[var(--text-primary)]"
-      style={{ zoom: 0.81, minHeight: 'calc(100vh / 0.81)' }}
-    >
-      <aside className="flex w-[260px] shrink-0 flex-col bg-[#dcebc4] p-7">
-        <div className="mb-9 px-2"><Logo /></div>
-
-        <nav className="flex flex-col gap-1.5" aria-label={t.dashboardNavLabel}>
-          {navItems.map(([key, label]) => (
-            <button key={key} className={navButtonClass(activeNav === key)} onClick={() => setActiveNav(key)}>{label}</button>
-          ))}
-        </nav>
-
-        <button className="mt-auto flex items-center gap-2.5 rounded-xl px-4 py-3.5 text-left text-[16px] font-medium text-[#4a5c40] hover:text-brand-900" onClick={onLogout}>
-          <span aria-hidden="true">⤶</span> {t.logout}
-        </button>
-      </aside>
-
-      <main className="min-w-0 flex-1 px-9 pb-14 pt-8">
-        <header className="mb-7 flex items-center justify-between gap-4">
-          <div>
-            <p className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-400">{t.dashboardLabel}</p>
-            <h2 className="font-display text-3xl font-bold tracking-tight text-brand-900">{t.welcomeBack}{user.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>
-          </div>
-          <div className="flex items-center gap-3.5">
-            <LanguageSwitcher language={language} setLanguage={setLanguage} />
-            <div className="relative" ref={wrapRef} onMouseEnter={showTop}>
-              <div
-                className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brand-600 text-base font-bold text-white"
-                tabIndex={0}
-                onClick={showTop}
-                onFocus={showTop}
-                onBlur={hideTop}
-              >
-                {initials}
-                {!user.profileComplete && (
-                  <span className="absolute -right-1 -top-1 flex h-[23px] w-[23px] items-center justify-center rounded-full border-2 border-cream-300 bg-cream-300 text-sm font-extrabold text-brand-600" aria-label={t.profileIncompleteLabel}>!</span>
-                )}
-              </div>
-              <ProfileMenu
-                profileComplete={user.profileComplete}
-                onOpenCompleteProfile={onOpenCompleteProfile}
-                onLogout={onLogout}
-                tooltipRef={tooltipRef}
-                visible={showTopMenu}
-                t={t}
-              />
+    <DashboardShell
+      navItems={navItems}
+      activeNav={activeNav}
+      onNavSelect={setActiveNav}
+      onLogout={onLogout}
+      logoutLabel={t.logout}
+      navLabel={t.dashboardNavLabel}
+      menuLabel={t.menuToggleLabel}
+      eyebrow={t.dashboardLabel}
+      greeting={greeting}
+      actions={(
+        <>
+          <LanguageSwitcher language={language} setLanguage={setLanguage} />
+          <div className="relative" ref={wrapRef} onMouseEnter={showTop}>
+            <div
+              className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brand-600 text-base font-bold text-white"
+              tabIndex={0}
+              onClick={showTop}
+              onFocus={showTop}
+              onBlur={hideTop}
+            >
+              {initials}
+              {!user.profileComplete && (
+                <span className="absolute -right-1 -top-1 flex h-[23px] w-[23px] items-center justify-center rounded-full border-2 border-cream-300 bg-cream-300 text-sm font-extrabold text-brand-600" aria-label={t.profileIncompleteLabel}>!</span>
+              )}
             </div>
+            <ProfileMenu
+              profileComplete={user.profileComplete}
+              onOpenCompleteProfile={onOpenCompleteProfile}
+              onLogout={onLogout}
+              tooltipRef={tooltipRef}
+              visible={showTopMenu}
+              t={t}
+            />
           </div>
-        </header>
+        </>
+      )}
+    >
 
         {activeNav === 'CropHistory' ? (
           <CropHistoryPage crops={allCrops} language={language} t={t} />
@@ -478,7 +463,6 @@ export default function Dashboard({ user, farmerProfile, language, setLanguage, 
             </div>
           </div>
         )}
-      </main>
-    </div>
+    </DashboardShell>
   )
 }

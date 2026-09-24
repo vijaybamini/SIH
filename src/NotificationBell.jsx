@@ -88,7 +88,7 @@ export default function NotificationBell({ userId, onViewTripOffer }) {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-[340px] max-w-[90vw] overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] shadow-lg shadow-brand-900/10">
+        <div className="fixed right-3 top-16 z-20 w-[340px] max-w-[90vw] overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] shadow-lg shadow-brand-900/10 sm:absolute sm:right-0 sm:top-[calc(100%+8px)]">
           <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
             <p className="text-sm font-bold text-brand-900">Notifications</p>
             {unreadCount > 0 && (

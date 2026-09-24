@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import LanguageSwitcher from './LanguageSwitcher'
-import Logo from './Logo'
+import DashboardShell from './DashboardShell'
 import { useTranslation } from './i18n'
 
 const MENU_PROXIMITY_MARGIN = 28
@@ -92,57 +92,50 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
     ['GSTIN on file', mills.length ? `${gstinCompliant}/${mills.length}` : '—'],
   ]
 
+  const navItems = [['Dashboard', t.navDashboard]]
+
+  const greeting = `${t.welcomeBack}${user.name ? `, ${user.name.split(' ')[0]}` : ''}`
+
   return (
-    <div
-      className="flex bg-cream-200 font-sans text-[15px] leading-relaxed text-[var(--text-primary)]"
-      style={{ zoom: 0.9, minHeight: 'calc(100vh / 0.9)' }}
-    >
-      <aside className="flex w-[260px] shrink-0 flex-col bg-[#dcebc4] p-7">
-        <div className="mb-9 px-2"><Logo /></div>
-
-        <nav className="flex flex-col gap-1.5" aria-label={t.dashboardNavLabel}>
-          <button className="rounded-xl bg-white px-4 py-3.5 text-left text-[16px] font-bold text-brand-900 shadow-sm">{t.navDashboard}</button>
-        </nav>
-
-        <button className="mt-auto flex items-center gap-2.5 rounded-xl px-4 py-3.5 text-left text-[16px] font-medium text-[#4a5c40] hover:text-brand-900" onClick={onLogout}>
-          <span aria-hidden="true">⤶</span> {t.logout}
-        </button>
-      </aside>
-
-      <main className="min-w-0 flex-1 px-9 pb-14 pt-8">
-        <header className="mb-7 flex items-center justify-between gap-4">
-          <div>
-            <p className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-400">{t.dashboardLabel}</p>
-            <h2 className="font-display text-3xl font-bold tracking-tight text-brand-900">{t.welcomeBack}{user.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>
-          </div>
-          <div className="flex items-center gap-3.5">
-            <LanguageSwitcher language={language} setLanguage={setLanguage} />
-            <div className="relative" ref={wrapRef} onMouseEnter={showTop}>
-              <div
-                className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brand-600 text-base font-bold text-white"
-                tabIndex={0}
-                onClick={showTop}
-                onFocus={showTop}
-                onBlur={hideTop}
-              >
-                {initials}
-                {!user.profileComplete && (
-                  <span className="absolute -right-1 -top-1 flex h-[23px] w-[23px] items-center justify-center rounded-full border-2 border-cream-300 bg-cream-300 text-sm font-extrabold text-brand-600" aria-label={t.profileIncompleteLabel}>!</span>
-                )}
-              </div>
-              <ProfileMenu
-                profileComplete={user.profileComplete}
-                onOpenCompleteProfile={onOpenCompleteProfile}
-                onLogout={onLogout}
-                tooltipRef={tooltipRef}
-                visible={showTopMenu}
-                t={t}
-              />
+    <DashboardShell
+      navItems={navItems}
+      activeNav="Dashboard"
+      onNavSelect={() => {}}
+      onLogout={onLogout}
+      logoutLabel={t.logout}
+      navLabel={t.dashboardNavLabel}
+      menuLabel={t.menuToggleLabel}
+      eyebrow={t.dashboardLabel}
+      greeting={greeting}
+      actions={(
+        <>
+          <LanguageSwitcher language={language} setLanguage={setLanguage} />
+          <div className="relative" ref={wrapRef} onMouseEnter={showTop}>
+            <div
+              className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-brand-600 text-base font-bold text-white"
+              tabIndex={0}
+              onClick={showTop}
+              onFocus={showTop}
+              onBlur={hideTop}
+            >
+              {initials}
+              {!user.profileComplete && (
+                <span className="absolute -right-1 -top-1 flex h-[23px] w-[23px] items-center justify-center rounded-full border-2 border-cream-300 bg-cream-300 text-sm font-extrabold text-brand-600" aria-label={t.profileIncompleteLabel}>!</span>
+              )}
             </div>
+            <ProfileMenu
+              profileComplete={user.profileComplete}
+              onOpenCompleteProfile={onOpenCompleteProfile}
+              onLogout={onLogout}
+              tooltipRef={tooltipRef}
+              visible={showTopMenu}
+              t={t}
+            />
           </div>
-        </header>
-
-        <div className="mb-8 grid grid-cols-3 gap-4">
+        </>
+      )}
+    >
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {stats.map(([label, value]) => (
             <div key={label} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5">
               <span className="block text-[11px] font-bold uppercase tracking-wide text-brand-400">{label}</span>
@@ -220,9 +213,8 @@ export default function ServiceDashboard({ user, serviceProfile, language, setLa
                 ))}
               </div>
             )}
-          </div>
+</div>
         </div>
-      </main>
-    </div>
+    </DashboardShell>
   )
 }

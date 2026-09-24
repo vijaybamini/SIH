@@ -1,115 +1,149 @@
-# Agri-Commodity Transport Pricing System (India) — v3
+# FarmDirect
 
-Files:
-- `pricing_engine.py` — the engine. No hardcoded rupee values; everything tunable lives in config.
-- `pricing_config.json` — every parameter, each tagged `observed` / `researched_estimate` / `assumption` / `business_decision`, with source and date where applicable.
-- `test_pricing_engine.py` — the 10 required validation tests + boundary tests + a results table + 12 automated correctness checks. Nothing in `pricing_engine.py` references these tests; run `python3 test_pricing_engine.py` any time to re-validate after a config change.
+FarmDirect is a multilingual, role-based digital marketplace for India’s agricultural supply chain. It connects farmers, bulk buyers, logistics providers, and agricultural service providers in one workflow so produce can move from farm to buyer with clearer pricing, better vehicle utilization, and fewer unnecessary intermediaries.
 
-## Commercial logic (v3)
+This repository contains the SIH 2026 prototype for **Problem Statement 26033**: *“Multiple intermediaries reduce farmers earnings and increase consumer prices.”*
 
-```
-ROAD DISTANCE
-     |
-VEHICLE SELECTION      required_capacity_kg = shipment_weight_kg / 0.90
-     |                 smallest class where max_payload_kg >= required_capacity_kg
-CAPACITY / TRIPS        AND (max_payload_kg - shipment_weight_kg) >= 100kg headroom
-     |                 -> if nothing fits, split into N trips, price ONE trip, warn
-OPERATING COST         fuel + driver + toll + maintenance + depreciation, each split
-     |                 forward (100%) vs. return (recovery_pct%, computed once)
-     |                 + loading/unloading (capped vs. market) + insurance + permits
-  .--+--.
-  v     v
-MARKET  COST_FLOOR     market_benchmark = market_mid_rate x distance (published band)
-FREIGHT                cost_floor = operating_cost x (1 + minimum_driver_margin_pct)
-  '--+--'
-     v
-RECOMMENDED FREIGHT    = max(market_weight*market_benchmark + cost_weight*cost_floor,
-                              cost_floor)                          <- 0.70 / 0.30, never below floor
-     |
-DRIVER PAYOUT          = recommended_freight (margin reported, not re-clamped)
-     |
-PLATFORM 10%           platform_commission = recommended_freight x 10%
-     |
-CUSTOMER PRICE         customer_pays = recommended_freight + platform_commission
-     |
-MARKET COMPETITIVENESS compares recommended_freight/km (NOT customer_pays/km) to the
-                        published market band — commission can't distort this read
-```
+## What the project solves
 
-## What changed from the previous version
+The problem statement calls for a digital marketplace that:
 
-1. **Vehicle selection**: `required_capacity_kg = shipment_weight_kg / 0.90`; a class qualifies only if its *rated* `max_payload_kg` covers that, with a 100kg headroom check. A vehicle's capacity is never reported as smaller than what it's actually carrying. Verified against the exact 2,000kg case in the bug report — see "Verification" below.
-2. **Reefer selection**: reefer vehicles go through the identical capacity math on their own size ladder (`reefer_medium` → `reefer_heavy`), so an 8-tonne fruit shipment correctly lands on `reefer_heavy` (required capacity 8,889kg > `reefer_medium`'s 8,500kg cap), not a 7T reefer used past its rated limit.
-3. **Pricing formula**: replaced with the exact form specified — `market_benchmark` is the published mid rate × distance (no adjustment deltas), blended 70/30 with `cost_floor`, floored so it never drops below `cost_floor`. `driver_payout = recommended_freight` directly (margin is reported, not forced to a target or clamped to a max — those are now reference-only figures).
-4. **Market-vs-cost transparency**: `cost_floor > market_freight_high` → `market_vs_cost_status = ABOVE_MARKET_REQUIRED` and an explicit `MARKET_BELOW_COST_FLOOR` warning. `cost_floor` between market low and high → `TIGHT`. Otherwise → `VIABLE`.
-5. **Market comparison** now checks `recommended_freight_per_km` against the published band — not `customer_pays`, which includes the platform's 10% on top and would otherwise make every quote look more "above market" than the underlying freight price actually is.
-6. **Cost line granularity**: maintenance and depreciation are now two separate reported lines (previously combined); insurance and permits are two separate lines (previously one "other" bucket); forward/return breakdown is exposed for fuel, driver, toll, maintenance, and depreciation individually, plus `return_recovery_fraction`.
-7. **Empty-return keys renamed exactly as specified**: `no_backhaul` (0%, used when `backhaul_available=True`), `established_corridor` (15%), `thin_corridor` (30%, down from the old 50% assumption), `default` (30%), with a hard 50% safety clamp.
-8. **Heavy-vehicle mileage revised upward**: `heavy_10w` loaded mileage moved from 3.5 to 4.5 km/l, `multi_axle` from 2.5 to 3.5 km/l, per the instruction that the single earlier source (BiggWheels, ~3.5 km/l) was on the pessimistic end of operator-reported ranges. Flagged in config as an adjusted assumption, not a newly-observed figure — I did not find a second independent source in this pass to fully corroborate 4.0-5.0 km/l for loaded 16-20T operation.
-9. **Platform commission**: 12% → 10%, as instructed.
+- connects farmers/FPOs directly with consumers and bulk buyers;
+- provides logistics support; and
+- uses AI for demand forecasting and route optimization.
 
-## Verification
+FarmDirect addresses those requirements with four role-specific experiences:
 
-```
-$ python3 -c "
-from pricing_engine import PricingEngine
-engine = PricingEngine('pricing_config.json')
-q = engine.price_trip(commodity='vegetables', shipment_weight_kg=2000, distance_km=145,
-                       pickup='Warangal', destination='Hyderabad', corridor_type='established')
-print(q.vehicle_class, q.vehicle_capacity_kg, q.vehicle_utilization_pct)
-"
-mini_lcv 2500 80.0
-```
-2,000kg requires 2,222kg of rated capacity (2,000 / 0.90); `mini_lcv`'s true rated capacity is 2,500kg, which covers that with an 80% utilization and a 500kg headroom — a legitimate, non-buggy fit. It is **not** the old bug, where the vehicle's *displayed* capacity (1,500kg) was smaller than what was actually being loaded onto it. If your mental model of "1.5T mini truck" expects a firm 1,500-2,000kg ceiling rather than 2,500kg, that's a vehicle-spec question (see `vehicle_classes.mini_lcv.max_payload_kg` source note) rather than a selection-logic bug — the logic itself is now capacity-correct given whatever rated figure the config holds.
+| Role | Implemented experience |
+| --- | --- |
+| Farmer | Profile, farm and land details, crop listings, crop progress/history, harvest status, bank details, and current commodity-price guidance. |
+| Bulk buyer | Searchable commodity catalog, quantity and pincode-based price requests, itemized quote, test-mode checkout, and order creation. |
+| Logistics provider | Company profile, fleet registration, vehicle capacity/status/history, inventory and cold-storage records, live trip offers, job acceptance, and delivery completion. |
+| Service provider | Business profile and mill/service details, including crops handled and GST/document information. |
 
-## Known calibration gap (read before treating any number as final)
+The application supports English, Hindi, Kannada, Telugu, Tamil, Malayalam, Marathi, and Bengali UI translations, with language selection and accessibility controls in the app shell.
 
-Running the 10 required tests, `market_vs_cost_status` comes back `ABOVE_MARKET_REQUIRED` (with a `MARKET_BELOW_COST_FLOOR` warning) in **all 10**, including the ones that should be the easiest to price competitively — e.g. Test 5 (15t rice, 550km, backhaul secured, a full heavy 10-wheeler). `recommended_freight` collapses to `cost_floor` every time because `cost_floor` exceeds `market_freight_high` in every test, not just `market_freight_mid`.
-
-I checked this isn't a formula bug: a synthetic test with diesel artificially dropped to ₹20/L shows the 70/30 market/cost blend correctly lifts `recommended_freight` above `cost_floor` once `cost_floor` falls below `market_mid` (see `test_pricing_engine.py` check 7 and the diagnostic block at the end of its output). Under the real, sourced diesel price and cost parameters, that condition just never holds across these 10 scenarios. The two largest contributors, quantified on Test 5:
-
-- **Fuel is ~45% of operating cost**, calculated at ₹104/L (the Hyderabad rate specifically, ~6-8% above the ~₹98/L national average the same day). Using the national-average price instead would close part of the gap but not all of it.
-- **The second-driver doubling past 500km one-way is ~18% of operating cost.** This is applied on every long-haul test here (all are ≥550km), and in practice Indian long-haul trucking commonly runs single-driver with rest breaks rather than formally crewing two drivers past a fixed distance threshold — the 500km figure was carried over as a conservative planning assumption, not an observed industry norm (see `driver.second_driver_distance_threshold_km` in config).
-
-I did not adjust either of these unilaterally — both were specified inputs — but they're the first two places I'd point real fleet-cost data at before trusting `recommended_freight` as a genuine market-anchored number rather than a cost-floor-driven one. Until then, every quote this engine produces is honestly telling you "the market band alone doesn't cover this trip's real cost" — which may reflect a genuine feature of thin-margin Indian trucking (informal operators often price below a fully-loaded formal cost model), or may mean the cost side needs retuning. The engine surfaces that ambiguity rather than resolving it silently in either direction.
-
-## Sourced data table
-
-| Parameter | Value used | Type | Source | Date |
-|---|---|---|---|---|
-| Diesel price, Hyderabad | ₹104.0/L | Observed | The Hans India fuel roundup | 11-Sep-2026 |
-| Diesel price, national avg | ₹97.8/L | Observed | Goodreturns | 11-Sep-2026 |
-| heavy_10w loaded mileage | 4.5 km/l (adjusted up from 3.5) | Researched estimate (adjusted) | BiggWheels TCO guide (3.5km/l base figure), instruction to use 4.0-5.0 range | 2026 |
-| multi_axle loaded mileage | 3.5 km/l (adjusted up from 2.5) | Researched estimate (adjusted) | Same basis | 2026 |
-| Truck driver monthly salary (avg) | ₹20,460/month | Observed | Indeed India | 25-May-2026 |
-| Long-haul driver bata | ~₹800-1,200/day | Observed | assureshift.in | 2026 |
-| Truck maintenance & tyres | ₹2-3/km | Observed | TruckGuru | 2026 |
-| Truck EMI/depreciation | ₹20,000-50,000/month | Observed | TruckGuru | 2026 |
-| NHAI toll, truck class per plaza | ₹250-400 | Observed (range) | assureshift.in | 2026 |
-| Foodgrain hamali wage | ₹28/quintal = ₹280/tonne | Observed | The Hans India (AP Civil Supplies) | Sep-2026 |
-| Commercial vehicle insurance | ₹30,000-80,000/yr | Observed (range) | TruckGuru | 2026 |
-| Permits/fitness/national permit | ₹15,000-50,000/yr | Observed (range) | TruckGuru | 2026 |
-| Platform commission benchmark (BlackBuck) | 10-20% | Observed | Multiple, 2026 | 2026 |
-| Reefer fuel/cost premium | 10-15% over standard | Observed (range) | Okararoadways | 2026 |
-| Cold-chain vehicle shortfall | ~10,000 in service vs ~62,000 needed | Observed | Rinac/NABCONS, cited in Rinac 2026 guide | 2026 |
-| market_rate_per_km bands (all classes) | as supplied | Business decision | Supplied directly for this system | — |
-| pricing_model weights, margin bands | as supplied | Business decision | Supplied directly for this system | — |
-| empty_return recovery percentages | as supplied | Business decision / assumption | Supplied directly; established/thin corridor % are modelling assumptions | — |
-
-Everything else (handling multipliers, reefer distance thresholds, second-driver threshold, average speed/driving-hours, overhead trip-count) is labelled `assumption` directly in `pricing_config.json` with a note on why no firm source was found.
-
-## Deploy the FastAPI backend to Render
-
-The backend is configured as a Render Web Service with `AI_backend` as its root directory. The repository includes a `render.yaml` Blueprint with the following settings:
+## Core product flow
 
 ```text
-Root Directory: AI_backend
-Build Command: pip install -r requirements.txt
-Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
-Health Check Path: /
+Farmer lists crop and available supply
+              │
+              ▼
+Buyer requests a commodity quote ──► market-price forecast + demand pressure
+              │                                      │
+              └──────────────► supply allocation + vehicle selection
+                                                     │
+                                                     ▼
+                         cost-based freight + route/trip optimization
+                                                     │
+                                                     ▼
+                 buyer checkout ──► persisted order ──► matched provider offers
+                                                               │
+                                                               ▼
+                                                     accept trip ──► deliver
 ```
 
-The service exposes `GET /` for health checks and `POST /calculate-price` for quotes. The request body must include:
+## Pricing model
+
+FarmDirect separates the farmer’s crop price, logistics cost, and platform fee so the buyer can see where the final price comes from.
+
+### Crop-price and demand intelligence
+
+- Historical Agmarknet commodity/market prices are used as the market signal.
+- A Holt-Winters model forecasts the next seven days of modal prices for a commodity and market.
+- The result is surfaced as a rising, falling, or stable demand-pressure signal.
+- Live farmer-listed supply is read from Supabase when available.
+- Concurrent buyer demand is pooled in a short-lived in-process window to model scarcity pressure during the demo.
+
+### Freight pricing
+
+The transport engine calculates a transparent trip quote from:
+
+- fuel, driver pay, tolls, maintenance, depreciation, insurance, permits, loading/unloading, and overhead;
+- road distance and empty-return/backhaul assumptions;
+- commodity requirements, shipment weight, and reefer needs;
+- published market freight bands; and
+- a minimum cost floor that protects driver economics.
+
+The recommended freight is blended against the market benchmark but never allowed below the calculated cost floor. FarmDirect applies a **flat 10% platform commission** to the recommended freight. The quote reports driver payout, driver margin, customer price, per-kilometre/per-kilogram metrics, market position, and warnings when the market band is below the modeled operating cost.
+
+### Vehicle and route optimization
+
+- Selects the smallest vehicle class that can safely carry the shipment, with a 90% utilization rule and capacity headroom.
+- Supports reefer vehicle selection for perishable produce.
+- Splits oversized shipments into multiple trips when necessary.
+- Pools compatible farmer supply and buyer demand into multi-stop trips.
+- Uses pincode coordinates and road-distance estimation when available, with a manual distance fallback.
+- Matches trip offers to registered providers by actual numeric vehicle capacity, not unreliable free-text vehicle names.
+
+## Architecture
+
+```text
+React + Vite frontend
+        │
+        ├── Supabase Auth + PostgreSQL + Storage + Realtime
+        │     ├── role profiles, crops, fleet, inventory, mills
+        │     ├── orders, farmer allocations, order trips
+        │     └── notifications and secure RPC functions
+        │
+        └── FastAPI AI backend
+              ├── Agmarknet dataset and price forecasting
+              ├── consumer quote pipeline
+              ├── freight pricing engine
+              ├── supply allocation and route optimization
+              └── logistics-provider matching
+```
+
+### Frontend
+
+- React with Vite.
+- Supabase JavaScript client for authentication and role-scoped data access.
+- Role-aware application shell in `src/main.jsx`.
+- Dashboard components in `src/` for farmers, buyers, logistics, and service providers.
+- API adapters in `src/api/`.
+- Responsive styling in `src/styles.css`.
+
+### AI/backend
+
+`AI_backend/` is a FastAPI service that combines the pricing engine with the marketplace pipeline. Important modules include:
+
+- `main.py` — HTTP API and order orchestration.
+- `pipeline.py` — end-to-end quote pipeline.
+- `consumer_pricing_engine.py` — crop-price, scarcity, freight, and checkout calculations.
+- `pricing_engine.py` — transparent transport-only freight pricing.
+- `demand_forecast_engine.py` — seven-day price/demand-pressure forecast.
+- `route_optimization.py` — pooled delivery and vehicle-trip planning.
+- `logistics_matching.py` — capacity-based provider matching.
+- `supabase_integration.py` — backend reads/RPC calls for supply, orders, trips, and notifications.
+
+### Database
+
+The SQL schema and incremental migrations are under `supabase/`. The database uses Row Level Security and role-scoped policies. It models:
+
+- profiles and role-specific records;
+- farmer land, crop, harvest, and bank details;
+- bulk buyers;
+- logistics providers, vehicles, transportation, and inventory;
+- service providers, service types, and mills;
+- orders, farmer allocations, and vehicle trips; and
+- notifications with atomic trip acceptance and delivery-completion functions.
+
+## API
+
+The frontend uses `VITE_AI_BACKEND_URL` and calls these backend endpoints:
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/` | Health check. |
+| `GET` | `/api/commodities` | List commodities available in the Agmarknet dataset. |
+| `GET` | `/api/markets?commodity=...` | List markets for a commodity. |
+| `GET` | `/api/supply?commodity=...` | Read currently listed farmer supply. |
+| `GET` | `/api/farmer-price?commodity=...` | Return farmer-facing market/forecast price guidance. |
+| `POST` | `/api/quote` | Generate the complete farmer-to-consumer quote and logistics plan. |
+| `POST` | `/api/orders` | Recalculate and persist a buyer order, allocations, and trips. |
+| `POST` | `/calculate-price` | Backward-compatible transport-only quote endpoint. |
+
+Example transport-only request:
 
 ```json
 {
@@ -124,4 +158,148 @@ The service exposes `GET /` for health checks and `POST /calculate-price` for qu
 }
 ```
 
-Optional pricing inputs include `corridor_type`, `season`, `backhaul_available`, `force_reefer`, `actual_toll`, and `diesel_price_override`. The API returns the complete serialized `Quote` object.
+The marketplace quote endpoint accepts a buyer demand payload such as:
+
+```json
+{
+  "commodity": "Rice",
+  "order_demand_kg": 500,
+  "buyer_pincode": "500001"
+}
+```
+
+## Local setup
+
+### Prerequisites
+
+- Node.js and npm
+- Python 3.10+
+- A Supabase project for authentication and database features
+
+### 1. Install frontend dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment variables
+
+Create `.env.local` in the project root:
+
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_SUPABASE_PUBLISHABLE_KEY
+VITE_AI_BACKEND_URL=http://localhost:8000
+```
+
+For the FastAPI service, create `AI_backend/.env` or export the variables in the shell:
+
+```env
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_ANON_KEY=YOUR_SUPABASE_PUBLISHABLE_KEY
+CORS_ORIGINS=http://localhost:5173
+```
+
+Do not commit secret keys. The frontend must use a Supabase publishable/anon key; never expose a Supabase service-role key in browser code.
+
+### 3. Apply the database schema
+
+Link the Supabase CLI to your project, then apply the migrations:
+
+```bash
+supabase db push
+```
+
+The migrations create the role tables, RLS policies, order/trip workflow, notifications, storage policies, and helper RPC functions required by the app.
+
+### 4. Start the AI backend
+
+```bash
+cd AI_backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+The Agmarknet CSV is expected under:
+
+```text
+AI_backend/agmarknet_data/agmarknet-india-commodity-prices-2024-2025/
+```
+
+### 5. Start the frontend
+
+From the repository root, in another terminal:
+
+```bash
+npm run dev
+```
+
+Open the Vite URL shown in the terminal, normally `http://localhost:5173`.
+
+## Production deployment
+
+`render.yaml` defines the FastAPI deployment on Render:
+
+- root directory: `AI_backend`
+- build command: `pip install -r requirements.txt`
+- start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- health check: `/`
+
+After deploying the backend, set the frontend’s `VITE_AI_BACKEND_URL` to the Render service URL and configure `CORS_ORIGINS` to include the deployed frontend origin.
+
+## Validation
+
+```bash
+# Frontend production build
+npm run build
+
+# Pricing-engine regression tests
+cd AI_backend
+python3 test_pricing_engine.py
+python3 test_route_optimization.py
+```
+
+The representative 2,000 kg / 145 km pricing case selects `mini_lcv` with 80% utilization under the current configuration. Pricing parameters are intentionally kept in `AI_backend/pricing_config.json` so assumptions and business decisions can be calibrated without changing the engine code.
+
+## Demo limitations and next steps
+
+This is a hackathon prototype, not a production marketplace or payment processor.
+
+- Checkout uses a test-mode payment form; no real card charge is made and card data is not sent to a gateway.
+- The short-lived concurrent-demand pool is process-local and resets on restart; production demand aggregation should use a shared store.
+- Price forecasts depend on the available historical market data and require enough history for a commodity/market pair.
+- Distance estimation falls back to manual distance when coordinates or route data are unavailable.
+- Freight and market parameters should be calibrated with verified fleet, toll, fuel, and corridor data before commercial use.
+
+## Repository layout
+
+```text
+.
+├── src/                         React frontend and role dashboards
+│   ├── api/                     Supabase and AI-backend clients
+│   └── main.jsx                 App shell, auth, role routing, accessibility
+├── AI_backend/                  FastAPI service and pricing/AI modules
+│   ├── pricing_config.json      Tunable pricing assumptions and parameters
+│   └── agmarknet_data/          Historical commodity-price data
+├── supabase/
+│   ├── migrations/               Incremental database migrations
+│   └── schema.sql                Base schema reference
+├── public/                      Static assets, including the intro video
+├── render.yaml                  Render backend deployment blueprint
+└── package.json                 Frontend scripts and dependencies
+```
+
+## SIH problem-statement reference
+
+The attached problem-statement document is treated as project context, not as executable instructions. Its metadata is:
+
+- **Problem Statement ID:** 26033
+- **Title:** Multiple intermediaries reduce farmers earnings and increase consumer prices.
+- **Organization:** Ministry of Consumer Affairs, Food & Public Distribution
+- **Department:** Department of Consumer Affairs (DoCA)
+- **Category:** Software
+- **Theme:** Agriculture, FoodTech & Rural Development
+
+FarmDirect’s implementation is the software response documented above: direct marketplace access, transparent logistics pricing, data-informed market guidance, optimized trips, and role-based workflows.

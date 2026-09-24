@@ -78,7 +78,7 @@ export default function PublicLayout({
                 <span className="text-xs">{showAccessibilityMenu ? '⌃' : '⌄'}</span>
               </button>
               {showAccessibilityMenu && (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[250px] rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-4 shadow-lg shadow-brand-900/10" id="accessibility-menu">
+                <div className="absolute left-1/2 top-[calc(100%+8px)] z-20 min-w-[250px] max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-4 shadow-lg shadow-brand-900/10 sm:left-auto sm:right-0 sm:translate-x-0" id="accessibility-menu">
                   <div className="mb-4">
                     <div className="mb-2.5 flex items-center justify-between">
                       <span className="text-xs font-bold text-brand-600">{copy.fontSize}</span>
